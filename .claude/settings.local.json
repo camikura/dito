@@ -6,7 +6,8 @@
       "Bash(mise exec:*)",
       "Bash(mise run:*)",
       "Bash(docker logs:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(go build:*)"
     ],
     "deny": [],
     "ask": []
