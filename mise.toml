@@ -27,3 +27,15 @@ run = "docker compose -f docker/docker-compose.yml ps"
 [tasks.db-clean]
 description = "Stop and remove Oracle NoSQL Database with volumes"
 run = "docker compose -f docker/docker-compose.yml down -v"
+
+[tasks.build]
+description = "Build dito binary"
+run = "go build -o dito cmd/dito/main.go"
+
+[tasks.run]
+description = "Run dito"
+run = "./dito"
+
+[tasks.dev]
+description = "Run dito in development mode"
+run = "go run cmd/dito/main.go"

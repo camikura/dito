@@ -16,9 +16,35 @@
 - [x] 要件定義
 - [x] UI設計
 - [x] 開発環境構築
+- [x] TUI Hello World
 - [ ] 実装
   - [ ] 接続機能
   - [ ] テーブル一覧表示
+
+## クイックスタート
+
+### ビルド
+
+```bash
+# miseを使用する場合
+mise run build
+
+# または直接
+go build -o dito cmd/dito/main.go
+```
+
+### 実行
+
+```bash
+# ビルド済みバイナリを実行
+./dito
+
+# または miseタスクで実行
+mise run run
+
+# 開発モード（ビルドせずに実行）
+mise run dev
+```
 
 ## 開発環境
 
