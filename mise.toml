@@ -1,0 +1,29 @@
+# mise configuration file
+# https://mise.jdx.dev/
+
+[tools]
+go = "latest"
+
+[tasks.db-start]
+description = "Start Oracle NoSQL Database"
+run = "docker compose -f docker/docker-compose.yml up -d"
+
+[tasks.db-stop]
+description = "Stop Oracle NoSQL Database"
+run = "docker compose -f docker/docker-compose.yml down"
+
+[tasks.db-restart]
+description = "Restart Oracle NoSQL Database"
+run = "docker compose -f docker/docker-compose.yml restart"
+
+[tasks.db-logs]
+description = "Show Oracle NoSQL Database logs"
+run = "docker compose -f docker/docker-compose.yml logs -f nosql"
+
+[tasks.db-status]
+description = "Check Oracle NoSQL Database status"
+run = "docker compose -f docker/docker-compose.yml ps"
+
+[tasks.db-clean]
+description = "Stop and remove Oracle NoSQL Database with volumes"
+run = "docker compose -f docker/docker-compose.yml down -v"

@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  nosql:
+    image: ghcr.io/oracle/nosql:latest-ce
+    container_name: nosql-database
+    environment:
+      # NoSQLデータベースの起動オプション
+      - KV_PROXY_PORT=8080
+    ports:
+      # NoSQL Database Proxy (REST API)
+      - "8080:8080"
+    volumes:
+      # データの永続化
+      - nosql-data:/kvroot
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - nosql-network
+
+volumes:
+  nosql-data:
+    driver: local
+
+networks:
+  nosql-network:
+    driver: bridge
