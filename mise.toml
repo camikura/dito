@@ -39,3 +39,7 @@ run = "./dito"
 [tasks.dev]
 description = "Run dito in development mode"
 run = "go run cmd/dito/main.go"
+
+[tasks.db-init]
+description = "Create test tables in Oracle NoSQL Database"
+run = "bash docker/scripts/create-tables.sh"

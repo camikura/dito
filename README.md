@@ -63,6 +63,9 @@ mise run dev
 # データベースを起動
 mise run db-start
 
+# テスト用テーブルを作成
+mise run db-init
+
 # ステータス確認
 mise run db-status
 

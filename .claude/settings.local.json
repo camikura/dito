@@ -7,7 +7,13 @@
       "Bash(mise run:*)",
       "Bash(docker logs:*)",
       "Bash(curl:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(chmod:*)",
+      "Bash(docker exec:*)",
+      "WebSearch",
+      "WebFetch(domain:oracle.github.io)",
+      "WebFetch(domain:github.com)",
+      "Bash(go run:*)"
     ],
     "deny": [],
     "ask": []

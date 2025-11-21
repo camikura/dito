@@ -18,6 +18,9 @@
 # データベースを起動
 mise run db-start
 
+# テスト用テーブルを作成
+mise run db-init
+
 # ログを確認
 mise run db-logs
 
