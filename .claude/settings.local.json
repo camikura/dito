@@ -13,7 +13,8 @@
       "WebSearch",
       "WebFetch(domain:oracle.github.io)",
       "WebFetch(domain:github.com)",
-      "Bash(go run:*)"
+      "Bash(go run:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
