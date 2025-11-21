@@ -75,6 +75,7 @@ mise run db-logs
 ## ドキュメント
 
 - [要件仕様書](docs/REQUIREMENTS_SPEC.md)
+- [デザインポリシー](docs/DESIGN_POLICY.md)
 - [UIモックアップ](docs/UI_MOCKUP.md)
 - [Docker環境](docker/README.md)
 
