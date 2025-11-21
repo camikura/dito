@@ -19,7 +19,13 @@
       "Bash(docker inspect:*)",
       "Bash(docker ps:*)",
       "Bash(cat:*)",
-      "Bash(docker volume rm:*)"
+      "Bash(docker volume rm:*)",
+      "Bash(go clean:*)",
+      "Bash(pkill:*)",
+      "Bash(go get:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git add:*)",
+      "Bash(git check-ignore:*)"
     ],
     "deny": [],
     "ask": []

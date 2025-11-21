@@ -1,12 +1,9 @@
-# UI Mockup
+# UI仕様
 
-## 実装済みUI
-
-### ステップ1: エディション選択（全画面モード・マージン追加版）
+## ステップ1: エディション選択
 
 ```
-╭─────────────────────────────────────────────────────────────────╮
-│  dito - Oracle NoSQL Database TUI Client                        │
+╭── Dito ─────────────────────────────────────────────────────────╮
 │                                                                 │
 │  Select Connection                                              │
 │   > Oracle NoSQL Cloud Service                                  │
@@ -27,11 +24,10 @@
 ╰─────────────────────────────────────────────────────────────────╯
 ```
 
-### ステップ2-a: Cloud接続設定
+## ステップ2-a: Cloud接続設定
 
 ```
-╭─────────────────────────────────────────────────────────────────╮
-│  dito - Oracle NoSQL Database TUI Client                        │
+╭── Dito ─────────────────────────────────────────────────────────╮
 │                                                                 │
 │  Cloud Connection                                               │
 │  Region:        [ us-ashburn-1                  ]               │
@@ -55,11 +51,10 @@
 ╰─────────────────────────────────────────────────────────────────╯
 ```
 
-### ステップ2-b: On-Premise接続設定（vimライク左寄せ版）
+## ステップ2-b: On-Premise接続設定
 
 ```
-╭─────────────────────────────────────────────────────────────────╮
-│  dito - Oracle NoSQL Database TUI Client                        │
+╭── Dito ─────────────────────────────────────────────────────────╮
 │                                                                 │
 │  On-Premise Connection                                          │
 │  Endpoint: [ localhost              ]                           │
@@ -80,18 +75,17 @@
 ╰─────────────────────────────────────────────────────────────────╯
 ```
 
-### ステップ3: テーブル一覧（2ペイン構成）
+## ステップ3: テーブル一覧
 
 接続成功後、左ペインにテーブル一覧、右ペインに選択したテーブルの詳細を表示します。
 
 ```
-╭─────────────────────────────────────────────────────────────────────────────────────╮
-│  dito - Oracle NoSQL Database TUI Client                                            │
+╭── Dito ─────────────────────────────────────────────────────────────────────────────╮
+│                                                        Connected to localhost:8080  │
 ├─────────────────────────────────┬───────────────────────────────────────────────────┤
-│  Tables (7)                     │  Table: users                                     │
-│                                 │                                                   │
-│  > users                        │  Parent:        -                                 │
-│    users.addresses              │  Children:      2 (addresses, phones)             │
+│  Tables (7)                     │  Table:    users                                  │
+│  > users                        │  Parent:   -                                      │
+│    users.addresses              │  Children: addresses, phones                      │
 │    users.phones                 │                                                   │
 │    products                     │  Columns:                                         │
 │    products.reviews             │    id           INTEGER (Primary Key)             │
@@ -105,12 +99,10 @@
 │                                 │                                                   │
 │                                 │                                                   │
 │                                 │                                                   │
-│                                 │                                                   │
-│                                 │                                                   │
 ├─────────────────────────────────┴───────────────────────────────────────────────────┤
 │ Connected: localhost:8080                                                           │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
-│  j/k or ↑/↓: Navigate  Tab: Toggle View  Esc: Back  q: Quit                       │
+│  j/k: Navigate  o: View Data  u: Back  q: Quit                                      │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -126,13 +118,12 @@
 
 子テーブル選択時：
 ```
-╭─────────────────────────────────────────────────────────────────────────────────────╮
-│  dito - Oracle NoSQL Database TUI Client                                            │
+╭── Dito ─────────────────────────────────────────────────────────────────────────────╮
+│                                                        Connected to localhost:8080  │
 ├─────────────────────────────────┬───────────────────────────────────────────────────┤
-│  Tables (7)                     │  Table: users.addresses                           │
-│                                 │                                                   │
-│    users                        │  Parent:        users                             │
-│  > users.addresses              │  Children:      -                                 │
+│  Tables (7)                     │  Table:    users.addresses                        │
+│    users                        │  Parent:   users                                  │
+│  > users.addresses              │  Children: -                                      │
 │    users.phones                 │                                                   │
 │    products                     │  Columns:                                         │
 │    products.reviews             │    id           INTEGER (From parent)             │
@@ -147,73 +138,71 @@
 │                                 │                                                   │
 │                                 │  Indexes:                                         │
 │                                 │    (none)                                         │
-│                                 │                                                   │
-│                                 │                                                   │
 ├─────────────────────────────────┴───────────────────────────────────────────────────┤
 │ Connected: localhost:8080                                                           │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
-│  j/k or ↑/↓: Navigate  Tab: Toggle View  Esc: Back  q: Quit                       │
+│  j/k: Navigate  o: View Data  u: Back  q: Quit                                      │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-### ステップ4: データ表示（右ペイン切り替え）
+## ステップ4: データ表示
 
-テーブル一覧画面で`Enter`キーを押すと、右ペインが「データ表示」に切り替わります。`Esc`キーで「概要表示」に戻ります。
+テーブル一覧画面で`Enter`または`o`キーを押すと、右ペインが「グリッドビュー」に切り替わります。さらに`Enter`または`o`キーを押すと「レコードビュー」に切り替わります。`Esc`または`u`キーで前のビューに戻ります。
 
-#### データ表示モード（Enter押下後）
+### グリッドビュー
 
 ```
-╭─────────────────────────────────────────────────────────────────────────────────────╮
-│  dito - Oracle NoSQL Database TUI Client                                            │
+╭── Dito ─────────────────────────────────────────────────────────────────────────────╮
+│                                                        Connected to localhost:8080  │
 ├─────────────────────────────────┬───────────────────────────────────────────────────┤
-│  Tables (7)                     │  Table: users (150 rows) [Data View]             │
-│                                 │                                                   │
-│  > users                        │  id  name          email              age  creat…│
-│    users.addresses              │  ─…  ────          ─────              ───  ─────…│
-│    users.phones                 │  1   Alice Smith   alice@example.com  28   2024-…│
-│    products                     │  2   Bob Johnson   bob@example.com    35   2024-…│
-│    products.reviews             │  3   Charlie Bro…  charlie@exampl…    42   2024-…│
-│    orders                       │  4   Diana Princ…  diana@example.c…   31   2024-…│
-│    orders.items                 │  5   Eve Wilson    eve@example.com    29   2024-…│
-│                                 │  6   Frank Mille…  frank@example.c…   45   2024-…│
-│                                 │  7   Grace Lee     grace@example.com  33   2024-…│
-│                                 │  8   Henry Davis   henry@example.com  38   2024-…│
-│                                 │  9   Iris Chen     iris@example.com   27   2024-…│
-│                                 │  10  Jack Thomps…  jack@example.com   41   2024-…│
-│                                 │                                                   │
+│  Tables (7)                     │  SELECT * FROM users ORDER BY id                  │
+│                                 │  ───────────────────────────────────────────────  │
+│  > users                        │    id  name          email              age  cre… │
+│    users.addresses              │    ──  ────          ─────              ───  ───… │
+│    users.phones                 │  > 1   Alice Smith   alice@example.com  28   202… │
+│    products                     │    2   Bob Johnson   bob@example.com    35   202… │
+│    products.reviews             │    3   Charlie Bro…  charlie@exampl…    42   202… │
+│    orders                       │    4   Diana Princ…  diana@example.c…   31   202… │
+│    orders.items                 │    5   Eve Wilson    eve@example.com    29   202… │
+│                                 │    6   Frank Mille…  frank@example.c…   45   202… │
+│                                 │    7   Grace Lee     grace@example.com  33   202… │
+│                                 │    8   Henry Davis   henry@example.com  38   202… │
+│                                 │    9   Iris Chen     iris@example.com   27   202… │
+│                                 │    10  Jack Thomps…  jack@example.com   41   202… │
 ├─────────────────────────────────┴───────────────────────────────────────────────────┤
-│ Showing 1-10 of 150                                                                 │
+│ Table: users (150 rows)                                                             │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
-│  j/k or ↑/↓: Scroll  Esc: Back to Schema  q: Quit                                 │
+│  j/k: Scroll  h/l: Scroll Left/Right  o: Detail  u: Back  q: Quit                   │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 **特徴:**
 - 2ペインレイアウトを維持（左：テーブル一覧、右：データ表示）
-- `Enter`キーで右ペインをデータ表示に切り替え
-- `Esc`キーで右ペインを概要表示に戻す
-- **データビューモード時:**
+- 上部にSQL文を表示（実行したクエリが確認できる）
+- `Enter`または`o`キーで右ペインをグリッドビューに切り替え
+- `Esc`または`u`キーで右ペインをスキーマビューに戻す
+- **グリッドビュー時:**
   - 左ペインはグレーアウトされ、インアクティブ状態
   - `j`/`k`（または `↑`/`↓`）でデータ行をスクロール
+  - `h`/`l`（または `←`/`→`）でカラムを左右にスクロール
   - 選択中の行はシアン色 + 太字 + `>` マーカー
-  - テーブルを切り替えるには `Esc` でスキーマビューに戻る必要がある
-- データ表示時は行番号なし、コンパクトな表示
-- カラム幅はデータに応じて自動調整（最大24文字）、長いデータは省略（`…`）
+  - テーブルを切り替えるには `Esc`/`u` でスキーマビューに戻る必要がある
+  - `Enter`/`o` でレコードビューに切り替え
+- カラム幅はデータに応じて自動調整（最大32文字）、長いデータは省略（`…`）
 - 画面高さに応じた動的なビューポート表示
 - PRIMARY KEYでソートされたデータを表示（最大1000行取得）
-- ステータスエリアに表示範囲を表示
+- ステータスエリアにテーブル名と行数を表示
 - データ取得エラー時はステータスバーに赤字でエラーメッセージを表示
 
-#### 概要表示モード（Esc押下で戻る）
+### スキーマビュー
 
 ```
-╭─────────────────────────────────────────────────────────────────────────────────────╮
-│  dito - Oracle NoSQL Database TUI Client                                            │
+╭── Dito ─────────────────────────────────────────────────────────────────────────────╮
+│                                                        Connected to localhost:8080  │
 ├─────────────────────────────────┬───────────────────────────────────────────────────┤
-│  Tables (7)                     │  Table: users [Schema View]                       │
-│                                 │                                                   │
-│  > users                        │  Parent:        -                                 │
-│    users.addresses              │  Children:      2 (addresses, phones)             │
+│  Tables (7)                     │  Table:    users                                  │
+│  > users                        │  Parent:   -                                      │
+│    users.addresses              │  Children: addresses, phones                      │
 │    users.phones                 │                                                   │
 │    products                     │  Columns:                                         │
 │    products.reviews             │    id           INTEGER (Primary Key)             │
@@ -226,45 +215,82 @@
 │                                 │    email_idx    (email)                           │
 │                                 │                                                   │
 ├─────────────────────────────────┴───────────────────────────────────────────────────┤
-│ Connected: localhost:8080                                                           │
+│ Table: users                                                                        │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
-│  j/k or ↑/↓: Navigate  Enter: View Data  Esc: Back  q: Quit                       │
+│  j/k: Navigate  o: View Data  u: Back  q: Quit                                      │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 **操作フロー:**
-1. **スキーマビューモード**: テーブル選択（j/k で移動）
-2. `Enter` → 右ペインがデータ表示に切り替わる、左ペインがグレーアウト
-3. **データビューモード**: データ行をスクロール（j/k で移動、最大1000行）
-4. `Esc` → スキーマビューモードに戻る（左ペインが通常色に戻る）
-5. もう一度 `Esc` → 接続設定画面に戻る
+1. **スキーマビュー**: テーブル選択（j/k で移動）
+2. `Enter`/`o` → グリッドビューに切り替わる、左ペインがグレーアウト
+3. **グリッドビュー**: データ行をスクロール（j/k で移動、h/l で横スクロール、最大1000行）
+4. `Enter`/`o` → レコードビューに切り替わる
+5. **レコードビュー**: 選択した行のデータを縦に詳細表示（j/k で行を切り替え）
+6. `Esc`/`u` → グリッドビューに戻る
+7. もう一度 `Esc`/`u` → スキーマビューに戻る（左ペインが通常色に戻る）
+8. もう一度 `Esc`/`u` → 接続設定画面に戻る
 
-#### 空のテーブルのデータ表示
+### 空のテーブルのグリッドビュー
 
 ```
-╭─────────────────────────────────────────────────────────────────────────────────────╮
-│  dito - Oracle NoSQL Database TUI Client                                            │
+╭── Dito ─────────────────────────────────────────────────────────────────────────────╮
+│                                                        Connected to localhost:8080  │
 ├─────────────────────────────────┬───────────────────────────────────────────────────┤
-│  Tables (7)                     │  Table: empty_table (0 rows) [Data View]         │
-│                                 │                                                   │
-│  > users                        │  id  name  email                                  │
-│    users.addresses              │  ──  ────  ─────                                  │
-│    users.phones                 │                                                   │
-│    products                     │            No data found                          │
+│  Tables (7)                     │  SELECT * FROM empty_table ORDER BY id            │
+│                                 │  ───────────────────────────────────────────────  │
+│  > empty_table                  │    id  name  email                                │
+│    users                        │    ──  ────  ─────                                │
+│    users.addresses              │                                                   │
+│    users.phones                 │            No data found                          │
+│    products                     │                                                   │
 │    products.reviews             │                                                   │
 │    orders                       │                                                   │
 │    orders.items                 │                                                   │
 │                                 │                                                   │
-│                                 │                                                   │
 ├─────────────────────────────────┴───────────────────────────────────────────────────┤
-│ No rows                                                                             │
+│ Table: empty_table (0 rows)                                                         │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
-│  j/k or ↑/↓: Scroll  Esc: Back to Schema  q: Quit                                 │
+│  j/k: Scroll  h/l: Scroll Left/Right  o: Detail  u: Back  q: Quit                   │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
+### レコードビュー
+
+```
+╭── Dito ─────────────────────────────────────────────────────────────────────────────╮
+│                                                        Connected to localhost:8080  │
+├─────────────────────────────────┬───────────────────────────────────────────────────┤
+│  Tables (7)                     │  SELECT * FROM users ORDER BY id                  │
+│                                 │  ───────────────────────────────────────────────  │
+│  > users                        │  id           1                                   │
+│    users.addresses              │  name         Alice Smith                         │
+│    users.phones                 │  email        alice@example.com                   │
+│    products                     │  age          28                                  │
+│    products.reviews             │  created_at   2024-01-15T10:30:00.000Z            │
+│    orders                       │  phone        +1-555-0101                         │
+│    orders.items                 │  address      123 Main St                         │
+│                                 │  city         New York                            │
+│                                 │  state        NY                                  │
+│                                 │  postal_code  10001                               │
+│                                 │  country      USA                                 │
+│                                 │  company      Tech Corp                           │
+│                                 │  title        Software Engineer                   │
+├─────────────────────────────────┴───────────────────────────────────────────────────┤
+│ Table: users (Row 1 of 150)                                                         │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+│  j/k: Scroll  u: Back to List  q: Quit                                              │
+╰─────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+**特徴:**
+- 選択した行のデータを縦に詳細表示
+- カラム名を太字+シアン色で表示
+- 全てのカラムが表示される（横スクロールの制限なし）
+- `j`/`k`（または `↑`/`↓`）で次/前の行に切り替え
+- `Esc`/`u` でグリッドビューに戻る
+- ステータスエリアに行番号（何番目の行か）を表示
+
 **将来実装予定:**
+- SQL編集〜実行機能（任意のSQLクエリを実行）
 - 左ペイン折りたたみ機能（例: `Ctrl+B`）でデータ表示領域を拡大
-- 無限スクロール（1000行を超えるデータの段階的読み込み）
-- カラム幅の手動調整機能
-- 横スクロール機能（多数のカラムがある場合）
