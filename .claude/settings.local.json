@@ -18,7 +18,8 @@
       "Bash(./dito)",
       "Bash(docker inspect:*)",
       "Bash(docker ps:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(docker volume rm:*)"
     ],
     "deny": [],
     "ask": []
