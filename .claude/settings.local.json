@@ -3,7 +3,10 @@
     "allow": [
       "Bash(go mod tidy:*)",
       "Bash(mise install:*)",
-      "Bash(mise exec:*)"
+      "Bash(mise exec:*)",
+      "Bash(mise run:*)",
+      "Bash(docker logs:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
