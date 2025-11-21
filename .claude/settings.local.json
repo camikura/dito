@@ -14,7 +14,9 @@
       "WebFetch(domain:oracle.github.io)",
       "WebFetch(domain:github.com)",
       "Bash(go run:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(./dito)",
+      "Bash(docker inspect:*)"
     ],
     "deny": [],
     "ask": []
