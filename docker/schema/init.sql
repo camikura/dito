@@ -212,3 +212,9 @@ INSERT INTO orders.items VALUES ("O013", 1, "P005", "Headphones", 1, 150.00, 150
 INSERT INTO orders.items VALUES ("O013", 2, "P007", "USB Cable", 1, 10.00, 10.00);
 INSERT INTO orders.items VALUES ("O014", 1, "P013", "Backpack", 1, 60.00, 60.00);
 INSERT INTO orders.items VALUES ("O015", 1, "P014", "Water Bottle", 1, 20.00, 20.00);
+
+-- インデックス作成
+CREATE INDEX IF NOT EXISTS email_idx ON users (email);
+CREATE INDEX IF NOT EXISTS name_idx ON users (name);
+CREATE INDEX IF NOT EXISTS category_idx ON products (category);
+CREATE INDEX IF NOT EXISTS status_idx ON orders (status);

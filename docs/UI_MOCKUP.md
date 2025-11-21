@@ -90,19 +90,18 @@
 ├─────────────────────────────────┬───────────────────────────────────────────────────┤
 │  Tables (7)                     │  Table: users                                     │
 │                                 │                                                   │
-│  > users                        │  Type:          User Table                        │
-│    users.addresses              │  Parent:        -                                 │
-│    users.phones                 │  Children:      2 (addresses, phones)             │
-│    products                     │                                                   │
-│    products.reviews             │  Columns:                                         │
-│    orders                       │    id           INTEGER (Primary Key)             │
-│    orders.items                 │    name         STRING                            │
-│                                 │    email        STRING                            │
+│  > users                        │  Parent:        -                                 │
+│    users.addresses              │  Children:      2 (addresses, phones)             │
+│    users.phones                 │                                                   │
+│    products                     │  Columns:                                         │
+│    products.reviews             │    id           INTEGER (Primary Key)             │
+│    orders                       │    name         STRING                            │
+│    orders.items                 │    email        STRING                            │
 │                                 │    age          INTEGER                           │
 │                                 │    created_at   TIMESTAMP(3)                      │
 │                                 │                                                   │
-│                                 │                                                   │
-│                                 │                                                   │
+│                                 │  Indexes:                                         │
+│                                 │    email_idx    (email)                           │
 │                                 │                                                   │
 │                                 │                                                   │
 │                                 │                                                   │
@@ -132,14 +131,13 @@
 ├─────────────────────────────────┬───────────────────────────────────────────────────┤
 │  Tables (7)                     │  Table: users.addresses                           │
 │                                 │                                                   │
-│    users                        │  Type:          Child Table                       │
-│  > users.addresses              │  Parent:        users                             │
-│    users.phones                 │  Children:      -                                 │
-│    products                     │                                                   │
-│    products.reviews             │  Columns:                                         │
-│    orders                       │    id           INTEGER (From parent)             │
-│    orders.items                 │    address_id   INTEGER (Primary Key)             │
-│                                 │    type         STRING                            │
+│    users                        │  Parent:        users                             │
+│  > users.addresses              │  Children:      -                                 │
+│    users.phones                 │                                                   │
+│    products                     │  Columns:                                         │
+│    products.reviews             │    id           INTEGER (From parent)             │
+│    orders                       │    address_id   INTEGER (Primary Key)             │
+│    orders.items                 │    type         STRING                            │
 │                                 │    street       STRING                            │
 │                                 │    city         STRING                            │
 │                                 │    state        STRING                            │
@@ -147,7 +145,8 @@
 │                                 │    country      STRING                            │
 │                                 │    is_primary   BOOLEAN                           │
 │                                 │                                                   │
-│                                 │                                                   │
+│                                 │  Indexes:                                         │
+│                                 │    (none)                                         │
 │                                 │                                                   │
 │                                 │                                                   │
 ├─────────────────────────────────┴───────────────────────────────────────────────────┤
