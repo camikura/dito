@@ -20,6 +20,7 @@ func TestColorPalette(t *testing.T) {
 		{"ColorGrayDark", ColorGrayDark, "#555555"},
 		{"ColorGrayLight", ColorGrayLight, "#CCCCCC"},
 		{"ColorHeaderBg", ColorHeaderBg, "#AAAAAA"},
+		{"ColorHeaderText", ColorHeaderText, "#00AA00"},
 		{"ColorSuccess", ColorSuccess, "#00FF00"},
 		{"ColorError", ColorError, "#FF0000"},
 	}

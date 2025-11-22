@@ -14,6 +14,7 @@ var (
 	ColorGrayLight   = lipgloss.Color("#CCCCCC") // Light Gray - SQL display
 	ColorGrayLightBg = lipgloss.Color("#333333") // Light Gray Bg - background for unfocused selected items
 	ColorHeaderBg    = lipgloss.Color("#AAAAAA") // Medium Gray - table header background
+	ColorHeaderText  = lipgloss.Color("#00AA00") // Dark Green - table header text
 	ColorSuccess     = lipgloss.Color("#00FF00") // Green - success messages
 	ColorError       = lipgloss.Color("#FF0000") // Red - error messages
 )
@@ -24,7 +25,7 @@ var (
 	StyleNormal   = lipgloss.NewStyle().Foreground(ColorWhite)
 	StyleFocused  = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
 	StyleSelected = lipgloss.NewStyle().Foreground(ColorWhite).Background(ColorPrimaryBg) // Background highlight
-	StyleHeader   = lipgloss.NewStyle().Foreground(ColorGray).Bold(true).Underline(true) // Table header with underline (darker)
+	StyleHeader   = lipgloss.NewStyle().Foreground(ColorHeaderText).Bold(true).Underline(true) // Table header with underline (dark green)
 	StyleLabel    = lipgloss.NewStyle().Foreground(ColorGray)
 	StyleSuccess  = lipgloss.NewStyle().Foreground(ColorSuccess)
 	StyleError    = lipgloss.NewStyle().Foreground(ColorError)
