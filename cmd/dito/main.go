@@ -915,10 +915,7 @@ func (m model) View() string {
 	leftAlignedContent := contentStyle.Render(content)
 
 	// セパレーター
-	// borderの内側の幅 m.width - 2
-	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555"))
-	separator := separatorStyle.Render(strings.Repeat("─", m.width-2))
+	separator := ui.Separator(m.width - 2)
 
 	// ステータス表示エリア（1行）
 	var statusMessage string
@@ -1270,203 +1267,6 @@ func parseColumnsFromDDL(ddl string, primaryKeys []string) []columnInfo {
 	return columns
 }
 
-// テーブルデータをレンダリング
-func (m model) renderTableData(tableName string, maxWidth, maxHeight int) string {
-	var content string
-
-	// データの取得状態を確認
-	data, exists := m.tableData[tableName]
-	if m.loadingData {
-		return "Loading data..."
-	}
-	if !exists || data == nil {
-		return "No data available"
-	}
-	if data.err != nil {
-		errorMsg := fmt.Sprintf("Error: %v\n\nSQL:\n%s", data.err, data.sql)
-		return errorMsg
-	}
-	if len(data.rows) == 0 {
-		noDataMsg := fmt.Sprintf("No data found\n\nSQL:\n%s", data.sql)
-		return noDataMsg
-	}
-
-	// ビューポートサイズを画面の高さから計算
-	// SQLエリア+ボーダー: 2行、カラムヘッダー+セパレーター: 2行を引く
-	viewportSize := maxHeight - 4
-	if viewportSize < 1 {
-		viewportSize = 1
-	}
-
-	// ビューポートの計算
-	totalRows := len(data.rows)
-	start := m.viewportOffset
-	end := start + viewportSize
-	if end > totalRows {
-		end = totalRows
-	}
-	viewportRows := data.rows[start:end]
-
-	// カラム名をDDL定義順で取得（全カラム）
-	var allColumnNames []string
-	// テーブル詳細からカラム定義順を取得
-	if details, exists := m.tableDetails[tableName]; exists && details.schema != nil && details.schema.DDL != "" {
-		primaryKeys := parsePrimaryKeysFromDDL(details.schema.DDL)
-		columns := parseColumnsFromDDL(details.schema.DDL, primaryKeys)
-		for _, col := range columns {
-			allColumnNames = append(allColumnNames, col.name)
-		}
-	} else if len(data.rows) > 0 {
-		// DDLが取得できない場合は、データから取得（順序は不定）
-		for key := range data.rows[0] {
-			allColumnNames = append(allColumnNames, key)
-		}
-	}
-
-	// 横スクロールオフセットを適用
-	var columnNames []string
-	if m.horizontalOffset < len(allColumnNames) {
-		columnNames = allColumnNames[m.horizontalOffset:]
-	} else {
-		// オフセットが範囲外の場合は全カラムを表示
-		columnNames = allColumnNames
-	}
-
-	// カラム幅を計算（最大32文字、データの最長幅とカラム名の長い方）
-	columnWidths := make(map[string]int)
-	for _, colName := range columnNames {
-		// カラム名の長さから開始
-		maxWidth := len(colName)
-
-		// 全データ行を走査して最長のデータ幅を取得
-		for _, row := range data.rows {
-			if value, exists := row[colName]; exists {
-				valueStr := fmt.Sprintf("%v", value)
-				if len(valueStr) > maxWidth {
-					maxWidth = len(valueStr)
-				}
-			}
-		}
-
-		// 最大32文字に制限
-		if maxWidth > 32 {
-			maxWidth = 32
-		}
-
-		columnWidths[colName] = maxWidth
-	}
-
-	// rightPaneStyleにはPadding(0, 1)があるため、実際の使用可能幅は maxWidth - 2
-	// データ行には行頭の"  "で2文字使うため、ヘッダーもそれに合わせる
-	availableWidth := maxWidth - 4
-	if availableWidth < 0 {
-		availableWidth = 10 // 最小幅を確保
-	}
-
-	// ヘッダー行を作成（幅制限あり）
-	var headerParts []string
-	var headerWidths []int // 実際に表示されたヘッダーの幅を記録
-	currentWidth := 0
-	for _, colName := range columnNames {
-		width := columnWidths[colName]
-		truncated := ui.TruncateString(colName, width)
-		part := fmt.Sprintf("%-*s", width, truncated)
-
-		nextWidth := currentWidth + len(part)
-		if len(headerParts) > 0 {
-			nextWidth += 2 // "  "のスペース
-		}
-
-		if nextWidth > availableWidth {
-			remaining := availableWidth - currentWidth
-			if len(headerParts) > 0 {
-				remaining -= 2
-			}
-			if remaining > 0 {
-				headerParts = append(headerParts, part[:remaining])
-				headerWidths = append(headerWidths, remaining)
-			}
-			break
-		}
-
-		headerParts = append(headerParts, part)
-		headerWidths = append(headerWidths, len(part))
-		currentWidth = nextWidth
-	}
-	// ヘッダー行用のスタイル（データ行と同じように個別にレンダリング）
-	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF"))
-	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888"))
-
-	// ヘッダー行の左に2文字のスペースを追加（カーソル用）
-	// 全角スペース（U+3000）を使用（lipglossが通常スペースを削除するため）
-	headerLine := "　" + strings.Join(headerParts, "  ")
-	content += headerStyle.Render(headerLine) + "\n"
-
-	// セパレーター行を作成（ヘッダーと同じ幅で）
-	var sepParts []string
-	for _, width := range headerWidths {
-		sepParts = append(sepParts, strings.Repeat("─", width))
-	}
-	// 全角スペース（U+3000）を使用
-	sepLine := "　" + strings.Join(sepParts, "  ")
-	content += separatorStyle.Render(sepLine) + "\n"
-
-	// データ行を作成
-	selectedRowStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00D9FF")).
-		Bold(true)
-	normalRowStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF"))
-
-	for i, row := range viewportRows {
-		var rowParts []string
-		currentWidth := 0
-		for _, colName := range columnNames {
-			width := columnWidths[colName]
-			value := fmt.Sprintf("%v", row[colName])
-			truncated := ui.TruncateString(value, width)
-			part := fmt.Sprintf("%-*s", width, truncated)
-
-			// カラム間の"  "も考慮
-			nextWidth := currentWidth + len(part)
-			if len(rowParts) > 0 {
-				nextWidth += 2 // "  "のスペース
-			}
-
-			if nextWidth > availableWidth {
-				// 幅を超える場合は残りの幅で切り詰め
-				remaining := availableWidth - currentWidth
-				if len(rowParts) > 0 {
-					remaining -= 2 // "  "のスペース
-				}
-				if remaining > 0 {
-					rowParts = append(rowParts, part[:remaining])
-				}
-				break
-			}
-
-			rowParts = append(rowParts, part)
-			currentWidth = nextWidth
-		}
-		rowContent := strings.Join(rowParts, "  ")
-
-		// 選択中の行にスタイルを適用（絶対位置で比較）
-		absoluteRowIndex := start + i
-		if absoluteRowIndex == m.selectedDataRow {
-			content += selectedRowStyle.Render("> "+rowContent) + "\n"
-		} else {
-			content += normalRowStyle.Render("  "+rowContent) + "\n"
-		}
-	}
-
-	// 末尾の改行を削除
-	content = strings.TrimSuffix(content, "\n")
-
-	return content
-}
-
 // レコードビュー: 選択された行の全カラムを縦に表示
 func (m model) renderRowDetail(tableName string, maxWidth, maxHeight int) string {
 	var content string
@@ -1564,56 +1364,22 @@ func (m model) viewTableList() string {
 	header := headerStyle.Render(headerContent)
 
 	// 左ペイン: テーブルリスト
-	// リスト/詳細ビューモードかどうかでスタイルを変更
-	var leftPaneHeaderColor, selectedItemColor, normalItemColor, borderColor string
+	// SelectableListを使用
+	tableList := ui.SelectableList{
+		Title:         fmt.Sprintf("Tables (%d)", len(m.tables)),
+		Items:         m.tables,
+		SelectedIndex: m.selectedTable,
+		Focused:       m.rightPaneMode == rightPaneModeSchema, // スキーマビューモードの時のみフォーカス
+	}
+	leftPaneContent := tableList.Render()
+
+	// ボーダー色の決定
+	var borderColor string
 	if m.rightPaneMode == rightPaneModeList || m.rightPaneMode == rightPaneModeDetail {
-		// グリッドビュー/レコードビューモード: グレーアウト
-		leftPaneHeaderColor = "#888888"
-		selectedItemColor = "#888888"
-		normalItemColor = "#666666"
 		borderColor = "#666666"
 	} else {
-		// スキーマビューモード: 通常の色
-		leftPaneHeaderColor = "#FFFFFF"
-		selectedItemColor = "#00D9FF"
-		normalItemColor = "#FFFFFF"
 		borderColor = "#555555"
 	}
-
-	leftPaneHeader := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(leftPaneHeaderColor)).
-		Bold(true).
-		Render(fmt.Sprintf("Tables (%d)", len(m.tables)))
-
-	// テーブルリストアイテムのスタイル
-	var selectedItemStyle, normalItemStyle lipgloss.Style
-	if m.rightPaneMode == rightPaneModeList || m.rightPaneMode == rightPaneModeDetail {
-		// グリッドビュー/レコードビューモード: グレーアウト、太字なし
-		selectedItemStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(selectedItemColor))
-		normalItemStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(normalItemColor))
-	} else {
-		// スキーマビューモード: 通常のスタイル
-		selectedItemStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(selectedItemColor)).
-			Bold(true)
-		normalItemStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(normalItemColor))
-	}
-
-	var tableListItems []string
-	for i, table := range m.tables {
-		if i == m.selectedTable {
-			item := selectedItemStyle.Render(fmt.Sprintf("> %s", table))
-			tableListItems = append(tableListItems, item)
-		} else {
-			item := normalItemStyle.Render(fmt.Sprintf("  %s", table))
-			tableListItems = append(tableListItems, item)
-		}
-	}
-
-	leftPaneContent := leftPaneHeader + "\n\n" + strings.Join(tableListItems, "\n")
 	leftPaneStyle := lipgloss.NewStyle().
 		Width(leftPaneWidth).
 		Height(m.height - 8). // タイトル行、ヘッダー、セパレーター×3、ステータス、フッター、ボーダー×2を除く
@@ -1638,10 +1404,7 @@ func (m model) viewTableList() string {
 
 				// SQLとセパレーターを手動で組み立て
 				sqlText := sqlStyle.Render(data.displaySQL)
-				// セパレーターは左端から右端まで伸ばす（rightPaneのパディング内いっぱい）
-				separatorStyle := lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#555555"))
-				separator := separatorStyle.Render(strings.Repeat("─", rightPaneWidth-2))
+				separator := ui.Separator(rightPaneWidth - 2)
 
 				rightPaneContent = sqlText + "\n" + separator
 			}
@@ -1722,7 +1485,43 @@ func (m model) viewTableList() string {
 		} else if m.rightPaneMode == rightPaneModeList {
 			// グリッドビューモード
 			rightPaneHeight := m.height - 8
-			rightPaneContent += m.renderTableData(selectedTableName, rightPaneWidth, rightPaneHeight)
+
+			// データの取得状態を確認
+			data, exists := m.tableData[selectedTableName]
+			if m.loadingData {
+				rightPaneContent += "Loading data..."
+			} else if !exists || data == nil {
+				rightPaneContent += "No data available"
+			} else if data.err != nil {
+				rightPaneContent += fmt.Sprintf("Error: %v\n\nSQL:\n%s", data.err, data.sql)
+			} else if len(data.rows) == 0 {
+				rightPaneContent += fmt.Sprintf("No data found\n\nSQL:\n%s", data.sql)
+			} else {
+				// カラム名をDDL定義順で取得
+				var columnNames []string
+				if details, exists := m.tableDetails[selectedTableName]; exists && details.schema != nil && details.schema.DDL != "" {
+					primaryKeys := parsePrimaryKeysFromDDL(details.schema.DDL)
+					columns := parseColumnsFromDDL(details.schema.DDL, primaryKeys)
+					for _, col := range columns {
+						columnNames = append(columnNames, col.name)
+					}
+				} else if len(data.rows) > 0 {
+					// DDLが取得できない場合は、データから取得（順序は不定）
+					for key := range data.rows[0] {
+						columnNames = append(columnNames, key)
+					}
+				}
+
+				// ui.DataGridを使用してレンダリング
+				grid := ui.DataGrid{
+					Rows:             data.rows,
+					Columns:          columnNames,
+					SelectedRow:      m.selectedDataRow,
+					HorizontalOffset: m.horizontalOffset,
+					ViewportOffset:   m.viewportOffset,
+				}
+				rightPaneContent += grid.Render(rightPaneWidth, rightPaneHeight)
+			}
 		} else if m.rightPaneMode == rightPaneModeDetail {
 			// レコードビューモード
 			rightPaneHeight := m.height - 8
@@ -1798,11 +1597,8 @@ func (m model) viewTableList() string {
 	}
 
 	// セパレーター
-	// borderStyleの内側の幅は m.width - 2
-	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555"))
-	topSeparator := separatorStyle.Render(strings.Repeat("─", m.width - 2))
-	statusSeparator := separatorStyle.Render(strings.Repeat("─", m.width - 2))
+	topSeparator := ui.Separator(m.width - 2)
+	statusSeparator := ui.Separator(m.width - 2)
 
 	// 全体を組み立て
 	content := lipgloss.JoinVertical(
