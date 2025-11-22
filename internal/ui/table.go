@@ -24,8 +24,8 @@ func (dg *DataGrid) Render(maxWidth, maxHeight int) string {
 	var content string
 
 	// Calculate viewport size
-	// Header (1 line) + Separator (1 line) = 2 lines
-	viewportSize := maxHeight - 2
+	// Header (1 line) only, no separator
+	viewportSize := maxHeight - 1
 	if viewportSize < 1 {
 		viewportSize = 1
 	}
@@ -52,18 +52,10 @@ func (dg *DataGrid) Render(maxWidth, maxHeight int) string {
 		availableWidth = 10 // Minimum width
 	}
 
-	// Render header
+	// Render header with background color (k9s style)
 	headerParts, headerWidths := dg.renderHeader(visibleColumns, columnWidths, availableWidth)
 	headerLine := strings.Join(headerParts, " ")
-	content += StyleNormal.Render(headerLine) + "\n"
-
-	// Render separator
-	sepParts := make([]string, len(headerWidths))
-	for i, width := range headerWidths {
-		sepParts[i] = strings.Repeat("─", width)
-	}
-	sepLine := strings.Join(sepParts, " ")
-	content += StyleLabel.Render(sepLine) + "\n"
+	content += StyleHeader.Render(headerLine) + "\n"
 
 	// Render data rows
 	for i, row := range viewportRows {

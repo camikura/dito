@@ -41,6 +41,7 @@ func TestStylesNotNil(t *testing.T) {
 		{"StyleNormal", StyleNormal},
 		{"StyleFocused", StyleFocused},
 		{"StyleSelected", StyleSelected},
+		{"StyleHeader", StyleHeader},
 		{"StyleLabel", StyleLabel},
 		{"StyleSuccess", StyleSuccess},
 		{"StyleError", StyleError},
