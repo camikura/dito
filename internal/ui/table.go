@@ -46,15 +46,15 @@ func (dg *DataGrid) Render(maxWidth, maxHeight int) string {
 	columnWidths := dg.calculateColumnWidths(visibleColumns)
 
 	// Calculate available width for content
-	// Account for padding and cursor space
-	availableWidth := maxWidth - 4
+	// Account for padding
+	availableWidth := maxWidth - 2
 	if availableWidth < 10 {
 		availableWidth = 10 // Minimum width
 	}
 
 	// Render header
 	headerParts, headerWidths := dg.renderHeader(visibleColumns, columnWidths, availableWidth)
-	headerLine := "　" + strings.Join(headerParts, "  ") // Use full-width space
+	headerLine := strings.Join(headerParts, "  ")
 	content += StyleNormal.Render(headerLine) + "\n"
 
 	// Render separator
@@ -62,7 +62,7 @@ func (dg *DataGrid) Render(maxWidth, maxHeight int) string {
 	for i, width := range headerWidths {
 		sepParts[i] = strings.Repeat("─", width)
 	}
-	sepLine := "　" + strings.Join(sepParts, "  ")
+	sepLine := strings.Join(sepParts, "  ")
 	content += StyleLabel.Render(sepLine) + "\n"
 
 	// Render data rows
@@ -70,12 +70,12 @@ func (dg *DataGrid) Render(maxWidth, maxHeight int) string {
 		rowParts := dg.renderRow(row, visibleColumns, columnWidths, availableWidth, headerWidths)
 		rowContent := strings.Join(rowParts, "  ")
 
-		// Apply selection style
+		// Apply selection style with background highlighting
 		absoluteRowIndex := dg.ViewportOffset + i
 		if absoluteRowIndex == dg.SelectedRow {
-			content += StyleSelected.Render("> "+rowContent) + "\n"
+			content += StyleSelected.Render(rowContent) + "\n"
 		} else {
-			content += StyleNormal.Render("  "+rowContent) + "\n"
+			content += StyleNormal.Render(rowContent) + "\n"
 		}
 	}
 

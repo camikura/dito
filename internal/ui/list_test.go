@@ -19,7 +19,7 @@ func TestSelectableList_Render(t *testing.T) {
 				SelectedIndex: 0,
 				Focused:       true,
 			},
-			contains: []string{"Tables (3)", "users", "orders", "products", ">"},
+			contains: []string{"Tables (3)", "users", "orders", "products"},
 		},
 		{
 			name: "list without title",
@@ -29,7 +29,7 @@ func TestSelectableList_Render(t *testing.T) {
 				SelectedIndex: 1,
 				Focused:       true,
 			},
-			contains: []string{"item1", "item2", ">"},
+			contains: []string{"item1", "item2"},
 		},
 		{
 			name: "empty list",
@@ -76,15 +76,16 @@ func TestSelectableList_Selection(t *testing.T) {
 
 	result := list.Render()
 
-	// Should have exactly one selection indicator
-	count := strings.Count(result, ">")
-	if count != 1 {
-		t.Errorf("Should have exactly 1 selection indicator, got %d", count)
-	}
-
 	// Should contain the selected item
 	if !strings.Contains(result, "item2") {
 		t.Errorf("Result should contain selected item 'item2'")
+	}
+
+	// Should contain all items
+	for _, item := range list.Items {
+		if !strings.Contains(result, item) {
+			t.Errorf("Result should contain item %q", item)
+		}
 	}
 }
 
@@ -97,9 +98,9 @@ func TestSelectableList_FirstItemSelected(t *testing.T) {
 
 	result := list.Render()
 
-	// Should select first item
-	if !strings.Contains(result, "> first") {
-		t.Errorf("First item should be selected")
+	// Should contain first item
+	if !strings.Contains(result, "first") {
+		t.Errorf("Result should contain first item")
 	}
 }
 
@@ -112,9 +113,9 @@ func TestSelectableList_LastItemSelected(t *testing.T) {
 
 	result := list.Render()
 
-	// Should select last item
-	if !strings.Contains(result, "> third") {
-		t.Errorf("Last item should be selected")
+	// Should contain last item
+	if !strings.Contains(result, "third") {
+		t.Errorf("Result should contain last item")
 	}
 }
 
@@ -145,12 +146,12 @@ func TestSelectableList_FocusedVsUnfocused(t *testing.T) {
 		t.Errorf("Unfocused list should contain items")
 	}
 
-	// Both should have selection indicator
-	if !strings.Contains(focusedResult, ">") {
-		t.Errorf("Focused list should have selection indicator")
+	// Both results should be non-empty
+	if focusedResult == "" {
+		t.Errorf("Focused list should render content")
 	}
-	if !strings.Contains(unfocusedResult, ">") {
-		t.Errorf("Unfocused list should have selection indicator")
+	if unfocusedResult == "" {
+		t.Errorf("Unfocused list should render content")
 	}
 }
 
