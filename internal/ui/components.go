@@ -73,6 +73,7 @@ func Button(label string, focused bool) string {
 
 // Checkbox renders a checkbox with label.
 // Displays "[x] Label" when checked, "[ ] Label" when unchecked.
+// When focused, uses background color highlighting.
 func Checkbox(label string, checked bool, focused bool) string {
 	checkbox := "[ ]"
 	if checked {
@@ -80,7 +81,7 @@ func Checkbox(label string, checked bool, focused bool) string {
 	}
 	text := checkbox + " " + label
 	if focused {
-		return StyleFocused.Render(text)
+		return StyleSelected.Render(text)
 	}
 	return StyleNormal.Render(text)
 }
