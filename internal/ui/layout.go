@@ -12,26 +12,28 @@ func Separator(width int) string {
 
 // BorderedBox renders content wrapped in a border with an optional title.
 // The border uses box-drawing characters (╭╮╰╯│).
-// If title is non-empty, it appears in the top border with a blank line below it.
+// If title is provided, it appears in the top border with a blank line below it.
 //
 // Example with title:
+//   BorderedBox("content", 40, "Title")
 //   ╭── Title ────╮
 //   │            │
 //   │  content   │
 //   ╰────────────╯
 //
 // Example without title:
+//   BorderedBox("content", 40)
 //   ╭────────────╮
 //   │  content   │
 //   ╰────────────╯
-func BorderedBox(content string, title string, width int) string {
+func BorderedBox(content string, width int, title ...string) string {
 	var result strings.Builder
 
 	// Top border
-	if title != "" {
+	if len(title) > 0 && title[0] != "" {
 		// ╭── Title ─────╮
 		// Calculate: "╭──" (3) + title + "╮" (1) + padding
-		titleWithPadding := " " + title + " "
+		titleWithPadding := " " + title[0] + " "
 		remainingWidth := width - 3 - len(titleWithPadding) - 1
 		if remainingWidth < 0 {
 			remainingWidth = 0

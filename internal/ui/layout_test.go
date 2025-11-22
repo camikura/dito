@@ -67,7 +67,12 @@ func TestBorderedBox(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := BorderedBox(tt.content, tt.title, tt.width)
+			var result string
+			if tt.title != "" {
+				result = BorderedBox(tt.content, tt.width, tt.title)
+			} else {
+				result = BorderedBox(tt.content, tt.width)
+			}
 
 			// Check for required substrings
 			for _, substr := range tt.contains {
@@ -94,7 +99,7 @@ func TestBorderedBoxWithTitle(t *testing.T) {
 	title := "My Title"
 	width := 40
 
-	result := BorderedBox(content, title, width)
+	result := BorderedBox(content, width, title)
 
 	// Should contain title
 	if !strings.Contains(result, title) {
@@ -115,10 +120,9 @@ func TestBorderedBoxWithTitle(t *testing.T) {
 
 func TestBorderedBoxWithoutTitle(t *testing.T) {
 	content := "Test content"
-	title := ""
 	width := 40
 
-	result := BorderedBox(content, title, width)
+	result := BorderedBox(content, width)
 
 	// Should not have empty line after top border
 	lines := strings.Split(result, "\n")
@@ -139,7 +143,7 @@ func TestBorderedBoxWithoutTitle(t *testing.T) {
 
 func TestBorderedBoxBorderCharacters(t *testing.T) {
 	content := "test"
-	result := BorderedBox(content, "", 20)
+	result := BorderedBox(content, 20)
 
 	// Check for all border characters
 	borderChars := []string{"╭", "╮", "╰", "╯", "│"}
