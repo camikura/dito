@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/oracle/nosql-go-sdk/nosqldb"
 	"github.com/oracle/nosql-go-sdk/nosqldb/nosqlerr"
+
+	"github.com/camikura/dito/internal/ui"
 )
 
 // 画面の種類
@@ -1086,7 +1088,7 @@ func (m model) viewOnPremiseConfigContent() string {
 	s.WriteString(titleStyle.Render("On-Premise Connection") + "\n")
 
 	// Endpoint
-	endpointField := formatTextField(m.onPremiseConfig.endpoint, 25, m.onPremiseConfig.focus == 0, m.onPremiseConfig.cursorPos)
+	endpointField := ui.TextField(m.onPremiseConfig.endpoint, 25, m.onPremiseConfig.focus == 0, m.onPremiseConfig.cursorPos)
 	if m.onPremiseConfig.focus == 0 {
 		s.WriteString(" " + labelStyle.Render("Endpoint:") + " " + focusedStyle.Render(endpointField) + "\n")
 	} else {
@@ -1094,7 +1096,7 @@ func (m model) viewOnPremiseConfigContent() string {
 	}
 
 	// Port
-	portField := formatTextField(m.onPremiseConfig.port, 8, m.onPremiseConfig.focus == 1, m.onPremiseConfig.cursorPos)
+	portField := ui.TextField(m.onPremiseConfig.port, 8, m.onPremiseConfig.focus == 1, m.onPremiseConfig.cursorPos)
 	if m.onPremiseConfig.focus == 1 {
 		s.WriteString(" " + labelStyle.Render("Port:") + " " + focusedStyle.Render(portField) + "\n")
 	} else {
@@ -1102,81 +1104,14 @@ func (m model) viewOnPremiseConfigContent() string {
 	}
 
 	// Secure checkbox
-	checkbox := "[ ]"
-	if m.onPremiseConfig.secure {
-		checkbox = "[x]"
-	}
-	secureText := checkbox + " HTTPS/TLS"
-	if m.onPremiseConfig.focus == 2 {
-		s.WriteString(" " + labelStyle.Render("Secure:") + " " + focusedStyle.Render(secureText) + "\n\n")
-	} else {
-		s.WriteString(" " + labelStyle.Render("Secure:") + " " + normalStyle.Render(secureText) + "\n\n")
-	}
+	secureText := ui.Checkbox("HTTPS/TLS", m.onPremiseConfig.secure, m.onPremiseConfig.focus == 2)
+	s.WriteString(" " + labelStyle.Render("Secure:") + " " + secureText + "\n\n")
 
 	// ボタン（縦配置）
-	if m.onPremiseConfig.focus == 3 {
-		s.WriteString(focusedStyle.Render(" > Test Connection") + "\n")
-	} else {
-		s.WriteString(normalStyle.Render("   Test Connection") + "\n")
-	}
-
-	if m.onPremiseConfig.focus == 4 {
-		s.WriteString(focusedStyle.Render(" > Connect") + "\n")
-	} else {
-		s.WriteString(normalStyle.Render("   Connect") + "\n")
-	}
+	s.WriteString(" " + ui.Button("Test Connection", m.onPremiseConfig.focus == 3) + "\n")
+	s.WriteString(" " + ui.Button("Connect", m.onPremiseConfig.focus == 4) + "\n")
 
 	return s.String()
-}
-
-// テキスト入力フィールドのフォーマット（長い場合は切り詰め）
-func formatTextField(value string, maxWidth int, focused bool, cursorPos int) string {
-	// カーソル位置が範囲内であることを確認
-	if cursorPos > len(value) {
-		cursorPos = len(value)
-	}
-	if cursorPos < 0 {
-		cursorPos = 0
-	}
-
-	var displayValue string
-	if focused {
-		// カーソル位置にアンダースコアを挿入
-		valueWithCursor := value[:cursorPos] + "_" + value[cursorPos:]
-
-		if len(valueWithCursor) > maxWidth {
-			// カーソル位置に応じてスクロール
-			// 表示可能な文字数（"..."を除く）
-			visibleWidth := maxWidth - 3
-
-			// 表示開始位置を計算
-			var start int
-			if cursorPos < visibleWidth {
-				// カーソルが左端近くにある場合、先頭から表示
-				start = 0
-				displayValue = valueWithCursor[:maxWidth-3] + "..."
-			} else {
-				// カーソルが右側にある場合、カーソルが見えるように右側を表示
-				start = cursorPos - visibleWidth + 1
-				end := start + visibleWidth
-				if end > len(valueWithCursor) {
-					end = len(valueWithCursor)
-				}
-				displayValue = "..." + valueWithCursor[start:end]
-			}
-		} else {
-			displayValue = valueWithCursor
-		}
-	} else {
-		// フォーカスが外れている時は先頭から表示
-		if len(value) > maxWidth {
-			displayValue = value[:maxWidth-3] + "..."
-		} else {
-			displayValue = value
-		}
-	}
-
-	return fmt.Sprintf("[ %-*s ]", maxWidth, displayValue)
 }
 
 // Cloud接続設定画面のコンテンツ
@@ -1203,7 +1138,7 @@ func (m model) viewCloudConfigContent() string {
 	s.WriteString(titleStyle.Render("Cloud Connection") + "\n")
 
 	// Region
-	regionField := formatTextField(m.cloudConfig.region, 25, m.cloudConfig.focus == 0, m.cloudConfig.cursorPos)
+	regionField := ui.TextField(m.cloudConfig.region, 25, m.cloudConfig.focus == 0, m.cloudConfig.cursorPos)
 	if m.cloudConfig.focus == 0 {
 		s.WriteString(" " + labelStyle.Render("Region:") + " " + focusedStyle.Render(regionField) + "\n")
 	} else {
@@ -1211,7 +1146,7 @@ func (m model) viewCloudConfigContent() string {
 	}
 
 	// Compartment
-	compartmentField := formatTextField(m.cloudConfig.compartment, 25, m.cloudConfig.focus == 1, m.cloudConfig.cursorPos)
+	compartmentField := ui.TextField(m.cloudConfig.compartment, 25, m.cloudConfig.focus == 1, m.cloudConfig.cursorPos)
 	if m.cloudConfig.focus == 1 {
 		s.WriteString(" " + labelStyle.Render("Compartment:") + " " + focusedStyle.Render(compartmentField) + "\n\n")
 	} else {
@@ -1223,22 +1158,13 @@ func (m model) viewCloudConfigContent() string {
 
 	authMethods := []string{"OCI Config Profile (default)", "Instance Principal", "Resource Principal"}
 	for i, method := range authMethods {
-		radio := "( )"
-		if m.cloudConfig.authMethod == i {
-			radio = "(*)"
-		}
-		radioText := radio + " " + method
 		focus := 2 + i
-		if m.cloudConfig.focus == focus {
-			s.WriteString(focusedStyle.Render(" > " + radioText) + "\n")
-		} else {
-			s.WriteString(normalStyle.Render("   " + radioText) + "\n")
-		}
+		s.WriteString(" " + ui.RadioButton(method, m.cloudConfig.authMethod == i, m.cloudConfig.focus == focus) + "\n")
 	}
 	s.WriteString("\n")
 
 	// Config File
-	configFileField := formatTextField(m.cloudConfig.configFile, 25, m.cloudConfig.focus == 5, m.cloudConfig.cursorPos)
+	configFileField := ui.TextField(m.cloudConfig.configFile, 25, m.cloudConfig.focus == 5, m.cloudConfig.cursorPos)
 	if m.cloudConfig.focus == 5 {
 		s.WriteString(" " + labelStyle.Render("Config File:") + " " + focusedStyle.Render(configFileField) + "\n\n")
 	} else {
@@ -1246,17 +1172,8 @@ func (m model) viewCloudConfigContent() string {
 	}
 
 	// ボタン
-	if m.cloudConfig.focus == 6 {
-		s.WriteString(focusedStyle.Render(" > Test Connection") + "\n")
-	} else {
-		s.WriteString(normalStyle.Render("   Test Connection") + "\n")
-	}
-
-	if m.cloudConfig.focus == 7 {
-		s.WriteString(focusedStyle.Render(" > Connect") + "\n")
-	} else {
-		s.WriteString(normalStyle.Render("   Connect") + "\n")
-	}
+	s.WriteString(" " + ui.Button("Test Connection", m.cloudConfig.focus == 6) + "\n")
+	s.WriteString(" " + ui.Button("Connect", m.cloudConfig.focus == 7) + "\n")
 
 	return s.String()
 }
@@ -1452,7 +1369,7 @@ func (m model) renderTableData(tableName string, maxWidth, maxHeight int) string
 	currentWidth := 0
 	for _, colName := range columnNames {
 		width := columnWidths[colName]
-		truncated := truncateString(colName, width)
+		truncated := ui.TruncateString(colName, width)
 		part := fmt.Sprintf("%-*s", width, truncated)
 
 		nextWidth := currentWidth + len(part)
@@ -1509,7 +1426,7 @@ func (m model) renderTableData(tableName string, maxWidth, maxHeight int) string
 		for _, colName := range columnNames {
 			width := columnWidths[colName]
 			value := fmt.Sprintf("%v", row[colName])
-			truncated := truncateString(value, width)
+			truncated := ui.TruncateString(value, width)
 			part := fmt.Sprintf("%-*s", width, truncated)
 
 			// カラム間の"  "も考慮
@@ -1548,17 +1465,6 @@ func (m model) renderTableData(tableName string, maxWidth, maxHeight int) string
 	content = strings.TrimSuffix(content, "\n")
 
 	return content
-}
-
-// 文字列を指定幅で切り詰める（省略記号付き）
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 1 {
-		return "…"
-	}
-	return s[:maxLen-1] + "…"
 }
 
 // レコードビュー: 選択された行の全カラムを縦に表示
