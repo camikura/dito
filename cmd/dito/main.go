@@ -1416,7 +1416,8 @@ func (m model) viewTableList() string {
 			}
 		} else if m.rightPaneMode == rightPaneModeList {
 			// グリッドビューモード
-			rightPaneHeight := m.height - 8
+			// rightPane全体の高さ(m.height-8)からSQLエリア(2行)を引く
+			rightPaneHeight := m.height - 10
 
 			// データの取得状態を確認
 			data, exists := m.tableData[selectedTableName]
