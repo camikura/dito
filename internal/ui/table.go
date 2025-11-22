@@ -54,7 +54,7 @@ func (dg *DataGrid) Render(maxWidth, maxHeight int) string {
 
 	// Render header
 	headerParts, headerWidths := dg.renderHeader(visibleColumns, columnWidths, availableWidth)
-	headerLine := strings.Join(headerParts, "  ")
+	headerLine := strings.Join(headerParts, " ")
 	content += StyleNormal.Render(headerLine) + "\n"
 
 	// Render separator
@@ -62,13 +62,13 @@ func (dg *DataGrid) Render(maxWidth, maxHeight int) string {
 	for i, width := range headerWidths {
 		sepParts[i] = strings.Repeat("─", width)
 	}
-	sepLine := strings.Join(sepParts, "  ")
+	sepLine := strings.Join(sepParts, " ")
 	content += StyleLabel.Render(sepLine) + "\n"
 
 	// Render data rows
 	for i, row := range viewportRows {
 		rowParts := dg.renderRow(row, visibleColumns, columnWidths, availableWidth, headerWidths)
-		rowContent := strings.Join(rowParts, "  ")
+		rowContent := strings.Join(rowParts, " ")
 
 		// Apply selection style with background highlighting
 		absoluteRowIndex := dg.ViewportOffset + i
@@ -153,13 +153,13 @@ func (dg *DataGrid) renderHeader(columns []string, columnWidths map[string]int, 
 
 		nextWidth := currentWidth + len(part)
 		if len(headerParts) > 0 {
-			nextWidth += 2 // Space between columns
+			nextWidth += 1 // Space between columns
 		}
 
 		if nextWidth > availableWidth {
 			remaining := availableWidth - currentWidth
 			if len(headerParts) > 0 {
-				remaining -= 2
+				remaining -= 1
 			}
 			if remaining > 0 {
 				headerParts = append(headerParts, part[:remaining])
@@ -194,13 +194,13 @@ func (dg *DataGrid) renderRow(row map[string]interface{}, columns []string, colu
 
 		nextWidth := currentWidth + len(part)
 		if len(rowParts) > 0 {
-			nextWidth += 2 // Space between columns
+			nextWidth += 1 // Space between columns
 		}
 
 		if nextWidth > availableWidth {
 			remaining := availableWidth - currentWidth
 			if len(rowParts) > 0 {
-				remaining -= 2
+				remaining -= 1
 			}
 			if remaining > 0 {
 				rowParts = append(rowParts, part[:remaining])
