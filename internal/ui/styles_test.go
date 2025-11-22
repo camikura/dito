@@ -14,10 +14,13 @@ func TestColorPalette(t *testing.T) {
 	}{
 		{"ColorPrimary", ColorPrimary, "#00D9FF"},
 		{"ColorWhite", ColorWhite, "#FFFFFF"},
+		{"ColorBlack", ColorBlack, "#000000"},
 		{"ColorGray", ColorGray, "#888888"},
 		{"ColorGrayMid", ColorGrayMid, "#666666"},
 		{"ColorGrayDark", ColorGrayDark, "#555555"},
 		{"ColorGrayLight", ColorGrayLight, "#CCCCCC"},
+		{"ColorHeaderBg", ColorHeaderBg, "#AAAAAA"},
+		{"ColorHeaderText", ColorHeaderText, "#00AA00"},
 		{"ColorSuccess", ColorSuccess, "#00FF00"},
 		{"ColorError", ColorError, "#FF0000"},
 	}
@@ -41,6 +44,7 @@ func TestStylesNotNil(t *testing.T) {
 		{"StyleNormal", StyleNormal},
 		{"StyleFocused", StyleFocused},
 		{"StyleSelected", StyleSelected},
+		{"StyleHeader", StyleHeader},
 		{"StyleLabel", StyleLabel},
 		{"StyleSuccess", StyleSuccess},
 		{"StyleError", StyleError},
