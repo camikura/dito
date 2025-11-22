@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -23,14 +22,14 @@ func (sl *SelectableList) Render() string {
 	// Determine colors based on focus state
 	var titleStyle, selectedStyle, normalStyle lipgloss.Style
 	if sl.Focused {
-		// Focused: normal colors
+		// Focused: normal colors with background highlight
 		titleStyle = StyleTitle
 		selectedStyle = StyleSelected
 		normalStyle = StyleNormal
 	} else {
-		// Not focused: grayed out
+		// Not focused: grayed out with grayed background for selection
 		titleStyle = StyleLabel
-		selectedStyle = StyleLabel
+		selectedStyle = lipgloss.NewStyle().Foreground(ColorGray).Background(ColorGrayLightBg)
 		normalStyle = lipgloss.NewStyle().Foreground(ColorGrayMid)
 	}
 
@@ -42,9 +41,9 @@ func (sl *SelectableList) Render() string {
 	// Render items
 	for i, item := range sl.Items {
 		if i == sl.SelectedIndex {
-			result.WriteString(selectedStyle.Render(fmt.Sprintf("> %s", item)) + "\n")
+			result.WriteString(selectedStyle.Render(item) + "\n")
 		} else {
-			result.WriteString(normalStyle.Render(fmt.Sprintf("  %s", item)) + "\n")
+			result.WriteString(normalStyle.Render(item) + "\n")
 		}
 	}
 

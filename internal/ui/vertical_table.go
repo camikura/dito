@@ -32,8 +32,8 @@ func (vt *VerticalTable) Render() string {
 	// Render each key-value pair
 	for _, key := range vt.Keys {
 		value := fmt.Sprintf("%v", vt.Data[key])
-		// Left-align the key with padding
-		label := StyleLabel.Render(fmt.Sprintf("%-*s", maxKeyWidth, key))
+		// Left-align the key with padding and use focused style for labels
+		label := StyleFocused.Render(fmt.Sprintf("%-*s", maxKeyWidth, key))
 		result.WriteString(label + "  " + StyleNormal.Render(value) + "\n")
 	}
 

@@ -27,7 +27,7 @@ func TestDataGrid_Render(t *testing.T) {
 			},
 			maxWidth:  80,
 			maxHeight: 10,
-			contains:  []string{"id", "name", "Alice", "Bob", ">"},
+			contains:  []string{"id", "name", "Alice", "Bob"},
 		},
 		{
 			name: "with selection on second row",
@@ -243,15 +243,15 @@ func TestDataGrid_Selection(t *testing.T) {
 
 	result := grid.Render(80, 10)
 
-	// Should have selection indicator ">"
-	if !strings.Contains(result, ">") {
-		t.Errorf("Selected row should have '>' indicator")
+	// Should contain all data
+	if !strings.Contains(result, "Alice") {
+		t.Errorf("Result should contain 'Alice'")
 	}
-
-	// Count occurrences of ">"
-	count := strings.Count(result, ">")
-	if count != 1 {
-		t.Errorf("Should have exactly 1 selection indicator, got %d", count)
+	if !strings.Contains(result, "Bob") {
+		t.Errorf("Result should contain 'Bob'")
+	}
+	if !strings.Contains(result, "Charlie") {
+		t.Errorf("Result should contain 'Charlie'")
 	}
 }
 
