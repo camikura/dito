@@ -57,12 +57,12 @@ func TextField(value string, width int, focused bool, cursorPos int) string {
 }
 
 // Button renders a button with focus indicator.
-// When focused, displays "> Label", otherwise "  Label".
+// When focused, uses background color highlighting.
 func Button(label string, focused bool) string {
 	if focused {
-		return StyleFocused.Render(" > " + label)
+		return StyleSelected.Render(label)
 	}
-	return StyleNormal.Render("   " + label)
+	return StyleNormal.Render(label)
 }
 
 // Checkbox renders a checkbox with label.
@@ -81,6 +81,7 @@ func Checkbox(label string, checked bool, focused bool) string {
 
 // RadioButton renders a radio button with label.
 // Displays "(*) Label" when selected, "( ) Label" when not selected.
+// When focused, uses background color highlighting.
 func RadioButton(label string, selected bool, focused bool) string {
 	radio := "( )"
 	if selected {
@@ -88,9 +89,9 @@ func RadioButton(label string, selected bool, focused bool) string {
 	}
 	text := radio + " " + label
 	if focused {
-		return StyleFocused.Render(" > " + text)
+		return StyleSelected.Render(text)
 	}
-	return StyleNormal.Render("   " + text)
+	return StyleNormal.Render(text)
 }
 
 // TruncateString truncates a string to maxLen characters with an ellipsis.

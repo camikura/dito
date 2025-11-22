@@ -97,7 +97,7 @@ func TestButton(t *testing.T) {
 			name:    "focused",
 			label:   "Test Connection",
 			focused: true,
-			want:    "> Test Connection",
+			want:    "Test Connection",
 		},
 	}
 
@@ -186,14 +186,14 @@ func TestRadioButton(t *testing.T) {
 			label:    "Option C",
 			selected: false,
 			focused:  true,
-			want:     "> ( ) Option C",
+			want:     "( ) Option C",
 		},
 		{
 			name:     "selected focused",
 			label:    "Option D",
 			selected: true,
 			focused:  true,
-			want:     "> (*) Option D",
+			want:     "(*) Option D",
 		},
 	}
 
