@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/oracle/nosql-go-sdk/nosqldb"
-	"github.com/oracle/nosql-go-sdk/nosqldb/nosqlerr"
 
+	"github.com/camikura/dito/internal/db"
 	"github.com/camikura/dito/internal/ui"
 	"github.com/camikura/dito/internal/views"
 )
@@ -34,40 +34,11 @@ const (
 	statusError
 )
 
-// 接続結果メッセージ
-type connectionResultMsg struct {
-	err      error
-	version  string
-	client   *nosqldb.Client
-	endpoint string
-	isTest   bool // trueの場合はテスト接続（画面遷移しない）
-}
-
-// テーブル一覧取得結果メッセージ
-type tableListResultMsg struct {
-	tables []string
-	err    error
-}
-
-// テーブル詳細取得結果メッセージ
-type tableDetailsResultMsg struct {
-	tableName string
-	schema    *nosqldb.TableResult
-	indexes   []nosqldb.IndexInfo
-	err       error
-}
-
-// テーブルデータ取得結果メッセージ
-type tableDataResultMsg struct {
-	tableName       string
-	rows            []map[string]interface{}
-	lastPKValues    map[string]interface{} // 最後の行のPRIMARY KEY値（カーソルとして使用）
-	hasMore         bool                   // さらにデータがあるかどうか
-	err             error
-	isAppend        bool   // 既存データに追加するかどうか
-	sql             string // デバッグ用: 実行したSQL
-	displaySQL      string // 表示用: LIMIT句なしのSQL
-}
+// Message type aliases for db package types
+type connectionResultMsg = db.ConnectionResult
+type tableListResultMsg = db.TableListResult
+type tableDetailsResultMsg = db.TableDetailsResult
+type tableDataResultMsg = db.TableDataResult
 
 // On-Premise接続設定
 type onPremiseConfig struct {
@@ -169,232 +140,6 @@ func (m model) Init() tea.Cmd {
 	return nil
 }
 
-// テーブル一覧を取得するCommand
-func fetchTables(client *nosqldb.Client) tea.Cmd {
-	return func() tea.Msg {
-		req := &nosqldb.ListTablesRequest{}
-		result, err := client.ListTables(req)
-		if err != nil {
-			return tableListResultMsg{err: err}
-		}
-
-		// システムテーブル（SYS$*）をフィルタリング
-		var userTables []string
-		for _, table := range result.Tables {
-			if !strings.HasPrefix(table, "SYS$") {
-				userTables = append(userTables, table)
-			}
-		}
-
-		return tableListResultMsg{tables: userTables, err: nil}
-	}
-}
-
-// テーブル詳細を取得するCommand
-func fetchTableDetails(client *nosqldb.Client, tableName string) tea.Cmd {
-	return func() tea.Msg {
-		// テーブル情報を取得
-		tableReq := &nosqldb.GetTableRequest{
-			TableName: tableName,
-		}
-		tableResult, err := client.GetTable(tableReq)
-		if err != nil {
-			return tableDetailsResultMsg{tableName: tableName, err: err}
-		}
-
-		// インデックス情報を取得
-		indexReq := &nosqldb.GetIndexesRequest{
-			TableName: tableName,
-		}
-		indexResult, err := client.GetIndexes(indexReq)
-		if err != nil {
-			// インデックス取得エラーは無視して、スキーマ情報だけ返す
-			return tableDetailsResultMsg{tableName: tableName, schema: tableResult, indexes: nil, err: nil}
-		}
-
-		return tableDetailsResultMsg{tableName: tableName, schema: tableResult, indexes: indexResult.Indexes, err: nil}
-	}
-}
-
-// テーブルデータを取得するCommand（PRIMARY KEYでソート、初回取得）
-func fetchTableData(client *nosqldb.Client, tableName string, limit int, primaryKeys []string) tea.Cmd {
-	return fetchTableDataWithCursor(client, tableName, limit, primaryKeys, nil, false)
-}
-
-// テーブルデータを追加取得するCommand（PRIMARY KEYカーソル使用）
-func fetchMoreTableData(client *nosqldb.Client, tableName string, limit int, primaryKeys []string, lastPKValues map[string]interface{}) tea.Cmd {
-	return fetchTableDataWithCursor(client, tableName, limit, primaryKeys, lastPKValues, true)
-}
-
-// テーブルデータを取得する内部関数（PRIMARY KEYカーソル対応）
-func fetchTableDataWithCursor(client *nosqldb.Client, tableName string, limit int, primaryKeys []string, lastPKValues map[string]interface{}, isAppend bool) tea.Cmd {
-	return func() tea.Msg {
-		// PRIMARY KEY順に明示的にソート
-		var orderByClause string
-		if len(primaryKeys) > 0 {
-			orderByClause = " ORDER BY " + strings.Join(primaryKeys, ", ")
-		}
-
-		// WHERE句を構築（PRIMARY KEYカーソルがある場合）
-		var whereClause string
-		if lastPKValues != nil && len(lastPKValues) > 0 && len(primaryKeys) > 0 {
-			// 複合PRIMARY KEYの場合の条件を構築
-			// 例: WHERE pk1 > ? OR (pk1 = ? AND pk2 > ?) OR (pk1 = ? AND pk2 = ? AND pk3 > ?)
-			var conditions []string
-			for i := 0; i < len(primaryKeys); i++ {
-				var cond string
-				if i == 0 {
-					// 最初のキー: pk1 > ?
-					val := lastPKValues[primaryKeys[i]]
-					cond = fmt.Sprintf("%s > %s", primaryKeys[i], formatValue(val))
-				} else {
-					// それ以降: (pk1 = ? AND pk2 = ? AND ... AND pkN > ?)
-					var parts []string
-					for j := 0; j < i; j++ {
-						val := lastPKValues[primaryKeys[j]]
-						parts = append(parts, fmt.Sprintf("%s = %s", primaryKeys[j], formatValue(val)))
-					}
-					val := lastPKValues[primaryKeys[i]]
-					parts = append(parts, fmt.Sprintf("%s > %s", primaryKeys[i], formatValue(val)))
-					cond = "(" + strings.Join(parts, " AND ") + ")"
-				}
-				conditions = append(conditions, cond)
-			}
-			whereClause = " WHERE " + strings.Join(conditions, " OR ")
-		}
-
-		statement := fmt.Sprintf("SELECT * FROM %s%s%s LIMIT %d", tableName, whereClause, orderByClause, limit)
-
-		// 表示用SQL（LIMIT句なし）
-		displayStatement := fmt.Sprintf("SELECT * FROM %s%s%s", tableName, whereClause, orderByClause)
-
-		prepReq := &nosqldb.PrepareRequest{
-			Statement: statement,
-		}
-		prepResult, err := client.Prepare(prepReq)
-		if err != nil {
-			return tableDataResultMsg{tableName: tableName, err: err, isAppend: isAppend, sql: statement, displaySQL: displayStatement}
-		}
-
-		queryReq := &nosqldb.QueryRequest{
-			PreparedStatement: &prepResult.PreparedStatement,
-		}
-
-		// すべての結果を取得（SDKの内部ページネーションを使用）
-		var rows []map[string]interface{}
-		for {
-			queryResult, err := client.Query(queryReq)
-			if err != nil {
-				return tableDataResultMsg{tableName: tableName, err: err, isAppend: isAppend, sql: statement, displaySQL: displayStatement}
-			}
-
-			// 結果を取得
-			results, err := queryResult.GetResults()
-			if err != nil {
-				return tableDataResultMsg{tableName: tableName, err: err, isAppend: isAppend, sql: statement, displaySQL: displayStatement}
-			}
-
-			for _, result := range results {
-				rows = append(rows, result.Map())
-			}
-
-			// 継続トークンがなければ終了
-			if queryReq.IsDone() {
-				break
-			}
-		}
-
-		// 最後の行のPRIMARY KEY値を保存
-		var newLastPKValues map[string]interface{}
-		if len(rows) > 0 && len(primaryKeys) > 0 {
-			lastRow := rows[len(rows)-1]
-			newLastPKValues = make(map[string]interface{})
-			for _, pk := range primaryKeys {
-				if val, exists := lastRow[pk]; exists {
-					newLastPKValues[pk] = val
-				}
-			}
-		}
-
-		// 次のページがあるかチェック
-		// 取得した行数がlimitと同じなら、まだデータがある可能性がある
-		hasMore := len(rows) == limit
-
-		return tableDataResultMsg{
-			tableName:    tableName,
-			rows:         rows,
-			lastPKValues: newLastPKValues,
-			hasMore:      hasMore,
-			err:          nil,
-			isAppend:     isAppend,
-			sql:          statement,
-			displaySQL:   displayStatement,
-		}
-	}
-}
-
-// 値をSQL文字列にフォーマット
-func formatValue(val interface{}) string {
-	switch v := val.(type) {
-	case string:
-		// 文字列はシングルクォートで囲む
-		return fmt.Sprintf("'%s'", strings.ReplaceAll(v, "'", "''"))
-	case int, int32, int64, float32, float64:
-		return fmt.Sprintf("%v", v)
-	default:
-		return fmt.Sprintf("'%v'", v)
-	}
-}
-
-// 接続を試みるCommand
-func connectToNoSQL(endpoint, port string, isTest bool) tea.Cmd {
-	return func() tea.Msg {
-		// 接続設定
-		endpointURL := fmt.Sprintf("http://%s:%s", endpoint, port)
-		cfg := nosqldb.Config{
-			Mode:     "onprem",
-			Endpoint: endpointURL,
-		}
-
-		// クライアント作成
-		client, err := nosqldb.NewClient(cfg)
-		if err != nil {
-			return connectionResultMsg{err: err, isTest: isTest}
-		}
-
-		// 簡単なテスト（テーブル一覧取得）
-		req := &nosqldb.ListTablesRequest{}
-		_, err = client.ListTables(req)
-		if err != nil {
-			client.Close()
-			// エラーの詳細を取得
-			if nosqlErr, ok := err.(*nosqlerr.Error); ok {
-				return connectionResultMsg{err: fmt.Errorf("NoSQL Error: %s", nosqlErr.Error()), isTest: isTest}
-			}
-			return connectionResultMsg{err: err, isTest: isTest}
-		}
-
-		// テスト接続の場合はクライアントをクローズ
-		if isTest {
-			client.Close()
-			return connectionResultMsg{
-				version: "Connected",
-				err:     nil,
-				isTest:  true,
-			}
-		}
-
-		// 接続成功 - クライアントを返す（closeしない）
-		return connectionResultMsg{
-			version:  "Connected",
-			err:      nil,
-			client:   client,
-			endpoint: fmt.Sprintf("%s:%s", endpoint, port),
-			isTest:   false,
-		}
-	}
-}
-
 // Updateメソッド
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -422,73 +167,73 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case connectionResultMsg:
 		// 接続結果を処理
-		if msg.err != nil {
+		if msg.Err != nil {
 			m.onPremiseConfig.status = statusError
-			m.onPremiseConfig.errorMsg = msg.err.Error()
+			m.onPremiseConfig.errorMsg = msg.Err.Error()
 		} else {
 			m.onPremiseConfig.status = statusConnected
-			m.onPremiseConfig.serverVersion = msg.version
+			m.onPremiseConfig.serverVersion = msg.Version
 			m.onPremiseConfig.errorMsg = ""
 
 			// テスト接続でない場合のみテーブル一覧を取得して画面遷移
-			if !msg.isTest {
+			if !msg.IsTest {
 				// クライアントとエンドポイントを保存
-				m.nosqlClient = msg.client
-				m.endpoint = msg.endpoint
+				m.nosqlClient = msg.Client
+				m.endpoint = msg.Endpoint
 				// テーブル一覧を取得
-				return m, fetchTables(msg.client)
+				return m, db.FetchTables(msg.Client)
 			}
 		}
 		return m, nil
 	case tableListResultMsg:
 		// テーブル一覧取得結果を処理
-		if msg.err != nil {
+		if msg.Err != nil {
 			m.onPremiseConfig.status = statusError
-			m.onPremiseConfig.errorMsg = fmt.Sprintf("Failed to fetch tables: %v", msg.err)
+			m.onPremiseConfig.errorMsg = fmt.Sprintf("Failed to fetch tables: %v", msg.Err)
 		} else {
-			m.tables = msg.tables
+			m.tables = msg.Tables
 			m.selectedTable = 0
 			// テーブル一覧画面に遷移
 			m.screen = screenTableList
 			// 最初のテーブルの詳細を取得
 			if len(m.tables) > 0 {
-				return m, fetchTableDetails(m.nosqlClient, m.tables[0])
+				return m, db.FetchTableDetails(m.nosqlClient, m.tables[0])
 			}
 		}
 		return m, nil
 	case tableDetailsResultMsg:
 		// テーブル詳細取得結果を処理
-		if msg.err == nil {
-			m.tableDetails[msg.tableName] = &msg
+		if msg.Err == nil {
+			m.tableDetails[msg.TableName] = &msg
 		}
 		m.loadingDetails = false
 
 		// グリッドビューモードで、このテーブルのデータがまだ取得されていない場合は取得
-		if m.rightPaneMode == rightPaneModeList && msg.err == nil {
-			if _, exists := m.tableData[msg.tableName]; !exists {
+		if m.rightPaneMode == rightPaneModeList && msg.Err == nil {
+			if _, exists := m.tableData[msg.TableName]; !exists {
 				m.loadingData = true
-				primaryKeys := views.ParsePrimaryKeysFromDDL(msg.schema.DDL)
-				return m, fetchTableData(m.nosqlClient, msg.tableName, m.fetchSize, primaryKeys)
+				primaryKeys := views.ParsePrimaryKeysFromDDL(msg.Schema.DDL)
+				return m, db.FetchTableData(m.nosqlClient, msg.TableName, m.fetchSize, primaryKeys)
 			}
 		}
 		return m, nil
 	case tableDataResultMsg:
 		// テーブルデータ取得結果を処理
-		if msg.err == nil {
-			if msg.isAppend {
+		if msg.Err == nil {
+			if msg.IsAppend {
 				// 既存データに追加（SQLは更新しない）
-				if existingData, exists := m.tableData[msg.tableName]; exists {
-					existingData.rows = append(existingData.rows, msg.rows...)
-					existingData.lastPKValues = msg.lastPKValues
-					existingData.hasMore = msg.hasMore
+				if existingData, exists := m.tableData[msg.TableName]; exists {
+					existingData.Rows = append(existingData.Rows, msg.Rows...)
+					existingData.LastPKValues = msg.LastPKValues
+					existingData.HasMore = msg.HasMore
 				}
 			} else {
 				// 新規データとして設定
-				m.tableData[msg.tableName] = &msg
+				m.tableData[msg.TableName] = &msg
 			}
 		} else {
 			// エラーの場合もデータを保存（エラーメッセージとSQLを表示するため）
-			m.tableData[msg.tableName] = &msg
+			m.tableData[msg.TableName] = &msg
 		}
 		m.loadingData = false
 		return m, nil
@@ -670,12 +415,12 @@ func (m model) updateOnPremiseConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// 接続テスト（テスト接続なので画面遷移しない）
 			m.onPremiseConfig.status = statusConnecting
 			m.onPremiseConfig.errorMsg = ""
-			return m, connectToNoSQL(m.onPremiseConfig.endpoint, m.onPremiseConfig.port, true)
+			return m, db.Connect(m.onPremiseConfig.endpoint, m.onPremiseConfig.port, true)
 		} else if m.onPremiseConfig.focus == 4 {
 			// 接続する（実接続なのでテーブル一覧画面に遷移）
 			m.onPremiseConfig.status = statusConnecting
 			m.onPremiseConfig.errorMsg = ""
-			return m, connectToNoSQL(m.onPremiseConfig.endpoint, m.onPremiseConfig.port, false)
+			return m, db.Connect(m.onPremiseConfig.endpoint, m.onPremiseConfig.port, false)
 		}
 		return m, nil
 	case " ":
@@ -758,8 +503,8 @@ func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.rightPaneMode == rightPaneModeList || m.rightPaneMode == rightPaneModeDetail {
 			// グリッドビュー/レコードビュー: データ行を選択
 			tableName := m.tables[m.selectedTable]
-			if data, exists := m.tableData[tableName]; exists && data.err == nil {
-				totalRows := len(data.rows)
+			if data, exists := m.tableData[tableName]; exists && data.Err == nil {
+				totalRows := len(data.Rows)
 				if m.selectedDataRow < totalRows-1 {
 					m.selectedDataRow++
 					// ビューポートを調整（選択行がビューポートの下端より下になった場合）
@@ -769,14 +514,14 @@ func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 					// 残り10行以内まで来たら、さらにデータがある場合は追加取得
 					remainingRows := totalRows - m.selectedDataRow - 1
-					if remainingRows <= 10 && data.hasMore && !m.loadingData {
+					if remainingRows <= 10 && data.HasMore && !m.loadingData {
 						m.loadingData = true
 						// PRIMARY KEYを取得
 						var primaryKeys []string
-						if details, exists := m.tableDetails[tableName]; exists && details.schema != nil && details.schema.DDL != "" {
-							primaryKeys = views.ParsePrimaryKeysFromDDL(details.schema.DDL)
+						if details, exists := m.tableDetails[tableName]; exists && details.Schema != nil && details.Schema.DDL != "" {
+							primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
 						}
-						return m, fetchMoreTableData(m.nosqlClient, tableName, m.fetchSize, primaryKeys, data.lastPKValues)
+						return m, db.FetchMoreTableData(m.nosqlClient, tableName, m.fetchSize, primaryKeys, data.LastPKValues)
 					}
 				}
 			}
@@ -799,12 +544,12 @@ func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			tableName := m.tables[m.selectedTable]
 			// カラム数を取得
 			var totalColumns int
-			if details, exists := m.tableDetails[tableName]; exists && details.schema != nil && details.schema.DDL != "" {
-				primaryKeys := views.ParsePrimaryKeysFromDDL(details.schema.DDL)
-				columns := views.ParseColumnsFromDDL(details.schema.DDL, primaryKeys)
+			if details, exists := m.tableDetails[tableName]; exists && details.Schema != nil && details.Schema.DDL != "" {
+				primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+				columns := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
 				totalColumns = len(columns)
-			} else if data, exists := m.tableData[tableName]; exists && len(data.rows) > 0 {
-				totalColumns = len(data.rows[0])
+			} else if data, exists := m.tableData[tableName]; exists && len(data.Rows) > 0 {
+				totalColumns = len(data.Rows[0])
 			}
 			// 最後のカラムまでスクロールできるが、少なくとも1カラムは表示する
 			if m.horizontalOffset < totalColumns-1 {
@@ -840,7 +585,7 @@ func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				var cmds []tea.Cmd
 				if _, exists := m.tableDetails[tableName]; !exists {
 					m.loadingDetails = true
-					cmds = append(cmds, fetchTableDetails(m.nosqlClient, tableName))
+					cmds = append(cmds, db.FetchTableDetails(m.nosqlClient, tableName))
 				}
 
 				// データがまだ取得されていない場合は取得
@@ -848,10 +593,10 @@ func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.loadingData = true
 					// PRIMARY KEYを取得（テーブル詳細があれば）
 					var primaryKeys []string
-					if details, exists := m.tableDetails[tableName]; exists && details.schema != nil && details.schema.DDL != "" {
-						primaryKeys = views.ParsePrimaryKeysFromDDL(details.schema.DDL)
+					if details, exists := m.tableDetails[tableName]; exists && details.Schema != nil && details.Schema.DDL != "" {
+						primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
 					}
-					cmds = append(cmds, fetchTableData(m.nosqlClient, tableName, m.fetchSize, primaryKeys))
+					cmds = append(cmds, db.FetchTableData(m.nosqlClient, tableName, m.fetchSize, primaryKeys))
 				}
 
 				if len(cmds) > 0 {
@@ -870,7 +615,7 @@ func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// まだ取得していないテーブルの場合のみ取得
 		if _, exists := m.tableDetails[tableName]; !exists {
 			m.loadingDetails = true
-			return m, fetchTableDetails(m.nosqlClient, tableName)
+			return m, db.FetchTableDetails(m.nosqlClient, tableName)
 		}
 	}
 
@@ -1118,7 +863,7 @@ func (m model) viewTableList() string {
 					Foreground(lipgloss.Color("#CCCCCC"))
 
 				// SQLとセパレーターを手動で組み立て
-				sqlText := sqlStyle.Render(data.displaySQL)
+				sqlText := sqlStyle.Render(data.DisplaySQL)
 				separator := ui.Separator(rightPaneWidth - 2)
 
 				rightPaneContent = sqlText + "\n" + separator
@@ -1130,8 +875,8 @@ func (m model) viewTableList() string {
 			var tableSchema *nosqldb.TableResult
 			var indexes []nosqldb.IndexInfo
 			if details, exists := m.tableDetails[selectedTableName]; exists && details != nil {
-				tableSchema = details.schema
-				indexes = details.indexes
+				tableSchema = details.Schema
+				indexes = details.Indexes
 			}
 			rightPaneContent += views.RenderSchemaView(views.SchemaViewModel{
 				TableName:      selectedTableName,
@@ -1151,14 +896,14 @@ func (m model) viewTableList() string {
 			var dataErr error
 			var sql string
 			if exists && data != nil {
-				rows = data.rows
-				dataErr = data.err
-				sql = data.sql
+				rows = data.Rows
+				dataErr = data.Err
+				sql = data.SQL
 			}
 
 			var tableSchema *nosqldb.TableResult
 			if details, exists := m.tableDetails[selectedTableName]; exists && details != nil {
-				tableSchema = details.schema
+				tableSchema = details.Schema
 			}
 
 			rightPaneContent += views.RenderDataGridView(views.DataGridViewModel{
@@ -1180,13 +925,13 @@ func (m model) viewTableList() string {
 			var rows []map[string]interface{}
 			var dataErr error
 			if exists && data != nil {
-				rows = data.rows
-				dataErr = data.err
+				rows = data.Rows
+				dataErr = data.Err
 			}
 
 			var tableSchema *nosqldb.TableResult
 			if details, exists := m.tableDetails[selectedTableName]; exists && details != nil {
-				tableSchema = details.schema
+				tableSchema = details.Schema
 			}
 
 			rightPaneContent += views.RenderRecordView(views.RecordViewModel{
@@ -1221,17 +966,17 @@ func (m model) viewTableList() string {
 		if m.rightPaneMode == rightPaneModeList || m.rightPaneMode == rightPaneModeDetail {
 			// グリッドビュー/レコードビューモード: テーブル名と行数を表示
 			if data, exists := m.tableData[selectedTableName]; exists {
-				if data.err != nil {
+				if data.Err != nil {
 					// エラーが発生した場合は赤色で表示
 					errorStyle := lipgloss.NewStyle().
 						Foreground(lipgloss.Color("#FF0000")).
 						Padding(0, 1)
-					status = errorStyle.Render(fmt.Sprintf("Error: %v", data.err))
-				} else if len(data.rows) > 0 {
-					totalRows := len(data.rows)
+					status = errorStyle.Render(fmt.Sprintf("Error: %v", data.Err))
+				} else if len(data.Rows) > 0 {
+					totalRows := len(data.Rows)
 					// データがまだある場合は "+" を追加
 					moreIndicator := ""
-					if data.hasMore {
+					if data.HasMore {
 						moreIndicator = "+"
 					}
 					// テーブル名と行数のみ表示
