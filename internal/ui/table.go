@@ -52,10 +52,15 @@ func (dg *DataGrid) Render(maxWidth, maxHeight int) string {
 		availableWidth = 10 // Minimum width
 	}
 
-	// Render header with background color (k9s style)
+	// Render header with underline (k9s style)
 	headerParts, headerWidths := dg.renderHeader(visibleColumns, columnWidths, availableWidth)
-	headerLine := strings.Join(headerParts, " ")
-	content += StyleHeader.Render(headerLine) + "\n"
+	// Apply underline to each column separately, not the spaces between them
+	styledHeaders := make([]string, len(headerParts))
+	for i, part := range headerParts {
+		styledHeaders[i] = StyleHeader.Render(part)
+	}
+	headerLine := strings.Join(styledHeaders, " ")
+	content += headerLine + "\n"
 
 	// Render data rows
 	for i, row := range viewportRows {
