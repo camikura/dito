@@ -5,7 +5,7 @@ import (
 )
 
 // TextField renders a text input field with optional cursor support.
-// When focused, displays a cursor at the specified position and scrolls as needed.
+// When focused, displays a cursor at the specified position with background color highlighting.
 // Returns a formatted string like "[ value__ ]" with proper width.
 func TextField(value string, width int, focused bool, cursorPos int) string {
 	// カーソル位置が範囲内であることを確認
@@ -53,7 +53,13 @@ func TextField(value string, width int, focused bool, cursorPos int) string {
 		}
 	}
 
-	return fmt.Sprintf("[ %-*s ]", width, displayValue)
+	formattedText := fmt.Sprintf("[ %-*s ]", width, displayValue)
+
+	// Apply background color highlighting when focused
+	if focused {
+		return StyleSelected.Render(formattedText)
+	}
+	return StyleNormal.Render(formattedText)
 }
 
 // Button renders a button with focus indicator.
