@@ -25,7 +25,10 @@
       "Bash(go get:*)",
       "Bash(git ls-tree:*)",
       "Bash(git add:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(git commit:*)",
+      "Bash(mkdir:*)",
+      "Bash(go test:*)"
     ],
     "deny": [],
     "ask": []
