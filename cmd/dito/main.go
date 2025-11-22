@@ -9,29 +9,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/oracle/nosql-go-sdk/nosqldb"
 
+	"github.com/camikura/dito/internal/app"
 	"github.com/camikura/dito/internal/db"
+	"github.com/camikura/dito/internal/handlers"
 	"github.com/camikura/dito/internal/ui"
 	"github.com/camikura/dito/internal/views"
-)
-
-// 画面の種類
-type screen int
-
-const (
-	screenSelection screen = iota
-	screenOnPremiseConfig
-	screenCloudConfig
-	screenTableList
-)
-
-// 接続状態
-type connectionStatus int
-
-const (
-	statusDisconnected connectionStatus = iota
-	statusConnecting
-	statusConnected
-	statusError
 )
 
 // Message type aliases for db package types
@@ -40,99 +22,9 @@ type tableListResultMsg = db.TableListResult
 type tableDetailsResultMsg = db.TableDetailsResult
 type tableDataResultMsg = db.TableDataResult
 
-// On-Premise接続設定
-type onPremiseConfig struct {
-	endpoint      string
-	port          string
-	secure        bool
-	focus         int // フォーカス中のフィールド
-	status        connectionStatus
-	errorMsg      string
-	serverVersion string
-	cursorPos     int // テキスト入力のカーソル位置
-}
-
-// Cloud接続設定
-type cloudConfig struct {
-	region        string
-	compartment   string
-	authMethod    int // 0: OCI Config Profile, 1: Instance Principal, 2: Resource Principal
-	configFile    string
-	focus         int // フォーカス中のフィールド
-	status        connectionStatus
-	errorMsg      string
-	serverVersion string
-	cursorPos     int // テキスト入力のカーソル位置
-}
-
-// 右ペインの表示モード
-type rightPaneMode int
-
-const (
-	rightPaneModeSchema rightPaneMode = iota
-	rightPaneModeList   // データ一覧表示
-	rightPaneModeDetail // レコード表示
-)
-
-// モデル定義
+// model wraps app.Model to allow methods in main package
 type model struct {
-	screen          screen
-	choices         []string
-	cursor          int
-	selected        map[int]struct{}
-	onPremiseConfig onPremiseConfig
-	cloudConfig     cloudConfig
-	width           int
-	height          int
-	// テーブル一覧画面用
-	nosqlClient     *nosqldb.Client
-	tables          []string
-	selectedTable   int
-	endpoint        string // 接続先エンドポイント（ステータス表示用）
-	tableDetails    map[string]*tableDetailsResultMsg
-	loadingDetails  bool
-	// データ表示用
-	rightPaneMode      rightPaneMode
-	tableData          map[string]*tableDataResultMsg
-	dataOffset         int // データの取得オフセット（無限スクロール用）
-	fetchSize          int // 一度に取得するデータ数
-	loadingData        bool
-	selectedDataRow    int // データビューモードで選択中の行（全体の絶対位置）
-	viewportOffset     int // 表示開始位置
-	viewportSize       int // 一度に画面に表示する行数
-	horizontalOffset   int // 横スクロールのオフセット（カラム単位、0始まり）
-}
-
-// 初期化関数
-func initialModel() model {
-	return model{
-		screen:   screenSelection,
-		choices:  []string{"Oracle NoSQL Cloud Service", "On-Premise"},
-		selected: make(map[int]struct{}),
-		onPremiseConfig: onPremiseConfig{
-			endpoint:  "localhost",
-			port:      "8080",
-			secure:    false,
-			focus:     0,
-			status:    statusDisconnected,
-			cursorPos: 9, // "localhost"の末尾
-		},
-		cloudConfig: cloudConfig{
-			region:      "us-ashburn-1",
-			compartment: "",
-			authMethod:  0, // OCI Config Profile
-			configFile:  "DEFAULT",
-			focus:       0,
-			status:      statusDisconnected,
-			cursorPos:   12, // "us-ashburn-1"の末尾
-		},
-		tableDetails:  make(map[string]*tableDetailsResultMsg),
-		rightPaneMode: rightPaneModeSchema,
-		tableData:     make(map[string]*tableDataResultMsg),
-		dataOffset:    0,
-		fetchSize:     100, // 一度に100行取得（無限スクロール）
-		viewportSize:  10,
-	}
+	app.Model
 }
 
 // Initメソッド
@@ -144,42 +36,50 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.Width = msg.Width
+		m.Height = msg.Height
 		// ビューポートサイズを画面の高さから計算
-		// 右ペインの高さ (m.height - 8) からヘッダー等を引く
-		rightPaneHeight := m.height - 8
-		m.viewportSize = rightPaneHeight - 3 // SQLエリア+ボーダー: 2行 + カラムヘッダー: 1行
-		if m.viewportSize < 1 {
-			m.viewportSize = 1
+		// 右ペインの高さ (m.Height - 8) からヘッダー等を引く
+		rightPaneHeight := m.Height - 8
+		m.ViewportSize = rightPaneHeight - 3 // SQLエリア+ボーダー: 2行 + カラムヘッダー: 1行
+		if m.ViewportSize < 1 {
+			m.ViewportSize = 1
 		}
 		return m, nil
 	case tea.KeyMsg:
-		switch m.screen {
-		case screenSelection:
-			return m.updateSelection(msg)
-		case screenOnPremiseConfig:
-			return m.updateOnPremiseConfig(msg)
-		case screenCloudConfig:
-			return m.updateCloudConfig(msg)
-		case screenTableList:
-			return m.updateTableList(msg)
+		switch m.Screen {
+		case app.ScreenSelection:
+			newModel, cmd := handlers.HandleSelection(m.Model, msg)
+			m.Model = newModel
+			return m, cmd
+		case app.ScreenOnPremiseConfig:
+			newModel, cmd := handlers.HandleOnPremiseConfig(m.Model, msg)
+			m.Model = newModel
+			return m, cmd
+		case app.ScreenCloudConfig:
+			newModel, cmd := handlers.HandleCloudConfig(m.Model, msg)
+			m.Model = newModel
+			return m, cmd
+		case app.ScreenTableList:
+			newModel, cmd := handlers.HandleTableList(m.Model, msg)
+			m.Model = newModel
+			return m, cmd
 		}
 	case connectionResultMsg:
 		// 接続結果を処理
 		if msg.Err != nil {
-			m.onPremiseConfig.status = statusError
-			m.onPremiseConfig.errorMsg = msg.Err.Error()
+			m.OnPremiseConfig.Status = app.StatusError
+			m.OnPremiseConfig.ErrorMsg = msg.Err.Error()
 		} else {
-			m.onPremiseConfig.status = statusConnected
-			m.onPremiseConfig.serverVersion = msg.Version
-			m.onPremiseConfig.errorMsg = ""
+			m.OnPremiseConfig.Status = app.StatusConnected
+			m.OnPremiseConfig.ServerVersion = msg.Version
+			m.OnPremiseConfig.ErrorMsg = ""
 
 			// テスト接続でない場合のみテーブル一覧を取得して画面遷移
 			if !msg.IsTest {
 				// クライアントとエンドポイントを保存
-				m.nosqlClient = msg.Client
-				m.endpoint = msg.Endpoint
+				m.NosqlClient = msg.Client
+				m.Endpoint = msg.Endpoint
 				// テーブル一覧を取得
 				return m, db.FetchTables(msg.Client)
 			}
@@ -188,32 +88,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tableListResultMsg:
 		// テーブル一覧取得結果を処理
 		if msg.Err != nil {
-			m.onPremiseConfig.status = statusError
-			m.onPremiseConfig.errorMsg = fmt.Sprintf("Failed to fetch tables: %v", msg.Err)
+			m.OnPremiseConfig.Status = app.StatusError
+			m.OnPremiseConfig.ErrorMsg = fmt.Sprintf("Failed to fetch tables: %v", msg.Err)
 		} else {
-			m.tables = msg.Tables
-			m.selectedTable = 0
+			m.Tables = msg.Tables
+			m.SelectedTable = 0
 			// テーブル一覧画面に遷移
-			m.screen = screenTableList
+			m.Screen = app.ScreenTableList
 			// 最初のテーブルの詳細を取得
-			if len(m.tables) > 0 {
-				return m, db.FetchTableDetails(m.nosqlClient, m.tables[0])
+			if len(m.Tables) > 0 {
+				return m, db.FetchTableDetails(m.NosqlClient, m.Tables[0])
 			}
 		}
 		return m, nil
 	case tableDetailsResultMsg:
 		// テーブル詳細取得結果を処理
 		if msg.Err == nil {
-			m.tableDetails[msg.TableName] = &msg
+			m.TableDetails[msg.TableName] = &msg
 		}
-		m.loadingDetails = false
+		m.LoadingDetails = false
 
 		// グリッドビューモードで、このテーブルのデータがまだ取得されていない場合は取得
-		if m.rightPaneMode == rightPaneModeList && msg.Err == nil {
-			if _, exists := m.tableData[msg.TableName]; !exists {
-				m.loadingData = true
+		if m.RightPaneMode == app.RightPaneModeList && msg.Err == nil {
+			if _, exists := m.TableData[msg.TableName]; !exists {
+				m.LoadingData = true
 				primaryKeys := views.ParsePrimaryKeysFromDDL(msg.Schema.DDL)
-				return m, db.FetchTableData(m.nosqlClient, msg.TableName, m.fetchSize, primaryKeys)
+				return m, db.FetchTableData(m.NosqlClient, msg.TableName, m.FetchSize, primaryKeys)
 			}
 		}
 		return m, nil
@@ -222,409 +122,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil {
 			if msg.IsAppend {
 				// 既存データに追加（SQLは更新しない）
-				if existingData, exists := m.tableData[msg.TableName]; exists {
+				if existingData, exists := m.TableData[msg.TableName]; exists {
 					existingData.Rows = append(existingData.Rows, msg.Rows...)
 					existingData.LastPKValues = msg.LastPKValues
 					existingData.HasMore = msg.HasMore
 				}
 			} else {
 				// 新規データとして設定
-				m.tableData[msg.TableName] = &msg
+				m.TableData[msg.TableName] = &msg
 			}
 		} else {
 			// エラーの場合もデータを保存（エラーメッセージとSQLを表示するため）
-			m.tableData[msg.TableName] = &msg
+			m.TableData[msg.TableName] = &msg
 		}
-		m.loadingData = false
+		m.LoadingData = false
 		return m, nil
 	}
 
 	return m, nil
 }
 
-// エディション選択画面のUpdate
-func (m model) updateSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c", "q":
-		return m, tea.Quit
-	case "up", "shift+tab":
-		m.cursor--
-		if m.cursor < 0 {
-			m.cursor = len(m.choices) - 1
-		}
-	case "down", "tab":
-		m.cursor = (m.cursor + 1) % len(m.choices)
-	case "enter":
-		// 0: Cloud, 1: On-Premise
-		switch m.cursor {
-		case 0:
-			// Cloud: 接続設定画面に遷移
-			m.screen = screenCloudConfig
-			return m, nil
-		case 1:
-			// On-Premise: 接続設定画面に遷移
-			m.screen = screenOnPremiseConfig
-			return m, nil
-		}
-	}
-	return m, nil
-}
-
-// Cloud接続設定画面のUpdate
-func (m model) updateCloudConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
-		return m, tea.Quit
-	case "esc":
-		// エディション選択画面に戻る
-		m.screen = screenSelection
-		return m, nil
-	case "tab":
-		// 次のフィールドへ
-		m.cloudConfig.focus = (m.cloudConfig.focus + 1) % 8
-		// テキスト入力フィールドの場合、カーソルを末尾に
-		if m.cloudConfig.focus == 0 {
-			m.cloudConfig.cursorPos = len(m.cloudConfig.region)
-		} else if m.cloudConfig.focus == 1 {
-			m.cloudConfig.cursorPos = len(m.cloudConfig.compartment)
-		} else if m.cloudConfig.focus == 5 {
-			m.cloudConfig.cursorPos = len(m.cloudConfig.configFile)
-		}
-		return m, nil
-	case "shift+tab":
-		// 前のフィールドへ
-		m.cloudConfig.focus--
-		if m.cloudConfig.focus < 0 {
-			m.cloudConfig.focus = 7
-		}
-		// テキスト入力フィールドの場合、カーソルを末尾に
-		if m.cloudConfig.focus == 0 {
-			m.cloudConfig.cursorPos = len(m.cloudConfig.region)
-		} else if m.cloudConfig.focus == 1 {
-			m.cloudConfig.cursorPos = len(m.cloudConfig.compartment)
-		} else if m.cloudConfig.focus == 5 {
-			m.cloudConfig.cursorPos = len(m.cloudConfig.configFile)
-		}
-		return m, nil
-	case "enter":
-		// ボタンが選択されている場合
-		if m.cloudConfig.focus == 6 {
-			// 接続テスト - TODO: Cloud接続実装
-			m.cloudConfig.status = statusConnecting
-			m.cloudConfig.errorMsg = ""
-			return m, nil
-		} else if m.cloudConfig.focus == 7 {
-			// 接続する - TODO: Cloud接続実装
-			m.cloudConfig.status = statusConnecting
-			m.cloudConfig.errorMsg = ""
-			return m, nil
-		}
-		return m, nil
-	case " ":
-		// ラジオボタンの選択
-		if m.cloudConfig.focus >= 2 && m.cloudConfig.focus <= 4 {
-			m.cloudConfig.authMethod = m.cloudConfig.focus - 2
-		}
-		return m, nil
-	case "left":
-		// カーソルを左に移動
-		if m.cloudConfig.cursorPos > 0 {
-			m.cloudConfig.cursorPos--
-		}
-		return m, nil
-	case "right":
-		// カーソルを右に移動
-		var maxPos int
-		if m.cloudConfig.focus == 0 {
-			maxPos = len(m.cloudConfig.region)
-		} else if m.cloudConfig.focus == 1 {
-			maxPos = len(m.cloudConfig.compartment)
-		} else if m.cloudConfig.focus == 5 {
-			maxPos = len(m.cloudConfig.configFile)
-		}
-		if m.cloudConfig.cursorPos < maxPos {
-			m.cloudConfig.cursorPos++
-		}
-		return m, nil
-	case "backspace":
-		// テキストフィールドの入力削除
-		if m.cloudConfig.focus == 0 && m.cloudConfig.cursorPos > 0 {
-			m.cloudConfig.region = m.cloudConfig.region[:m.cloudConfig.cursorPos-1] + m.cloudConfig.region[m.cloudConfig.cursorPos:]
-			m.cloudConfig.cursorPos--
-		} else if m.cloudConfig.focus == 1 && m.cloudConfig.cursorPos > 0 {
-			m.cloudConfig.compartment = m.cloudConfig.compartment[:m.cloudConfig.cursorPos-1] + m.cloudConfig.compartment[m.cloudConfig.cursorPos:]
-			m.cloudConfig.cursorPos--
-		} else if m.cloudConfig.focus == 5 && m.cloudConfig.cursorPos > 0 {
-			m.cloudConfig.configFile = m.cloudConfig.configFile[:m.cloudConfig.cursorPos-1] + m.cloudConfig.configFile[m.cloudConfig.cursorPos:]
-			m.cloudConfig.cursorPos--
-		}
-		return m, nil
-	default:
-		// テキスト入力
-		if len(msg.String()) == 1 {
-			if m.cloudConfig.focus == 0 {
-				m.cloudConfig.region = m.cloudConfig.region[:m.cloudConfig.cursorPos] + msg.String() + m.cloudConfig.region[m.cloudConfig.cursorPos:]
-				m.cloudConfig.cursorPos++
-			} else if m.cloudConfig.focus == 1 {
-				m.cloudConfig.compartment = m.cloudConfig.compartment[:m.cloudConfig.cursorPos] + msg.String() + m.cloudConfig.compartment[m.cloudConfig.cursorPos:]
-				m.cloudConfig.cursorPos++
-			} else if m.cloudConfig.focus == 5 {
-				m.cloudConfig.configFile = m.cloudConfig.configFile[:m.cloudConfig.cursorPos] + msg.String() + m.cloudConfig.configFile[m.cloudConfig.cursorPos:]
-				m.cloudConfig.cursorPos++
-			}
-		}
-		return m, nil
-	}
-}
-
-// On-Premise接続設定画面のUpdate
-func (m model) updateOnPremiseConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
-		return m, tea.Quit
-	case "esc":
-		// エディション選択画面に戻る
-		m.screen = screenSelection
-		return m, nil
-	case "tab":
-		// 次のフィールドへ
-		m.onPremiseConfig.focus = (m.onPremiseConfig.focus + 1) % 5
-		// テキスト入力フィールドの場合、カーソルを末尾に
-		if m.onPremiseConfig.focus == 0 {
-			m.onPremiseConfig.cursorPos = len(m.onPremiseConfig.endpoint)
-		} else if m.onPremiseConfig.focus == 1 {
-			m.onPremiseConfig.cursorPos = len(m.onPremiseConfig.port)
-		}
-		return m, nil
-	case "shift+tab":
-		// 前のフィールドへ
-		m.onPremiseConfig.focus--
-		if m.onPremiseConfig.focus < 0 {
-			m.onPremiseConfig.focus = 4
-		}
-		// テキスト入力フィールドの場合、カーソルを末尾に
-		if m.onPremiseConfig.focus == 0 {
-			m.onPremiseConfig.cursorPos = len(m.onPremiseConfig.endpoint)
-		} else if m.onPremiseConfig.focus == 1 {
-			m.onPremiseConfig.cursorPos = len(m.onPremiseConfig.port)
-		}
-		return m, nil
-	case "enter":
-		// ボタンが選択されている場合
-		if m.onPremiseConfig.focus == 3 {
-			// 接続テスト（テスト接続なので画面遷移しない）
-			m.onPremiseConfig.status = statusConnecting
-			m.onPremiseConfig.errorMsg = ""
-			return m, db.Connect(m.onPremiseConfig.endpoint, m.onPremiseConfig.port, true)
-		} else if m.onPremiseConfig.focus == 4 {
-			// 接続する（実接続なのでテーブル一覧画面に遷移）
-			m.onPremiseConfig.status = statusConnecting
-			m.onPremiseConfig.errorMsg = ""
-			return m, db.Connect(m.onPremiseConfig.endpoint, m.onPremiseConfig.port, false)
-		}
-		return m, nil
-	case " ":
-		// セキュアチェックボックスのトグル
-		if m.onPremiseConfig.focus == 2 {
-			m.onPremiseConfig.secure = !m.onPremiseConfig.secure
-		}
-		return m, nil
-	case "left":
-		// カーソルを左に移動
-		if m.onPremiseConfig.cursorPos > 0 {
-			m.onPremiseConfig.cursorPos--
-		}
-		return m, nil
-	case "right":
-		// カーソルを右に移動
-		var maxPos int
-		if m.onPremiseConfig.focus == 0 {
-			maxPos = len(m.onPremiseConfig.endpoint)
-		} else if m.onPremiseConfig.focus == 1 {
-			maxPos = len(m.onPremiseConfig.port)
-		}
-		if m.onPremiseConfig.cursorPos < maxPos {
-			m.onPremiseConfig.cursorPos++
-		}
-		return m, nil
-	case "backspace":
-		// テキストフィールドの入力削除
-		if m.onPremiseConfig.focus == 0 && m.onPremiseConfig.cursorPos > 0 {
-			m.onPremiseConfig.endpoint = m.onPremiseConfig.endpoint[:m.onPremiseConfig.cursorPos-1] + m.onPremiseConfig.endpoint[m.onPremiseConfig.cursorPos:]
-			m.onPremiseConfig.cursorPos--
-		} else if m.onPremiseConfig.focus == 1 && m.onPremiseConfig.cursorPos > 0 {
-			m.onPremiseConfig.port = m.onPremiseConfig.port[:m.onPremiseConfig.cursorPos-1] + m.onPremiseConfig.port[m.onPremiseConfig.cursorPos:]
-			m.onPremiseConfig.cursorPos--
-		}
-		return m, nil
-	default:
-		// テキスト入力
-		if len(msg.String()) == 1 {
-			if m.onPremiseConfig.focus == 0 {
-				m.onPremiseConfig.endpoint = m.onPremiseConfig.endpoint[:m.onPremiseConfig.cursorPos] + msg.String() + m.onPremiseConfig.endpoint[m.onPremiseConfig.cursorPos:]
-				m.onPremiseConfig.cursorPos++
-			} else if m.onPremiseConfig.focus == 1 {
-				m.onPremiseConfig.port = m.onPremiseConfig.port[:m.onPremiseConfig.cursorPos] + msg.String() + m.onPremiseConfig.port[m.onPremiseConfig.cursorPos:]
-				m.onPremiseConfig.cursorPos++
-			}
-		}
-		return m, nil
-	}
-}
-
-// テーブル一覧画面のUpdate
-func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	oldSelection := m.selectedTable
-
-	switch msg.String() {
-	case "ctrl+c", "q":
-		// クライアントをクローズしてから終了
-		if m.nosqlClient != nil {
-			m.nosqlClient.Close()
-		}
-		return m, tea.Quit
-	case "up", "k":
-		if m.rightPaneMode == rightPaneModeList || m.rightPaneMode == rightPaneModeDetail {
-			// グリッドビュー/レコードビュー: データ行を選択
-			if m.selectedDataRow > 0 {
-				m.selectedDataRow--
-				// ビューポートを調整（選択行がビューポートの上端より上になった場合）
-				if m.selectedDataRow < m.viewportOffset {
-					m.viewportOffset = m.selectedDataRow
-				}
-			}
-		} else {
-			// スキーマビューモード: テーブルを選択
-			if m.selectedTable > 0 {
-				m.selectedTable--
-			}
-		}
-	case "down", "j":
-		if m.rightPaneMode == rightPaneModeList || m.rightPaneMode == rightPaneModeDetail {
-			// グリッドビュー/レコードビュー: データ行を選択
-			tableName := m.tables[m.selectedTable]
-			if data, exists := m.tableData[tableName]; exists && data.Err == nil {
-				totalRows := len(data.Rows)
-				if m.selectedDataRow < totalRows-1 {
-					m.selectedDataRow++
-					// ビューポートを調整（選択行がビューポートの下端より下になった場合）
-					if m.selectedDataRow >= m.viewportOffset+m.viewportSize {
-						m.viewportOffset = m.selectedDataRow - m.viewportSize + 1
-					}
-
-					// 残り10行以内まで来たら、さらにデータがある場合は追加取得
-					remainingRows := totalRows - m.selectedDataRow - 1
-					if remainingRows <= 10 && data.HasMore && !m.loadingData {
-						m.loadingData = true
-						// PRIMARY KEYを取得
-						var primaryKeys []string
-						if details, exists := m.tableDetails[tableName]; exists && details.Schema != nil && details.Schema.DDL != "" {
-							primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-						}
-						return m, db.FetchMoreTableData(m.nosqlClient, tableName, m.fetchSize, primaryKeys, data.LastPKValues)
-					}
-				}
-			}
-		} else {
-			// スキーマビューモード: テーブルを選択
-			if m.selectedTable < len(m.tables)-1 {
-				m.selectedTable++
-			}
-		}
-	case "h", "left":
-		// データビューモード: 左にスクロール
-		if m.rightPaneMode == rightPaneModeList {
-			if m.horizontalOffset > 0 {
-				m.horizontalOffset--
-			}
-		}
-	case "l", "right":
-		// データビューモード: 右にスクロール
-		if m.rightPaneMode == rightPaneModeList {
-			tableName := m.tables[m.selectedTable]
-			// カラム数を取得
-			var totalColumns int
-			if details, exists := m.tableDetails[tableName]; exists && details.Schema != nil && details.Schema.DDL != "" {
-				primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-				columns := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
-				totalColumns = len(columns)
-			} else if data, exists := m.tableData[tableName]; exists && len(data.Rows) > 0 {
-				totalColumns = len(data.Rows[0])
-			}
-			// 最後のカラムまでスクロールできるが、少なくとも1カラムは表示する
-			if m.horizontalOffset < totalColumns-1 {
-				m.horizontalOffset++
-			}
-		}
-	case "esc", "u":
-		if m.rightPaneMode == rightPaneModeDetail {
-			// レコードビュー → グリッドビュー
-			m.rightPaneMode = rightPaneModeList
-			return m, nil
-		} else if m.rightPaneMode == rightPaneModeList {
-			// グリッドビュー → スキーマビュー
-			m.rightPaneMode = rightPaneModeSchema
-			m.horizontalOffset = 0 // 横スクロールをリセット
-			return m, nil
-		}
-		// スキーマビュー → 接続設定画面に戻る
-		m.screen = screenOnPremiseConfig
-		return m, nil
-	case "enter", "o":
-		if m.rightPaneMode == rightPaneModeSchema {
-			// スキーマビュー → グリッドビュー
-			m.rightPaneMode = rightPaneModeList
-			m.selectedDataRow = 0    // 行選択をリセット
-			m.viewportOffset = 0     // ビューポートをリセット
-			m.horizontalOffset = 0   // 横スクロールをリセット
-			// データ表示モードに切り替えたとき、データとテーブル詳細を取得
-			if len(m.tables) > 0 {
-				tableName := m.tables[m.selectedTable]
-
-				// テーブル詳細がまだ取得されていない場合は取得
-				var cmds []tea.Cmd
-				if _, exists := m.tableDetails[tableName]; !exists {
-					m.loadingDetails = true
-					cmds = append(cmds, db.FetchTableDetails(m.nosqlClient, tableName))
-				}
-
-				// データがまだ取得されていない場合は取得
-				if _, exists := m.tableData[tableName]; !exists {
-					m.loadingData = true
-					// PRIMARY KEYを取得（テーブル詳細があれば）
-					var primaryKeys []string
-					if details, exists := m.tableDetails[tableName]; exists && details.Schema != nil && details.Schema.DDL != "" {
-						primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-					}
-					cmds = append(cmds, db.FetchTableData(m.nosqlClient, tableName, m.fetchSize, primaryKeys))
-				}
-
-				if len(cmds) > 0 {
-					return m, tea.Batch(cmds...)
-				}
-			}
-		} else if m.rightPaneMode == rightPaneModeList {
-			// グリッドビュー → レコードビュー
-			m.rightPaneMode = rightPaneModeDetail
-		}
-	}
-
-	// テーブル選択が変わった場合、詳細を取得（スキーマビューモードのみ）
-	if m.rightPaneMode == rightPaneModeSchema && oldSelection != m.selectedTable && len(m.tables) > 0 {
-		tableName := m.tables[m.selectedTable]
-		// まだ取得していないテーブルの場合のみ取得
-		if _, exists := m.tableDetails[tableName]; !exists {
-			m.loadingDetails = true
-			return m, db.FetchTableDetails(m.nosqlClient, tableName)
-		}
-	}
-
-	return m, nil
-}
 
 // Viewメソッド
 func (m model) View() string {
-	if m.width == 0 {
+	if m.Width == 0 {
 		return "Loading..."
 	}
 
@@ -632,43 +153,43 @@ func (m model) View() string {
 	statusBarStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
 		Padding(0, 1).
-		Width(m.width - 2)
+		Width(m.Width - 2)
 
 	// メインコンテンツ
 	var content string
-	switch m.screen {
-	case screenSelection:
+	switch m.Screen {
+	case app.ScreenSelection:
 		content = views.RenderConnectionSelection(views.ConnectionSelectionModel{
-			Choices: m.choices,
-			Cursor:  m.cursor,
+			Choices: m.Choices,
+			Cursor:  m.Cursor,
 		})
-	case screenOnPremiseConfig:
+	case app.ScreenOnPremiseConfig:
 		content = views.RenderOnPremiseForm(views.OnPremiseFormModel{
-			Endpoint:  m.onPremiseConfig.endpoint,
-			Port:      m.onPremiseConfig.port,
-			Secure:    m.onPremiseConfig.secure,
-			Focus:     m.onPremiseConfig.focus,
-			CursorPos: m.onPremiseConfig.cursorPos,
+			Endpoint:  m.OnPremiseConfig.Endpoint,
+			Port:      m.OnPremiseConfig.Port,
+			Secure:    m.OnPremiseConfig.Secure,
+			Focus:     m.OnPremiseConfig.Focus,
+			CursorPos: m.OnPremiseConfig.CursorPos,
 		})
-	case screenCloudConfig:
+	case app.ScreenCloudConfig:
 		content = views.RenderCloudForm(views.CloudFormModel{
-			Region:      m.cloudConfig.region,
-			Compartment: m.cloudConfig.compartment,
-			AuthMethod:  m.cloudConfig.authMethod,
-			ConfigFile:  m.cloudConfig.configFile,
-			Focus:       m.cloudConfig.focus,
-			CursorPos:   m.cloudConfig.cursorPos,
+			Region:      m.CloudConfig.Region,
+			Compartment: m.CloudConfig.Compartment,
+			AuthMethod:  m.CloudConfig.AuthMethod,
+			ConfigFile:  m.CloudConfig.ConfigFile,
+			Focus:       m.CloudConfig.Focus,
+			CursorPos:   m.CloudConfig.CursorPos,
 		})
-	case screenTableList:
+	case app.ScreenTableList:
 		return m.viewTableList() // テーブル一覧は独自レイアウト
 	default:
 		content = "Unknown screen"
 	}
 
 	// コンテンツを左寄せ
-	contentHeight := m.height - 7 // タイトル行、空行、セパレーター×3、ステータスエリア、フッターを除く
+	contentHeight := m.Height - 7 // タイトル行、空行、セパレーター×3、ステータスエリア、フッターを除く
 	contentStyle := lipgloss.NewStyle().
-		Width(m.width - 2).
+		Width(m.Width - 2).
 		Height(contentHeight).
 		AlignVertical(lipgloss.Top).
 		AlignHorizontal(lipgloss.Left).
@@ -677,7 +198,7 @@ func (m model) View() string {
 	leftAlignedContent := contentStyle.Render(content)
 
 	// セパレーター
-	separator := ui.Separator(m.width - 2)
+	separator := ui.Separator(m.Width - 2)
 
 	// ステータス表示エリア（1行）
 	var statusMessage string
@@ -686,21 +207,21 @@ func (m model) View() string {
 	errorStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FF0000"))
 
-	if m.screen == screenOnPremiseConfig {
-		switch m.onPremiseConfig.status {
-		case statusConnecting:
+	if m.Screen == app.ScreenOnPremiseConfig {
+		switch m.OnPremiseConfig.Status {
+		case app.StatusConnecting:
 			statusMessage = statusStyle.Render("Connecting...")
-		case statusConnected:
+		case app.StatusConnected:
 			msg := "Connected"
-			if m.onPremiseConfig.serverVersion != "" {
-				msg = m.onPremiseConfig.serverVersion
+			if m.OnPremiseConfig.ServerVersion != "" {
+				msg = m.OnPremiseConfig.ServerVersion
 			}
 			statusMessage = statusStyle.Render(msg)
-		case statusError:
+		case app.StatusError:
 			msg := "Connection failed"
-			if m.onPremiseConfig.errorMsg != "" {
-				errMsg := m.onPremiseConfig.errorMsg
-				maxWidth := m.width - 10
+			if m.OnPremiseConfig.ErrorMsg != "" {
+				errMsg := m.OnPremiseConfig.ErrorMsg
+				maxWidth := m.Width - 10
 				if len(errMsg) > maxWidth {
 					errMsg = errMsg[:maxWidth] + "..."
 				}
@@ -708,21 +229,21 @@ func (m model) View() string {
 			}
 			statusMessage = errorStyle.Render(msg)
 		}
-	} else if m.screen == screenCloudConfig {
-		switch m.cloudConfig.status {
-		case statusConnecting:
+	} else if m.Screen == app.ScreenCloudConfig {
+		switch m.CloudConfig.Status {
+		case app.StatusConnecting:
 			statusMessage = statusStyle.Render("Connecting...")
-		case statusConnected:
+		case app.StatusConnected:
 			msg := "Connected"
-			if m.cloudConfig.serverVersion != "" {
-				msg = m.cloudConfig.serverVersion
+			if m.CloudConfig.ServerVersion != "" {
+				msg = m.CloudConfig.ServerVersion
 			}
 			statusMessage = statusStyle.Render(msg)
-		case statusError:
+		case app.StatusError:
 			msg := "Connection failed"
-			if m.cloudConfig.errorMsg != "" {
-				errMsg := m.cloudConfig.errorMsg
-				maxWidth := m.width - 10
+			if m.CloudConfig.ErrorMsg != "" {
+				errMsg := m.CloudConfig.ErrorMsg
+				maxWidth := m.Width - 10
 				if len(errMsg) > maxWidth {
 					errMsg = errMsg[:maxWidth] + "..."
 				}
@@ -734,17 +255,17 @@ func (m model) View() string {
 
 	statusAreaStyle := lipgloss.NewStyle().
 		Padding(0, 1).
-		Width(m.width - 2)
+		Width(m.Width - 2)
 	statusArea := statusAreaStyle.Render(statusMessage)
 
 	// フッター（ヘルプテキスト）
 	var helpText string
-	switch m.screen {
-	case screenSelection:
+	switch m.Screen {
+	case app.ScreenSelection:
 		helpText = "Tab/Shift+Tab or ↑/↓: Navigate  Enter: Select  q: Quit"
-	case screenOnPremiseConfig:
+	case app.ScreenOnPremiseConfig:
 		helpText = "Tab/Shift+Tab: Navigate  Space: Toggle  Enter: Execute  Esc: Back  Ctrl+C: Quit"
-	case screenCloudConfig:
+	case app.ScreenCloudConfig:
 		helpText = "Tab/Shift+Tab: Navigate  Space: Toggle  Enter: Execute  Esc: Back  Ctrl+C: Quit"
 	}
 	footer := statusBarStyle.Render(helpText)
@@ -754,10 +275,10 @@ func (m model) View() string {
 
 	// 上部ボーダー: ╭── Dito ─────...╮
 	title := " Dito "
-	// 全体の幅 = m.width
+	// 全体の幅 = m.Width
 	// "╭──" = 3文字, title = 6文字, "╮" = 1文字
-	// 残りの "─" = m.width - 3 - 6 - 1 = m.width - 10
-	topBorder := borderStyleColor.Render("╭──" + title + strings.Repeat("─", m.width-10) + "╮")
+	// 残りの "─" = m.Width - 3 - 6 - 1 = m.Width - 10
+	topBorder := borderStyleColor.Render("╭──" + title + strings.Repeat("─", m.Width-10) + "╮")
 
 	// 左右のボーダー文字
 	leftBorder := borderStyleColor.Render("│")
@@ -768,7 +289,7 @@ func (m model) View() string {
 	result.WriteString(topBorder + "\n")
 
 	// タイトル行の下に空行を追加
-	emptyLine := strings.Repeat(" ", m.width-2)
+	emptyLine := strings.Repeat(" ", m.Width-2)
 	result.WriteString(leftBorder + emptyLine + rightBorder + "\n")
 
 	// コンテンツを行ごとに分割してボーダーを追加
@@ -789,7 +310,7 @@ func (m model) View() string {
 	}
 
 	// 下部ボーダー: ╰─────...╯
-	bottomBorder := borderStyleColor.Render("╰" + strings.Repeat("─", m.width-2) + "╯")
+	bottomBorder := borderStyleColor.Render("╰" + strings.Repeat("─", m.Width-2) + "╯")
 	result.WriteString(bottomBorder)
 
 	return result.String()
@@ -800,16 +321,16 @@ func (m model) viewTableList() string {
 	// 2ペインレイアウト
 	leftPaneWidth := 30 // 固定幅
 	// rightPaneWidth = (borderの内側の幅) - (leftPaneWidth + leftPaneBorderRight)
-	// = (m.width - 2) - (30 + 1) = m.width - 33
-	rightPaneWidth := m.width - leftPaneWidth - 3
+	// = (m.Width - 2) - (30 + 1) = m.Width - 33
+	rightPaneWidth := m.Width - leftPaneWidth - 3
 
 	// ヘッダー
-	// borderStyleの内側の幅 m.width - 2 に合わせる
+	// borderStyleの内側の幅 m.Width - 2 に合わせる
 	// 右寄せで接続サーバ情報を表示
-	rightText := "Connected to " + m.endpoint
+	rightText := "Connected to " + m.Endpoint
 
 	// 使用可能な幅（パディング分を引く）
-	availableWidth := m.width - 4
+	availableWidth := m.Width - 4
 	spaceBefore := availableWidth - len(rightText)
 	if spaceBefore < 0 {
 		spaceBefore = 0
@@ -820,29 +341,29 @@ func (m model) viewTableList() string {
 	headerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
 		Padding(0, 1).
-		Width(m.width - 2)
+		Width(m.Width - 2)
 	header := headerStyle.Render(headerContent)
 
 	// 左ペイン: テーブルリスト
 	// SelectableListを使用
 	tableList := ui.SelectableList{
-		Title:         fmt.Sprintf("Tables (%d)", len(m.tables)),
-		Items:         m.tables,
-		SelectedIndex: m.selectedTable,
-		Focused:       m.rightPaneMode == rightPaneModeSchema, // スキーマビューモードの時のみフォーカス
+		Title:         fmt.Sprintf("Tables (%d)", len(m.Tables)),
+		Items:         m.Tables,
+		SelectedIndex: m.SelectedTable,
+		Focused:       m.RightPaneMode == app.RightPaneModeSchema, // スキーマビューモードの時のみフォーカス
 	}
 	leftPaneContent := tableList.Render()
 
 	// ボーダー色の決定
 	var borderColor string
-	if m.rightPaneMode == rightPaneModeList || m.rightPaneMode == rightPaneModeDetail {
+	if m.RightPaneMode == app.RightPaneModeList || m.RightPaneMode == app.RightPaneModeDetail {
 		borderColor = "#666666"
 	} else {
 		borderColor = "#555555"
 	}
 	leftPaneStyle := lipgloss.NewStyle().
 		Width(leftPaneWidth).
-		Height(m.height - 8). // タイトル行、ヘッダー、セパレーター×3、ステータス、フッター、ボーダー×2を除く
+		Height(m.Height - 8). // タイトル行、ヘッダー、セパレーター×3、ステータス、フッター、ボーダー×2を除く
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderRight(true).
 		BorderForeground(lipgloss.Color(borderColor)).
@@ -851,13 +372,13 @@ func (m model) viewTableList() string {
 
 	// 右ペイン: テーブル詳細またはデータ表示
 	rightPaneContent := ""
-	if len(m.tables) > 0 && m.selectedTable < len(m.tables) {
-		selectedTableName := m.tables[m.selectedTable]
+	if len(m.Tables) > 0 && m.SelectedTable < len(m.Tables) {
+		selectedTableName := m.Tables[m.SelectedTable]
 
 		// モードに応じてヘッダーを変更
-		if m.rightPaneMode == rightPaneModeList || m.rightPaneMode == rightPaneModeDetail {
+		if m.RightPaneMode == app.RightPaneModeList || m.RightPaneMode == app.RightPaneModeDetail {
 			// グリッドビュー/レコードビューモード: SQLエリアを表示
-			if data, exists := m.tableData[selectedTableName]; exists {
+			if data, exists := m.TableData[selectedTableName]; exists {
 				// SQLエリアのスタイル（背景なし）
 				sqlStyle := lipgloss.NewStyle().
 					Foreground(lipgloss.Color("#CCCCCC"))
@@ -870,28 +391,28 @@ func (m model) viewTableList() string {
 			}
 		}
 
-		if m.rightPaneMode == rightPaneModeSchema {
+		if m.RightPaneMode == app.RightPaneModeSchema {
 			// Schema表示モード
 			var tableSchema *nosqldb.TableResult
 			var indexes []nosqldb.IndexInfo
-			if details, exists := m.tableDetails[selectedTableName]; exists && details != nil {
+			if details, exists := m.TableDetails[selectedTableName]; exists && details != nil {
 				tableSchema = details.Schema
 				indexes = details.Indexes
 			}
 			rightPaneContent += views.RenderSchemaView(views.SchemaViewModel{
 				TableName:      selectedTableName,
-				AllTables:      m.tables,
+				AllTables:      m.Tables,
 				TableSchema:    tableSchema,
 				Indexes:        indexes,
-				LoadingDetails: m.loadingDetails,
+				LoadingDetails: m.LoadingDetails,
 			})
-		} else if m.rightPaneMode == rightPaneModeList {
+		} else if m.RightPaneMode == app.RightPaneModeList {
 			// グリッドビューモード
-			// rightPane全体の高さ(m.height-8)からSQLエリア(2行)を引く
-			rightPaneHeight := m.height - 10
+			// rightPane全体の高さ(m.Height-8)からSQLエリア(2行)を引く
+			rightPaneHeight := m.Height - 10
 
 			// データの取得状態を確認
-			data, exists := m.tableData[selectedTableName]
+			data, exists := m.TableData[selectedTableName]
 			var rows []map[string]interface{}
 			var dataErr error
 			var sql string
@@ -902,26 +423,26 @@ func (m model) viewTableList() string {
 			}
 
 			var tableSchema *nosqldb.TableResult
-			if details, exists := m.tableDetails[selectedTableName]; exists && details != nil {
+			if details, exists := m.TableDetails[selectedTableName]; exists && details != nil {
 				tableSchema = details.Schema
 			}
 
 			rightPaneContent += views.RenderDataGridView(views.DataGridViewModel{
 				Rows:             rows,
 				TableSchema:      tableSchema,
-				SelectedRow:      m.selectedDataRow,
-				HorizontalOffset: m.horizontalOffset,
-				ViewportOffset:   m.viewportOffset,
+				SelectedRow:      m.SelectedDataRow,
+				HorizontalOffset: m.HorizontalOffset,
+				ViewportOffset:   m.ViewportOffset,
 				Width:            rightPaneWidth,
 				Height:           rightPaneHeight,
-				LoadingData:      m.loadingData,
+				LoadingData:      m.LoadingData,
 				Error:            dataErr,
 				SQL:              sql,
 			})
-		} else if m.rightPaneMode == rightPaneModeDetail {
+		} else if m.RightPaneMode == app.RightPaneModeDetail {
 			// レコードビューモード
 			// データの取得状態を確認
-			data, exists := m.tableData[selectedTableName]
+			data, exists := m.TableData[selectedTableName]
 			var rows []map[string]interface{}
 			var dataErr error
 			if exists && data != nil {
@@ -930,15 +451,15 @@ func (m model) viewTableList() string {
 			}
 
 			var tableSchema *nosqldb.TableResult
-			if details, exists := m.tableDetails[selectedTableName]; exists && details != nil {
+			if details, exists := m.TableDetails[selectedTableName]; exists && details != nil {
 				tableSchema = details.Schema
 			}
 
 			rightPaneContent += views.RenderRecordView(views.RecordViewModel{
 				Rows:        rows,
 				TableSchema: tableSchema,
-				SelectedRow: m.selectedDataRow,
-				LoadingData: m.loadingData,
+				SelectedRow: m.SelectedDataRow,
+				LoadingData: m.LoadingData,
 				Error:       dataErr,
 			})
 		}
@@ -946,7 +467,7 @@ func (m model) viewTableList() string {
 
 	rightPaneStyle := lipgloss.NewStyle().
 		Width(rightPaneWidth).
-		Height(m.height - 8).
+		Height(m.Height - 8).
 		Padding(0, 1)
 	// 末尾の空行を削除
 	rightPaneContent = strings.TrimSuffix(rightPaneContent, "\n")
@@ -959,13 +480,13 @@ func (m model) viewTableList() string {
 	statusBarStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#CCCCCC")).
 		Padding(0, 1).
-		Width(m.width - 2)
+		Width(m.Width - 2)
 	var status string
-	if len(m.tables) > 0 {
-		selectedTableName := m.tables[m.selectedTable]
-		if m.rightPaneMode == rightPaneModeList || m.rightPaneMode == rightPaneModeDetail {
+	if len(m.Tables) > 0 {
+		selectedTableName := m.Tables[m.SelectedTable]
+		if m.RightPaneMode == app.RightPaneModeList || m.RightPaneMode == app.RightPaneModeDetail {
 			// グリッドビュー/レコードビューモード: テーブル名と行数を表示
-			if data, exists := m.tableData[selectedTableName]; exists {
+			if data, exists := m.TableData[selectedTableName]; exists {
 				if data.Err != nil {
 					// エラーが発生した場合は赤色で表示
 					errorStyle := lipgloss.NewStyle().
@@ -984,7 +505,7 @@ func (m model) viewTableList() string {
 				} else {
 					status = statusBarStyle.Render(fmt.Sprintf("Table: %s (0 rows)", selectedTableName))
 				}
-			} else if m.loadingData {
+			} else if m.LoadingData {
 				status = statusBarStyle.Render(fmt.Sprintf("Table: %s (loading...)", selectedTableName))
 			} else {
 				status = statusBarStyle.Render(fmt.Sprintf("Table: %s", selectedTableName))
@@ -1001,19 +522,19 @@ func (m model) viewTableList() string {
 	footerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
 		Padding(0, 1).
-		Width(m.width - 2)
+		Width(m.Width - 2)
 	var footer string
-	if m.rightPaneMode == rightPaneModeList {
+	if m.RightPaneMode == app.RightPaneModeList {
 		footer = footerStyle.Render("j/k: Scroll  h/l: Scroll Left/Right  o: Detail  u: Back  q: Quit")
-	} else if m.rightPaneMode == rightPaneModeDetail {
+	} else if m.RightPaneMode == app.RightPaneModeDetail {
 		footer = footerStyle.Render("j/k: Scroll  u: Back to List  q: Quit")
 	} else {
 		footer = footerStyle.Render("j/k: Navigate  o: View Data  u: Back  q: Quit")
 	}
 
 	// セパレーター
-	topSeparator := ui.Separator(m.width - 2)
-	statusSeparator := ui.Separator(m.width - 2)
+	topSeparator := ui.Separator(m.Width - 2)
+	statusSeparator := ui.Separator(m.Width - 2)
 
 	// 全体を組み立て
 	content := lipgloss.JoinVertical(
@@ -1032,10 +553,10 @@ func (m model) viewTableList() string {
 
 	// 上部ボーダー: ╭── Dito ─────...╮
 	title := " Dito "
-	// 全体の幅 = m.width
+	// 全体の幅 = m.Width
 	// "╭──" = 3文字, title = 6文字, "╮" = 1文字
-	// 残りの "─" = m.width - 3 - 6 - 1 = m.width - 10
-	topBorder := borderStyleColor.Render("╭──" + title + strings.Repeat("─", m.width-10) + "╮")
+	// 残りの "─" = m.Width - 3 - 6 - 1 = m.Width - 10
+	topBorder := borderStyleColor.Render("╭──" + title + strings.Repeat("─", m.Width-10) + "╮")
 
 	// 左右のボーダー文字
 	leftBorder := borderStyleColor.Render("│")
@@ -1050,7 +571,7 @@ func (m model) viewTableList() string {
 	}
 
 	// 下部ボーダー: ╰─────...╯
-	bottomBorder := borderStyleColor.Render("╰" + strings.Repeat("─", m.width-2) + "╯")
+	bottomBorder := borderStyleColor.Render("╰" + strings.Repeat("─", m.Width-2) + "╯")
 	result.WriteString(bottomBorder)
 
 	return result.String()
@@ -1058,7 +579,7 @@ func (m model) viewTableList() string {
 
 func main() {
 	p := tea.NewProgram(
-		initialModel(),
+		model{Model: app.InitialModel()},
 		tea.WithAltScreen(),       // 全画面モード
 		tea.WithMouseCellMotion(), // マウスサポート（オプション）
 	)
