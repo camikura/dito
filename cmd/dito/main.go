@@ -11,6 +11,7 @@ import (
 	"github.com/oracle/nosql-go-sdk/nosqldb/nosqlerr"
 
 	"github.com/camikura/dito/internal/ui"
+	"github.com/camikura/dito/internal/views"
 )
 
 // 画面の種類
@@ -466,7 +467,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.rightPaneMode == rightPaneModeList && msg.err == nil {
 			if _, exists := m.tableData[msg.tableName]; !exists {
 				m.loadingData = true
-				primaryKeys := parsePrimaryKeysFromDDL(msg.schema.DDL)
+				primaryKeys := views.ParsePrimaryKeysFromDDL(msg.schema.DDL)
 				return m, fetchTableData(m.nosqlClient, msg.tableName, m.fetchSize, primaryKeys)
 			}
 		}
@@ -773,7 +774,7 @@ func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 						// PRIMARY KEYを取得
 						var primaryKeys []string
 						if details, exists := m.tableDetails[tableName]; exists && details.schema != nil && details.schema.DDL != "" {
-							primaryKeys = parsePrimaryKeysFromDDL(details.schema.DDL)
+							primaryKeys = views.ParsePrimaryKeysFromDDL(details.schema.DDL)
 						}
 						return m, fetchMoreTableData(m.nosqlClient, tableName, m.fetchSize, primaryKeys, data.lastPKValues)
 					}
@@ -799,8 +800,8 @@ func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// カラム数を取得
 			var totalColumns int
 			if details, exists := m.tableDetails[tableName]; exists && details.schema != nil && details.schema.DDL != "" {
-				primaryKeys := parsePrimaryKeysFromDDL(details.schema.DDL)
-				columns := parseColumnsFromDDL(details.schema.DDL, primaryKeys)
+				primaryKeys := views.ParsePrimaryKeysFromDDL(details.schema.DDL)
+				columns := views.ParseColumnsFromDDL(details.schema.DDL, primaryKeys)
 				totalColumns = len(columns)
 			} else if data, exists := m.tableData[tableName]; exists && len(data.rows) > 0 {
 				totalColumns = len(data.rows[0])
@@ -848,7 +849,7 @@ func (m model) updateTableList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					// PRIMARY KEYを取得（テーブル詳細があれば）
 					var primaryKeys []string
 					if details, exists := m.tableDetails[tableName]; exists && details.schema != nil && details.schema.DDL != "" {
-						primaryKeys = parsePrimaryKeysFromDDL(details.schema.DDL)
+						primaryKeys = views.ParsePrimaryKeysFromDDL(details.schema.DDL)
 					}
 					cmds = append(cmds, fetchTableData(m.nosqlClient, tableName, m.fetchSize, primaryKeys))
 				}
@@ -892,11 +893,27 @@ func (m model) View() string {
 	var content string
 	switch m.screen {
 	case screenSelection:
-		content = m.viewSelectionContent()
+		content = views.RenderConnectionSelection(views.ConnectionSelectionModel{
+			Choices: m.choices,
+			Cursor:  m.cursor,
+		})
 	case screenOnPremiseConfig:
-		content = m.viewOnPremiseConfigContent()
+		content = views.RenderOnPremiseForm(views.OnPremiseFormModel{
+			Endpoint:  m.onPremiseConfig.endpoint,
+			Port:      m.onPremiseConfig.port,
+			Secure:    m.onPremiseConfig.secure,
+			Focus:     m.onPremiseConfig.focus,
+			CursorPos: m.onPremiseConfig.cursorPos,
+		})
 	case screenCloudConfig:
-		content = m.viewCloudConfigContent()
+		content = views.RenderCloudForm(views.CloudFormModel{
+			Region:      m.cloudConfig.region,
+			Compartment: m.cloudConfig.compartment,
+			AuthMethod:  m.cloudConfig.authMethod,
+			ConfigFile:  m.cloudConfig.configFile,
+			Focus:       m.cloudConfig.focus,
+			CursorPos:   m.cloudConfig.cursorPos,
+		})
 	case screenTableList:
 		return m.viewTableList() // テーブル一覧は独自レイアウト
 	default:
@@ -1033,236 +1050,6 @@ func (m model) View() string {
 	return result.String()
 }
 
-// エディション選択画面のコンテンツ
-func (m model) viewSelectionContent() string {
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		MarginBottom(1)
-
-	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF"))
-
-	var s strings.Builder
-	s.WriteString(titleStyle.Render("Select Connection") + "\n")
-
-	for i, choice := range m.choices {
-		if m.cursor == i {
-			s.WriteString(ui.StyleSelected.Render(choice) + "\n")
-		} else {
-			s.WriteString(normalStyle.Render(choice) + "\n")
-		}
-	}
-
-	return s.String()
-}
-
-// On-Premise接続設定画面のコンテンツ
-func (m model) viewOnPremiseConfigContent() string {
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		MarginBottom(1)
-
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Width(11).
-		Align(lipgloss.Left)
-
-	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF"))
-
-	focusedStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00D9FF")).
-		Bold(true)
-
-	var s strings.Builder
-
-	s.WriteString(titleStyle.Render("On-Premise Connection") + "\n")
-
-	// Endpoint
-	endpointField := ui.TextField(m.onPremiseConfig.endpoint, 25, m.onPremiseConfig.focus == 0, m.onPremiseConfig.cursorPos)
-	if m.onPremiseConfig.focus == 0 {
-		s.WriteString(" " + labelStyle.Render("Endpoint:") + " " + focusedStyle.Render(endpointField) + "\n")
-	} else {
-		s.WriteString(" " + labelStyle.Render("Endpoint:") + " " + normalStyle.Render(endpointField) + "\n")
-	}
-
-	// Port
-	portField := ui.TextField(m.onPremiseConfig.port, 8, m.onPremiseConfig.focus == 1, m.onPremiseConfig.cursorPos)
-	if m.onPremiseConfig.focus == 1 {
-		s.WriteString(" " + labelStyle.Render("Port:") + " " + focusedStyle.Render(portField) + "\n")
-	} else {
-		s.WriteString(" " + labelStyle.Render("Port:") + " " + normalStyle.Render(portField) + "\n")
-	}
-
-	// Secure checkbox
-	secureText := ui.Checkbox("HTTPS/TLS", m.onPremiseConfig.secure, m.onPremiseConfig.focus == 2)
-	s.WriteString(" " + labelStyle.Render("Secure:") + " " + secureText + "\n\n")
-
-	// ボタン（縦配置）
-	s.WriteString(" " + ui.Button("Test Connection", m.onPremiseConfig.focus == 3) + "\n")
-	s.WriteString(" " + ui.Button("Connect", m.onPremiseConfig.focus == 4) + "\n")
-
-	return s.String()
-}
-
-// Cloud接続設定画面のコンテンツ
-func (m model) viewCloudConfigContent() string {
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		MarginBottom(1)
-
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Width(15).
-		Align(lipgloss.Left)
-
-	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF"))
-
-	focusedStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00D9FF")).
-		Bold(true)
-
-	var s strings.Builder
-
-	s.WriteString(titleStyle.Render("Cloud Connection") + "\n")
-
-	// Region
-	regionField := ui.TextField(m.cloudConfig.region, 25, m.cloudConfig.focus == 0, m.cloudConfig.cursorPos)
-	if m.cloudConfig.focus == 0 {
-		s.WriteString(" " + labelStyle.Render("Region:") + " " + focusedStyle.Render(regionField) + "\n")
-	} else {
-		s.WriteString(" " + labelStyle.Render("Region:") + " " + normalStyle.Render(regionField) + "\n")
-	}
-
-	// Compartment
-	compartmentField := ui.TextField(m.cloudConfig.compartment, 25, m.cloudConfig.focus == 1, m.cloudConfig.cursorPos)
-	if m.cloudConfig.focus == 1 {
-		s.WriteString(" " + labelStyle.Render("Compartment:") + " " + focusedStyle.Render(compartmentField) + "\n\n")
-	} else {
-		s.WriteString(" " + labelStyle.Render("Compartment:") + " " + normalStyle.Render(compartmentField) + "\n\n")
-	}
-
-	// Auth Method (ラジオボタン)
-	s.WriteString(" " + labelStyle.Render("Auth Method:") + "\n")
-
-	authMethods := []string{"OCI Config Profile (default)", "Instance Principal", "Resource Principal"}
-	for i, method := range authMethods {
-		focus := 2 + i
-		s.WriteString(" " + ui.RadioButton(method, m.cloudConfig.authMethod == i, m.cloudConfig.focus == focus) + "\n")
-	}
-	s.WriteString("\n")
-
-	// Config File
-	configFileField := ui.TextField(m.cloudConfig.configFile, 25, m.cloudConfig.focus == 5, m.cloudConfig.cursorPos)
-	if m.cloudConfig.focus == 5 {
-		s.WriteString(" " + labelStyle.Render("Config File:") + " " + focusedStyle.Render(configFileField) + "\n\n")
-	} else {
-		s.WriteString(" " + labelStyle.Render("Config File:") + " " + normalStyle.Render(configFileField) + "\n\n")
-	}
-
-	// ボタン
-	s.WriteString(" " + ui.Button("Test Connection", m.cloudConfig.focus == 6) + "\n")
-	s.WriteString(" " + ui.Button("Connect", m.cloudConfig.focus == 7) + "\n")
-
-	return s.String()
-}
-
-// カラム情報の構造体
-type columnInfo struct {
-	name string
-	typ  string
-}
-
-// DDL文字列からカラム情報を抽出
-// DDLからPRIMARY KEYのカラム名を抽出
-func parsePrimaryKeysFromDDL(ddl string) []string {
-	var primaryKeys []string
-
-	// PRIMARY KEY(col1, col2, ...) の部分を探す
-	upperDDL := strings.ToUpper(ddl)
-	pkIndex := strings.Index(upperDDL, "PRIMARY KEY")
-	if pkIndex == -1 {
-		return primaryKeys
-	}
-
-	// PRIMARY KEYの後の括弧内を取得
-	pkPart := ddl[pkIndex:]
-	start := strings.Index(pkPart, "(")
-	end := strings.LastIndex(pkPart, ")") // 最後の括弧を取得
-	if start == -1 || end == -1 || start >= end {
-		return primaryKeys
-	}
-
-	// カラム名リストを抽出
-	keysPart := pkPart[start+1 : end]
-
-	// SHARD()構文を処理
-	// PRIMARY KEY(SHARD(id), name) のような形式に対応
-	keysPart = strings.ReplaceAll(keysPart, "SHARD(", "")
-	keysPart = strings.ReplaceAll(keysPart, "shard(", "")
-	keysPart = strings.ReplaceAll(keysPart, ")", "")
-
-	keys := strings.Split(keysPart, ",")
-	for _, key := range keys {
-		key = strings.TrimSpace(key)
-		if key != "" {
-			primaryKeys = append(primaryKeys, key)
-		}
-	}
-
-	return primaryKeys
-}
-
-func parseColumnsFromDDL(ddl string, primaryKeys []string) []columnInfo {
-	var columns []columnInfo
-
-	// PRIMARY KEYのマップを作成（高速検索用）
-	pkMap := make(map[string]bool)
-	for _, pk := range primaryKeys {
-		pkMap[pk] = true
-	}
-
-	// CREATE TABLE ... ( ... ) からカラム定義部分を抽出
-	start := strings.Index(ddl, "(")
-	end := strings.LastIndex(ddl, ")")
-	if start == -1 || end == -1 || start >= end {
-		return columns
-	}
-
-	columnDefs := ddl[start+1 : end]
-
-	// PRIMARY KEY定義を除外
-	lines := strings.Split(columnDefs, ",")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		// PRIMARY KEY行をスキップ
-		if strings.HasPrefix(strings.ToUpper(line), "PRIMARY KEY") {
-			continue
-		}
-
-		// カラム名と型を抽出
-		parts := strings.Fields(line)
-		if len(parts) >= 2 {
-			name := parts[0]
-			typ := parts[1]
-
-			// PRIMARY KEYかどうかを判定
-			if pkMap[name] {
-				typ += " (Primary Key)"
-			}
-
-			columns = append(columns, columnInfo{name: name, typ: typ})
-		}
-	}
-
-	return columns
-}
-
 // テーブル一覧画面のView
 func (m model) viewTableList() string {
 	// 2ペインレイアウト
@@ -1340,76 +1127,19 @@ func (m model) viewTableList() string {
 
 		if m.rightPaneMode == rightPaneModeSchema {
 			// Schema表示モード
-			// ヘッダーを表示
-			rightPaneContent += fmt.Sprintf("Table:    %s", selectedTableName) + "\n"
-
-			// 親子関係の判定
-			if strings.Contains(selectedTableName, ".") {
-				// 子テーブル
-				parts := strings.Split(selectedTableName, ".")
-				rightPaneContent += fmt.Sprintf("Parent:   %s\n", parts[0])
-				rightPaneContent += "Children: -\n"
-			} else {
-				// 親テーブル - 子テーブルをカウント
-				rightPaneContent += "Parent:   -\n"
-				childCount := 0
-				var childNames []string
-				prefix := selectedTableName + "."
-				for _, t := range m.tables {
-					if strings.HasPrefix(t, prefix) {
-						childCount++
-						childNames = append(childNames, strings.TrimPrefix(t, prefix))
-					}
-				}
-				if childCount > 0 {
-					rightPaneContent += fmt.Sprintf("Children: %s\n", strings.Join(childNames, ", "))
-				} else {
-					rightPaneContent += "Children: -\n"
-				}
-			}
-
-			// カラム情報とインデックス情報を表示
+			var tableSchema *nosqldb.TableResult
+			var indexes []nosqldb.IndexInfo
 			if details, exists := m.tableDetails[selectedTableName]; exists && details != nil {
-				// カラム情報（DDL文字列から抽出）
-				rightPaneContent += "\nColumns:\n"
-				if details.schema != nil && details.schema.DDL != "" {
-					// DDLからカラム情報を抽出
-					primaryKeys := parsePrimaryKeysFromDDL(details.schema.DDL)
-					columns := parseColumnsFromDDL(details.schema.DDL, primaryKeys)
-					if len(columns) > 0 {
-						for _, col := range columns {
-							rightPaneContent += fmt.Sprintf("  %-20s %s\n", col.name, col.typ)
-						}
-					} else {
-						rightPaneContent += "  (No column information available)\n"
-					}
-				} else if details.schema != nil && details.schema.Schema != "" {
-					rightPaneContent += "  " + details.schema.Schema + "\n"
-				} else {
-					rightPaneContent += "  (No column information available)\n"
-				}
-
-				// インデックス情報
-				rightPaneContent += "\nIndexes:\n"
-				if len(details.indexes) > 0 {
-					for _, index := range details.indexes {
-						fields := strings.Join(index.FieldNames, ", ")
-						rightPaneContent += fmt.Sprintf("  %-20s (%s)\n", index.IndexName, fields)
-					}
-				} else {
-					rightPaneContent += "  (none)\n"
-				}
-			} else if m.loadingDetails {
-				rightPaneContent += "\nColumns:\n"
-				rightPaneContent += "  Loading...\n"
-				rightPaneContent += "\nIndexes:\n"
-				rightPaneContent += "  Loading...\n"
-			} else {
-				rightPaneContent += "\nColumns:\n"
-				rightPaneContent += "  (Schema information will be displayed here)\n"
-				rightPaneContent += "\nIndexes:\n"
-				rightPaneContent += "  (Index information will be displayed here)\n"
+				tableSchema = details.schema
+				indexes = details.indexes
 			}
+			rightPaneContent += views.RenderSchemaView(views.SchemaViewModel{
+				TableName:      selectedTableName,
+				AllTables:      m.tables,
+				TableSchema:    tableSchema,
+				Indexes:        indexes,
+				LoadingDetails: m.loadingDetails,
+			})
 		} else if m.rightPaneMode == rightPaneModeList {
 			// グリッドビューモード
 			// rightPane全体の高さ(m.height-8)からSQLエリア(2行)を引く
@@ -1417,80 +1147,55 @@ func (m model) viewTableList() string {
 
 			// データの取得状態を確認
 			data, exists := m.tableData[selectedTableName]
-			if m.loadingData {
-				rightPaneContent += "Loading data..."
-			} else if !exists || data == nil {
-				rightPaneContent += "No data available"
-			} else if data.err != nil {
-				rightPaneContent += fmt.Sprintf("Error: %v\n\nSQL:\n%s", data.err, data.sql)
-			} else if len(data.rows) == 0 {
-				rightPaneContent += fmt.Sprintf("No data found\n\nSQL:\n%s", data.sql)
-			} else {
-				// カラム名をDDL定義順で取得
-				var columnNames []string
-				if details, exists := m.tableDetails[selectedTableName]; exists && details.schema != nil && details.schema.DDL != "" {
-					primaryKeys := parsePrimaryKeysFromDDL(details.schema.DDL)
-					columns := parseColumnsFromDDL(details.schema.DDL, primaryKeys)
-					for _, col := range columns {
-						columnNames = append(columnNames, col.name)
-					}
-				} else if len(data.rows) > 0 {
-					// DDLが取得できない場合は、データから取得（順序は不定）
-					for key := range data.rows[0] {
-						columnNames = append(columnNames, key)
-					}
-				}
-
-				// ui.DataGridを使用してレンダリング
-				grid := ui.DataGrid{
-					Rows:             data.rows,
-					Columns:          columnNames,
-					SelectedRow:      m.selectedDataRow,
-					HorizontalOffset: m.horizontalOffset,
-					ViewportOffset:   m.viewportOffset,
-				}
-				rightPaneContent += grid.Render(rightPaneWidth, rightPaneHeight)
+			var rows []map[string]interface{}
+			var dataErr error
+			var sql string
+			if exists && data != nil {
+				rows = data.rows
+				dataErr = data.err
+				sql = data.sql
 			}
+
+			var tableSchema *nosqldb.TableResult
+			if details, exists := m.tableDetails[selectedTableName]; exists && details != nil {
+				tableSchema = details.schema
+			}
+
+			rightPaneContent += views.RenderDataGridView(views.DataGridViewModel{
+				Rows:             rows,
+				TableSchema:      tableSchema,
+				SelectedRow:      m.selectedDataRow,
+				HorizontalOffset: m.horizontalOffset,
+				ViewportOffset:   m.viewportOffset,
+				Width:            rightPaneWidth,
+				Height:           rightPaneHeight,
+				LoadingData:      m.loadingData,
+				Error:            dataErr,
+				SQL:              sql,
+			})
 		} else if m.rightPaneMode == rightPaneModeDetail {
 			// レコードビューモード
 			// データの取得状態を確認
 			data, exists := m.tableData[selectedTableName]
-			if m.loadingData {
-				rightPaneContent += "Loading data..."
-			} else if !exists || data == nil {
-				rightPaneContent += "No data available"
-			} else if data.err != nil {
-				rightPaneContent += fmt.Sprintf("Error: %v", data.err)
-			} else if len(data.rows) == 0 {
-				rightPaneContent += "No data found"
-			} else if m.selectedDataRow < 0 || m.selectedDataRow >= len(data.rows) {
-				rightPaneContent += "Invalid row selection"
-			} else {
-				// 選択された行を取得
-				selectedRow := data.rows[m.selectedDataRow]
-
-				// カラム名をDDL定義順で取得
-				var columnNames []string
-				if details, exists := m.tableDetails[selectedTableName]; exists && details.schema != nil && details.schema.DDL != "" {
-					primaryKeys := parsePrimaryKeysFromDDL(details.schema.DDL)
-					columns := parseColumnsFromDDL(details.schema.DDL, primaryKeys)
-					for _, col := range columns {
-						columnNames = append(columnNames, col.name)
-					}
-				} else if len(selectedRow) > 0 {
-					// DDLが取得できない場合は、データから取得（順序は不定）
-					for key := range selectedRow {
-						columnNames = append(columnNames, key)
-					}
-				}
-
-				// ui.VerticalTableを使用してレンダリング
-				verticalTable := ui.VerticalTable{
-					Data: selectedRow,
-					Keys: columnNames,
-				}
-				rightPaneContent += verticalTable.Render()
+			var rows []map[string]interface{}
+			var dataErr error
+			if exists && data != nil {
+				rows = data.rows
+				dataErr = data.err
 			}
+
+			var tableSchema *nosqldb.TableResult
+			if details, exists := m.tableDetails[selectedTableName]; exists && details != nil {
+				tableSchema = details.schema
+			}
+
+			rightPaneContent += views.RenderRecordView(views.RecordViewModel{
+				Rows:        rows,
+				TableSchema: tableSchema,
+				SelectedRow: m.selectedDataRow,
+				LoadingData: m.loadingData,
+				Error:       dataErr,
+			})
 		}
 	}
 
