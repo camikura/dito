@@ -24,7 +24,7 @@ var (
 	StyleNormal   = lipgloss.NewStyle().Foreground(ColorWhite)
 	StyleFocused  = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
 	StyleSelected = lipgloss.NewStyle().Foreground(ColorWhite).Background(ColorPrimaryBg) // Background highlight
-	StyleHeader   = lipgloss.NewStyle().Foreground(ColorBlack).Background(ColorHeaderBg).Bold(true) // Table header with light background
+	StyleHeader   = lipgloss.NewStyle().Foreground(ColorWhite).Bold(true).Underline(true) // Table header with underline
 	StyleLabel    = lipgloss.NewStyle().Foreground(ColorGray)
 	StyleSuccess  = lipgloss.NewStyle().Foreground(ColorSuccess)
 	StyleError    = lipgloss.NewStyle().Foreground(ColorError)
