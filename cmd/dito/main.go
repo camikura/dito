@@ -1267,74 +1267,6 @@ func parseColumnsFromDDL(ddl string, primaryKeys []string) []columnInfo {
 	return columns
 }
 
-// レコードビュー: 選択された行の全カラムを縦に表示
-func (m model) renderRowDetail(tableName string, maxWidth, maxHeight int) string {
-	var content string
-
-	// データの取得状態を確認
-	data, exists := m.tableData[tableName]
-	if m.loadingData {
-		return "Loading data..."
-	}
-	if !exists || data == nil {
-		return "No data available"
-	}
-	if data.err != nil {
-		errorMsg := fmt.Sprintf("Error: %v", data.err)
-		return errorMsg
-	}
-	if len(data.rows) == 0 {
-		return "No data found"
-	}
-
-	// 選択された行を取得
-	if m.selectedDataRow < 0 || m.selectedDataRow >= len(data.rows) {
-		return "Invalid row selection"
-	}
-	selectedRow := data.rows[m.selectedDataRow]
-
-	// カラム名をDDL定義順で取得
-	var columnNames []string
-	if details, exists := m.tableDetails[tableName]; exists && details.schema != nil && details.schema.DDL != "" {
-		primaryKeys := parsePrimaryKeysFromDDL(details.schema.DDL)
-		columns := parseColumnsFromDDL(details.schema.DDL, primaryKeys)
-		for _, col := range columns {
-			columnNames = append(columnNames, col.name)
-		}
-	} else if len(selectedRow) > 0 {
-		// DDLが取得できない場合は、データから取得（順序は不定）
-		for key := range selectedRow {
-			columnNames = append(columnNames, key)
-		}
-	}
-
-	// カラム名の最大幅を計算
-	maxColNameWidth := 0
-	for _, colName := range columnNames {
-		if len(colName) > maxColNameWidth {
-			maxColNameWidth = len(colName)
-		}
-	}
-
-	// 各カラムを縦に表示
-	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF"))
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00D9FF")).
-		Bold(true)
-
-	for _, colName := range columnNames {
-		value := fmt.Sprintf("%v", selectedRow[colName])
-		label := labelStyle.Render(fmt.Sprintf("%-*s", maxColNameWidth, colName))
-		content += label + "  " + normalStyle.Render(value) + "\n"
-	}
-
-	// 末尾の改行を削除
-	content = strings.TrimSuffix(content, "\n")
-
-	return content
-}
-
 // テーブル一覧画面のView
 func (m model) viewTableList() string {
 	// 2ペインレイアウト
@@ -1524,8 +1456,44 @@ func (m model) viewTableList() string {
 			}
 		} else if m.rightPaneMode == rightPaneModeDetail {
 			// レコードビューモード
-			rightPaneHeight := m.height - 8
-			rightPaneContent += m.renderRowDetail(selectedTableName, rightPaneWidth, rightPaneHeight)
+			// データの取得状態を確認
+			data, exists := m.tableData[selectedTableName]
+			if m.loadingData {
+				rightPaneContent += "Loading data..."
+			} else if !exists || data == nil {
+				rightPaneContent += "No data available"
+			} else if data.err != nil {
+				rightPaneContent += fmt.Sprintf("Error: %v", data.err)
+			} else if len(data.rows) == 0 {
+				rightPaneContent += "No data found"
+			} else if m.selectedDataRow < 0 || m.selectedDataRow >= len(data.rows) {
+				rightPaneContent += "Invalid row selection"
+			} else {
+				// 選択された行を取得
+				selectedRow := data.rows[m.selectedDataRow]
+
+				// カラム名をDDL定義順で取得
+				var columnNames []string
+				if details, exists := m.tableDetails[selectedTableName]; exists && details.schema != nil && details.schema.DDL != "" {
+					primaryKeys := parsePrimaryKeysFromDDL(details.schema.DDL)
+					columns := parseColumnsFromDDL(details.schema.DDL, primaryKeys)
+					for _, col := range columns {
+						columnNames = append(columnNames, col.name)
+					}
+				} else if len(selectedRow) > 0 {
+					// DDLが取得できない場合は、データから取得（順序は不定）
+					for key := range selectedRow {
+						columnNames = append(columnNames, key)
+					}
+				}
+
+				// ui.VerticalTableを使用してレンダリング
+				verticalTable := ui.VerticalTable{
+					Data: selectedRow,
+					Keys: columnNames,
+				}
+				rightPaneContent += verticalTable.Render()
+			}
 		}
 	}
 
