@@ -1043,18 +1043,14 @@ func (m model) viewSelectionContent() string {
 	normalStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFFFFF"))
 
-	selectedStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00D9FF")).
-		Bold(true)
-
 	var s strings.Builder
 	s.WriteString(titleStyle.Render("Select Connection") + "\n")
 
 	for i, choice := range m.choices {
 		if m.cursor == i {
-			s.WriteString(selectedStyle.Render(" > " + choice) + "\n")
+			s.WriteString(ui.StyleSelected.Render(choice) + "\n")
 		} else {
-			s.WriteString(normalStyle.Render("   " + choice) + "\n")
+			s.WriteString(normalStyle.Render(choice) + "\n")
 		}
 	}
 
