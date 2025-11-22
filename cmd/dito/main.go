@@ -403,7 +403,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// ビューポートサイズを画面の高さから計算
 		// 右ペインの高さ (m.height - 8) からヘッダー等を引く
 		rightPaneHeight := m.height - 8
-		m.viewportSize = rightPaneHeight - 4 // SQLエリア+ボーダー: 2行 + カラムヘッダー+セパレーター: 2行
+		m.viewportSize = rightPaneHeight - 3 // SQLエリア+ボーダー: 2行 + カラムヘッダー: 1行
 		if m.viewportSize < 1 {
 			m.viewportSize = 1
 		}
