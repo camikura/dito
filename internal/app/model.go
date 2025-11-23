@@ -120,3 +120,40 @@ func InitialModel() Model {
 		ViewportSize:  10,
 	}
 }
+
+// TableListViewModel represents the model for table list view
+// This is defined here to avoid circular dependency with views package
+type TableListViewModel struct {
+	Width            int
+	Height           int
+	Endpoint         string
+	Tables           []string
+	SelectedTable    int
+	RightPaneMode    RightPaneMode
+	TableData        map[string]*db.TableDataResult
+	TableDetails     map[string]*db.TableDetailsResult
+	LoadingDetails   bool
+	LoadingData      bool
+	SelectedDataRow  int
+	HorizontalOffset int
+	ViewportOffset   int
+}
+
+// ToTableListViewModel converts the Model to TableListViewModel
+func (m Model) ToTableListViewModel() TableListViewModel {
+	return TableListViewModel{
+		Width:            m.Width,
+		Height:           m.Height,
+		Endpoint:         m.Endpoint,
+		Tables:           m.Tables,
+		SelectedTable:    m.SelectedTable,
+		RightPaneMode:    m.RightPaneMode,
+		TableData:        m.TableData,
+		TableDetails:     m.TableDetails,
+		LoadingDetails:   m.LoadingDetails,
+		LoadingData:      m.LoadingData,
+		SelectedDataRow:  m.SelectedDataRow,
+		HorizontalOffset: m.HorizontalOffset,
+		ViewportOffset:   m.ViewportOffset,
+	}
+}

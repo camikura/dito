@@ -71,21 +71,7 @@ func (m model) View() string {
 	case app.ScreenCloudConfig:
 		return views.RenderCloudConfigScreen(vm)
 	case app.ScreenTableList:
-		return views.RenderTableListView(views.TableListViewModel{
-			Width:            m.Width,
-			Height:           m.Height,
-			Endpoint:         m.Endpoint,
-			Tables:           m.Tables,
-			SelectedTable:    m.SelectedTable,
-			RightPaneMode:    m.RightPaneMode,
-			TableData:        m.TableData,
-			TableDetails:     m.TableDetails,
-			LoadingDetails:   m.LoadingDetails,
-			LoadingData:      m.LoadingData,
-			SelectedDataRow:  m.SelectedDataRow,
-			HorizontalOffset: m.HorizontalOffset,
-			ViewportOffset:   m.ViewportOffset,
-		})
+		return views.RenderTableListView(m.ToTableListViewModel())
 	default:
 		return "Unknown screen"
 	}

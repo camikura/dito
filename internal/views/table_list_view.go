@@ -8,29 +8,11 @@ import (
 	"github.com/oracle/nosql-go-sdk/nosqldb"
 
 	"github.com/camikura/dito/internal/app"
-	"github.com/camikura/dito/internal/db"
 	"github.com/camikura/dito/internal/ui"
 )
 
-// TableListViewModel represents the model for table list view
-type TableListViewModel struct {
-	Width            int
-	Height           int
-	Endpoint         string
-	Tables           []string
-	SelectedTable    int
-	RightPaneMode    app.RightPaneMode
-	TableData        map[string]*db.TableDataResult
-	TableDetails     map[string]*db.TableDetailsResult
-	LoadingDetails   bool
-	LoadingData      bool
-	SelectedDataRow  int
-	HorizontalOffset int
-	ViewportOffset   int
-}
-
 // RenderTableListView renders the table list view
-func RenderTableListView(m TableListViewModel) string {
+func RenderTableListView(m app.TableListViewModel) string {
 	// 2ペインレイアウト
 	leftPaneWidth := 30 // 固定幅
 	// rightPaneWidth = (borderの内側の幅) - (leftPaneWidth + leftPaneBorderRight)
