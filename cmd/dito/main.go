@@ -33,112 +33,24 @@ func (m model) Init() tea.Cmd {
 
 // Updateメソッド
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.Width = msg.Width
-		m.Height = msg.Height
-		// ビューポートサイズを画面の高さから計算
-		// 右ペインの高さ (m.Height - 8) からヘッダー等を引く
-		rightPaneHeight := m.Height - 8
-		m.ViewportSize = rightPaneHeight - 3 // SQLエリア+ボーダー: 2行 + カラムヘッダー: 1行
-		if m.ViewportSize < 1 {
-			m.ViewportSize = 1
-		}
-		return m, nil
+		m.Model = handlers.HandleWindowSize(m.Model, msg)
 	case tea.KeyMsg:
-		switch m.Screen {
-		case app.ScreenSelection:
-			newModel, cmd := handlers.HandleSelection(m.Model, msg)
-			m.Model = newModel
-			return m, cmd
-		case app.ScreenOnPremiseConfig:
-			newModel, cmd := handlers.HandleOnPremiseConfig(m.Model, msg)
-			m.Model = newModel
-			return m, cmd
-		case app.ScreenCloudConfig:
-			newModel, cmd := handlers.HandleCloudConfig(m.Model, msg)
-			m.Model = newModel
-			return m, cmd
-		case app.ScreenTableList:
-			newModel, cmd := handlers.HandleTableList(m.Model, msg)
-			m.Model = newModel
-			return m, cmd
-		}
+		m.Model, cmd = handlers.HandleKeyPress(m.Model, msg)
 	case connectionResultMsg:
-		// 接続結果を処理
-		if msg.Err != nil {
-			m.OnPremiseConfig.Status = app.StatusError
-			m.OnPremiseConfig.ErrorMsg = msg.Err.Error()
-		} else {
-			m.OnPremiseConfig.Status = app.StatusConnected
-			m.OnPremiseConfig.ServerVersion = msg.Version
-			m.OnPremiseConfig.ErrorMsg = ""
-
-			// テスト接続でない場合のみテーブル一覧を取得して画面遷移
-			if !msg.IsTest {
-				// クライアントとエンドポイントを保存
-				m.NosqlClient = msg.Client
-				m.Endpoint = msg.Endpoint
-				// テーブル一覧を取得
-				return m, db.FetchTables(msg.Client)
-			}
-		}
-		return m, nil
+		m.Model, cmd = handlers.HandleConnectionResult(m.Model, msg)
 	case tableListResultMsg:
-		// テーブル一覧取得結果を処理
-		if msg.Err != nil {
-			m.OnPremiseConfig.Status = app.StatusError
-			m.OnPremiseConfig.ErrorMsg = fmt.Sprintf("Failed to fetch tables: %v", msg.Err)
-		} else {
-			m.Tables = msg.Tables
-			m.SelectedTable = 0
-			// テーブル一覧画面に遷移
-			m.Screen = app.ScreenTableList
-			// 最初のテーブルの詳細を取得
-			if len(m.Tables) > 0 {
-				return m, db.FetchTableDetails(m.NosqlClient, m.Tables[0])
-			}
-		}
-		return m, nil
+		m.Model, cmd = handlers.HandleTableListResult(m.Model, msg)
 	case tableDetailsResultMsg:
-		// テーブル詳細取得結果を処理
-		if msg.Err == nil {
-			m.TableDetails[msg.TableName] = &msg
-		}
-		m.LoadingDetails = false
-
-		// グリッドビューモードで、このテーブルのデータがまだ取得されていない場合は取得
-		if m.RightPaneMode == app.RightPaneModeList && msg.Err == nil {
-			if _, exists := m.TableData[msg.TableName]; !exists {
-				m.LoadingData = true
-				primaryKeys := views.ParsePrimaryKeysFromDDL(msg.Schema.DDL)
-				return m, db.FetchTableData(m.NosqlClient, msg.TableName, m.FetchSize, primaryKeys)
-			}
-		}
-		return m, nil
+		m.Model, cmd = handlers.HandleTableDetailsResult(m.Model, msg)
 	case tableDataResultMsg:
-		// テーブルデータ取得結果を処理
-		if msg.Err == nil {
-			if msg.IsAppend {
-				// 既存データに追加（SQLは更新しない）
-				if existingData, exists := m.TableData[msg.TableName]; exists {
-					existingData.Rows = append(existingData.Rows, msg.Rows...)
-					existingData.LastPKValues = msg.LastPKValues
-					existingData.HasMore = msg.HasMore
-				}
-			} else {
-				// 新規データとして設定
-				m.TableData[msg.TableName] = &msg
-			}
-		} else {
-			// エラーの場合もデータを保存（エラーメッセージとSQLを表示するため）
-			m.TableData[msg.TableName] = &msg
-		}
-		m.LoadingData = false
-		return m, nil
+		m.Model, cmd = handlers.HandleTableDataResult(m.Model, msg)
 	}
 
-	return m, nil
+	return m, cmd
 }
 
 
