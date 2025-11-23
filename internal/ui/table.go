@@ -3,6 +3,8 @@ package ui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // DataGrid represents a data grid/table view with scrolling and selection support.
@@ -70,9 +72,10 @@ func (dg *DataGrid) Render(maxWidth, maxHeight int) string {
 		// Apply selection style with background highlighting
 		absoluteRowIndex := dg.ViewportOffset + i
 		if absoluteRowIndex == dg.SelectedRow {
-			content += StyleSelected.Render(rowContent) + "\n"
+			// Apply background color only to preserve cell-level styling (e.g., dim null values)
+			content += lipgloss.NewStyle().Background(ColorPrimaryBg).Render(rowContent) + "\n"
 		} else {
-			content += StyleNormal.Render(rowContent) + "\n"
+			content += rowContent + "\n"
 		}
 	}
 
@@ -94,7 +97,7 @@ func (dg *DataGrid) calculateColumnWidths(columns []string) map[string]int {
 		// Check all rows for maximum data width
 		for _, row := range dg.Rows {
 			if value, exists := row[colName]; exists {
-				valueStr := fmt.Sprintf("%v", value)
+				valueStr := FormatValue(value)
 				if len(valueStr) > maxWidth {
 					maxWidth = len(valueStr)
 				}
@@ -174,7 +177,7 @@ func (dg *DataGrid) renderHeader(columns []string, columnWidths map[string]int, 
 }
 
 // renderRow renders a single data row with width constraints.
-// Returns the row parts that fit within the available width.
+// Returns the styled row parts that fit within the available width.
 func (dg *DataGrid) renderRow(row map[string]interface{}, columns []string, columnWidths map[string]int, availableWidth int, headerWidths []int) []string {
 	var rowParts []string
 	currentWidth := 0
@@ -185,7 +188,7 @@ func (dg *DataGrid) renderRow(row map[string]interface{}, columns []string, colu
 		}
 
 		width := columnWidths[colName]
-		value := fmt.Sprintf("%v", row[colName])
+		value := FormatValue(row[colName])
 		truncated := TruncateString(value, width)
 		part := fmt.Sprintf("%-*s", width, truncated)
 
@@ -200,12 +203,23 @@ func (dg *DataGrid) renderRow(row map[string]interface{}, columns []string, colu
 				remaining -= 1
 			}
 			if remaining > 0 {
-				rowParts = append(rowParts, part[:remaining])
+				truncatedPart := part[:remaining]
+				// Apply dim style for null values
+				if value == "(null)" {
+					rowParts = append(rowParts, StyleDim.Render(truncatedPart))
+				} else {
+					rowParts = append(rowParts, truncatedPart)
+				}
 			}
 			break
 		}
 
-		rowParts = append(rowParts, part)
+		// Apply dim style for null values
+		if value == "(null)" {
+			rowParts = append(rowParts, StyleDim.Render(part))
+		} else {
+			rowParts = append(rowParts, part)
+		}
 		currentWidth = nextWidth
 	}
 
