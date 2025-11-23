@@ -126,6 +126,11 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			// グリッドビュー → スキーマビュー
 			m.RightPaneMode = app.RightPaneModeSchema
 			m.HorizontalOffset = 0 // 横スクロールをリセット
+			// 現在のテーブルのデータをクリア（カスタムSQL状態をリセット）
+			if len(m.Tables) > 0 {
+				tableName := m.Tables[m.SelectedTable]
+				delete(m.TableData, tableName)
+			}
 			return m, nil
 		}
 		// スキーマビュー → 接続設定画面に戻る
