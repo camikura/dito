@@ -45,6 +45,7 @@ type TableDataResult struct {
 	IsAppend     bool   // Whether to append to existing data
 	SQL          string // Debug: executed SQL
 	DisplaySQL   string // Display: SQL without LIMIT clause
+	IsCustomSQL  bool   // Whether this is a custom SQL query (not auto-generated)
 }
 
 // Connect attempts to connect to NoSQL database.
@@ -174,7 +175,7 @@ func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limi
 		}
 		prepResult, err := client.Prepare(prepReq)
 		if err != nil {
-			return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement}
+			return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: true}
 		}
 
 		queryReq := &nosqldb.QueryRequest{
@@ -186,13 +187,13 @@ func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limi
 		for {
 			queryResult, err := client.Query(queryReq)
 			if err != nil {
-				return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement}
+				return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: true}
 			}
 
 			// Get results
 			results, err := queryResult.GetResults()
 			if err != nil {
-				return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement}
+				return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: true}
 			}
 
 			for _, result := range results {
@@ -220,6 +221,7 @@ func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limi
 			IsAppend:     false,
 			SQL:          statement,
 			DisplaySQL:   displayStatement,
+			IsCustomSQL:  true, // This is a custom SQL query
 		}
 	}
 }
@@ -271,7 +273,7 @@ func fetchTableDataWithCursor(client *nosqldb.Client, tableName string, limit in
 		}
 		prepResult, err := client.Prepare(prepReq)
 		if err != nil {
-			return TableDataResult{TableName: tableName, Err: err, IsAppend: isAppend, SQL: statement, DisplaySQL: displayStatement}
+			return TableDataResult{TableName: tableName, Err: err, IsAppend: isAppend, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: false}
 		}
 
 		queryReq := &nosqldb.QueryRequest{
@@ -283,13 +285,13 @@ func fetchTableDataWithCursor(client *nosqldb.Client, tableName string, limit in
 		for {
 			queryResult, err := client.Query(queryReq)
 			if err != nil {
-				return TableDataResult{TableName: tableName, Err: err, IsAppend: isAppend, SQL: statement, DisplaySQL: displayStatement}
+				return TableDataResult{TableName: tableName, Err: err, IsAppend: isAppend, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: false}
 			}
 
 			// Get results
 			results, err := queryResult.GetResults()
 			if err != nil {
-				return TableDataResult{TableName: tableName, Err: err, IsAppend: isAppend, SQL: statement, DisplaySQL: displayStatement}
+				return TableDataResult{TableName: tableName, Err: err, IsAppend: isAppend, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: false}
 			}
 
 			for _, result := range results {
@@ -330,6 +332,7 @@ func fetchTableDataWithCursor(client *nosqldb.Client, tableName string, limit in
 			IsAppend:     isAppend,
 			SQL:          statement,
 			DisplaySQL:   displayStatement,
+			IsCustomSQL:  false, // This is an auto-generated SQL query
 		}
 	}
 }

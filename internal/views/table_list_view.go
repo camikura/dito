@@ -78,11 +78,21 @@ func RenderTableListView(m app.TableListViewModel) string {
 				sqlStyle := lipgloss.NewStyle().
 					Foreground(lipgloss.Color("#CCCCCC"))
 
-				// SQLとセパレーターを手動で組み立て
-				sqlText := sqlStyle.Render(data.DisplaySQL)
+				// カスタムSQLの場合はラベルを追加
+				var sqlDisplay string
+				if data.IsCustomSQL {
+					labelStyle := lipgloss.NewStyle().
+						Foreground(lipgloss.Color("#FFA500")). // オレンジ色
+						Bold(true)
+					label := labelStyle.Render("[Custom SQL] ")
+					sqlDisplay = label + sqlStyle.Render(data.DisplaySQL)
+				} else {
+					sqlDisplay = sqlStyle.Render(data.DisplaySQL)
+				}
+
 				separator := ui.Separator(rightPaneWidth - 2)
 
-				rightPaneContent = sqlText + "\n" + separator
+				rightPaneContent = sqlDisplay + "\n" + separator
 			}
 		}
 
