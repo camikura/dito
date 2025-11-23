@@ -158,6 +158,72 @@ func FetchMoreTableData(client *nosqldb.Client, tableName string, limit int, pri
 	return fetchTableDataWithCursor(client, tableName, limit, primaryKeys, lastPKValues, true)
 }
 
+// ExecuteCustomSQL executes custom SQL query and returns results.
+// Returns a tea.Cmd that produces a TableDataResult message.
+func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limit int) tea.Cmd {
+	return func() tea.Msg {
+		// Add LIMIT clause to SQL if not present
+		statement := sql
+		displayStatement := sql
+		if !strings.Contains(strings.ToUpper(sql), "LIMIT") {
+			statement = fmt.Sprintf("%s LIMIT %d", sql, limit)
+		}
+
+		prepReq := &nosqldb.PrepareRequest{
+			Statement: statement,
+		}
+		prepResult, err := client.Prepare(prepReq)
+		if err != nil {
+			return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement}
+		}
+
+		queryReq := &nosqldb.QueryRequest{
+			PreparedStatement: &prepResult.PreparedStatement,
+		}
+
+		// Fetch all results (using SDK's internal pagination)
+		var rows []map[string]interface{}
+		for {
+			queryResult, err := client.Query(queryReq)
+			if err != nil {
+				return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement}
+			}
+
+			// Get results
+			results, err := queryResult.GetResults()
+			if err != nil {
+				return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement}
+			}
+
+			for _, result := range results {
+				row := result.Map()
+				// Convert SDK-specific types (e.g., *types.MapValue) to native Go types
+				convertedRow := convertRowValues(row)
+				rows = append(rows, convertedRow)
+			}
+
+			// Exit if no continuation token
+			if queryReq.IsDone() {
+				break
+			}
+		}
+
+		// Check if more pages exist
+		hasMore := len(rows) == limit
+
+		return TableDataResult{
+			TableName:    tableName,
+			Rows:         rows,
+			LastPKValues: nil, // Custom queries don't support cursor-based pagination
+			HasMore:      hasMore,
+			Err:          nil,
+			IsAppend:     false,
+			SQL:          statement,
+			DisplaySQL:   displayStatement,
+		}
+	}
+}
+
 // fetchTableDataWithCursor is an internal function to fetch table data with PRIMARY KEY cursor support.
 func fetchTableDataWithCursor(client *nosqldb.Client, tableName string, limit int, primaryKeys []string, lastPKValues map[string]interface{}, isAppend bool) tea.Cmd {
 	return func() tea.Msg {

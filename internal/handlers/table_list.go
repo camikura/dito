@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -190,15 +191,32 @@ func executeCustomSQL(m app.Model) (app.Model, tea.Cmd) {
 	// SQLエディタダイアログを閉じる
 	m.SQLEditorVisible = false
 
-	// カスタムSQLを実行
-	// TODO: カスタムSQL実行機能を実装
-	// 現在はプレースホルダー
-	m.DialogVisible = true
-	m.DialogType = app.DialogTypeError
-	m.DialogTitle = "Not Implemented"
-	m.DialogMessage = "Custom SQL execution is not yet implemented"
+	// 空のSQLチェック
+	sql := strings.TrimSpace(m.EditSQL)
+	if sql == "" {
+		m.DialogVisible = true
+		m.DialogType = app.DialogTypeError
+		m.DialogTitle = "Error"
+		m.DialogMessage = "SQL query is empty"
+		return m, nil
+	}
 
-	return m, nil
+	// 現在選択されているテーブル名を取得
+	if len(m.Tables) == 0 {
+		return m, nil
+	}
+	tableName := m.Tables[m.SelectedTable]
+
+	// データ読み込み中フラグを設定
+	m.LoadingData = true
+
+	// ビューポートと選択行をリセット
+	m.SelectedDataRow = 0
+	m.ViewportOffset = 0
+	m.HorizontalOffset = 0
+
+	// カスタムSQLを実行
+	return m, db.ExecuteCustomSQL(m.NosqlClient, tableName, sql, m.FetchSize)
 }
 
 // handleSQLEditor handles SQL editor dialog input
