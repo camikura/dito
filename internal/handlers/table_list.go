@@ -123,13 +123,32 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			m.RightPaneMode = app.RightPaneModeList
 			return m, nil
 		} else if m.RightPaneMode == app.RightPaneModeList {
-			// グリッドビュー → スキーマビュー
-			m.RightPaneMode = app.RightPaneModeSchema
-			m.HorizontalOffset = 0 // 横スクロールをリセット
-			// 現在のテーブルのデータをクリア（カスタムSQL状態をリセット）
+			// グリッドビュー → スキーマビュー or SQLエディタダイアログ
 			if len(m.Tables) > 0 {
 				tableName := m.Tables[m.SelectedTable]
+				// カスタムSQLの場合は、デフォルトSQLに戻してダイアログを再表示
+				if data, exists := m.TableData[tableName]; exists && data.IsCustomSQL {
+					// EditSQLは現在のカスタムSQLを保持（再編集可能にする）
+					m.EditSQL = data.DisplaySQL
+					m.SQLCursorPos = len(m.EditSQL)
+					// SQLエディタダイアログを表示
+					m.SQLEditorVisible = true
+					// デフォルトSQLでデータを再取得
+					m.LoadingData = true
+					var primaryKeys []string
+					if details, exists := m.TableDetails[tableName]; exists && details.Schema != nil && details.Schema.DDL != "" {
+						primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+					}
+					return m, db.FetchTableData(m.NosqlClient, tableName, m.FetchSize, primaryKeys)
+				}
+				// デフォルトSQLの場合は、通常通りスキーマビューに戻る
+				m.RightPaneMode = app.RightPaneModeSchema
+				m.HorizontalOffset = 0 // 横スクロールをリセット
+				// テーブルのデータをクリア
 				delete(m.TableData, tableName)
+			} else {
+				m.RightPaneMode = app.RightPaneModeSchema
+				m.HorizontalOffset = 0
 			}
 			return m, nil
 		}
