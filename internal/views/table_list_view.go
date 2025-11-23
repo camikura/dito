@@ -78,11 +78,21 @@ func RenderTableListView(m app.TableListViewModel) string {
 				sqlStyle := lipgloss.NewStyle().
 					Foreground(lipgloss.Color("#CCCCCC"))
 
-				// SQLとセパレーターを手動で組み立て
-				sqlText := sqlStyle.Render(data.DisplaySQL)
+				// カスタムSQLの場合はラベルを追加
+				var sqlDisplay string
+				if data.IsCustomSQL {
+					labelStyle := lipgloss.NewStyle().
+						Foreground(lipgloss.Color("#FFA500")). // オレンジ色
+						Bold(true)
+					label := labelStyle.Render("[Custom SQL] ")
+					sqlDisplay = label + sqlStyle.Render(data.DisplaySQL)
+				} else {
+					sqlDisplay = sqlStyle.Render(data.DisplaySQL)
+				}
+
 				separator := ui.Separator(rightPaneWidth - 2)
 
-				rightPaneContent = sqlText + "\n" + separator
+				rightPaneContent = sqlDisplay + "\n" + separator
 			}
 		}
 
@@ -178,7 +188,7 @@ func RenderTableListView(m app.TableListViewModel) string {
 		Width(m.Width - 2)
 	var footer string
 	if m.RightPaneMode == app.RightPaneModeList {
-		footer = footerStyle.Render("j/k: Scroll  h/l: Scroll Left/Right  o: Detail  u: Back  q: Quit")
+		footer = footerStyle.Render("j/k: Scroll  h/l: Scroll Left/Right  e: Edit SQL  o: Detail  u: Back  q: Quit")
 	} else if m.RightPaneMode == app.RightPaneModeDetail {
 		footer = footerStyle.Render("j/k: Scroll  u: Back to List  q: Quit")
 	} else {
@@ -224,5 +234,19 @@ func RenderTableListView(m app.TableListViewModel) string {
 	bottomBorder := borderStyleColor.Render("╰" + strings.Repeat("─", m.Width-2) + "╯")
 	result.WriteString(bottomBorder)
 
-	return result.String()
+	baseScreen := result.String()
+
+	// SQLエディタダイアログが表示されている場合は重ねて表示
+	if m.SQLEditorVisible {
+		dialog := RenderSQLEditorDialog(SQLEditorDialogViewModel{
+			SQL:       m.EditSQL,
+			CursorPos: m.SQLCursorPos,
+			Width:     m.Width,
+			Height:    m.Height,
+		})
+		// ダイアログはすでに中央配置されているのでそのまま返す
+		return dialog
+	}
+
+	return baseScreen
 }

@@ -95,6 +95,10 @@ type Model struct {
 	ViewportOffset   int // Display start position
 	ViewportSize     int // Number of rows to display at once
 	HorizontalOffset int // Horizontal scroll offset (column-based, 0-indexed)
+	// SQL Editor Dialog
+	SQLEditorVisible bool   // Whether SQL editor dialog is visible
+	EditSQL          string // SQL query being edited
+	SQLCursorPos     int    // Cursor position in SQL editor
 	// Dialog
 	DialogVisible bool
 	DialogType    DialogType
@@ -150,6 +154,10 @@ type TableListViewModel struct {
 	SelectedDataRow  int
 	HorizontalOffset int
 	ViewportOffset   int
+	// SQL Editor Dialog
+	SQLEditorVisible bool
+	EditSQL          string
+	SQLCursorPos     int
 }
 
 // ToTableListViewModel converts the Model to TableListViewModel
@@ -168,5 +176,8 @@ func (m Model) ToTableListViewModel() TableListViewModel {
 		SelectedDataRow:  m.SelectedDataRow,
 		HorizontalOffset: m.HorizontalOffset,
 		ViewportOffset:   m.ViewportOffset,
+		SQLEditorVisible: m.SQLEditorVisible,
+		EditSQL:          m.EditSQL,
+		SQLCursorPos:     m.SQLCursorPos,
 	}
 }
