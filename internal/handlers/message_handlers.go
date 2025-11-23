@@ -28,6 +28,16 @@ func HandleWindowSize(m app.Model, msg tea.WindowSizeMsg) app.Model {
 
 // HandleKeyPress handles keyboard input by routing to appropriate screen handlers
 func HandleKeyPress(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+	// ダイアログが表示されている場合はEnterまたはEscで閉じる
+	if m.DialogVisible {
+		if msg.String() == "enter" || msg.String() == "esc" {
+			m.DialogVisible = false
+			m.DialogTitle = ""
+			m.DialogMessage = ""
+		}
+		return m, nil
+	}
+
 	switch m.Screen {
 	case app.ScreenSelection:
 		return HandleSelection(m, msg)
@@ -44,20 +54,30 @@ func HandleKeyPress(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 
 // HandleConnectionResult handles database connection result messages
 func HandleConnectionResult(m app.Model, msg db.ConnectionResult) (app.Model, tea.Cmd) {
-	if msg.Err != nil {
-		m.OnPremiseConfig.Status = app.StatusError
-		m.OnPremiseConfig.ErrorMsg = msg.Err.Error()
-	} else {
-		m.OnPremiseConfig.Status = app.StatusConnected
-		m.OnPremiseConfig.ServerVersion = msg.Version
-		m.OnPremiseConfig.ErrorMsg = ""
+	// Statusをリセット
+	m.OnPremiseConfig.Status = app.StatusDisconnected
 
-		// テスト接続でない場合のみテーブル一覧を取得して画面遷移
-		if !msg.IsTest {
-			// クライアントとエンドポイントを保存
+	if msg.Err != nil {
+		// エラーダイアログを表示
+		m.DialogVisible = true
+		m.DialogType = app.DialogTypeError
+		m.DialogTitle = "Connection Failed"
+		m.DialogMessage = msg.Err.Error()
+	} else {
+		// テスト接続の場合は成功ダイアログを表示
+		if msg.IsTest {
+			m.DialogVisible = true
+			m.DialogType = app.DialogTypeSuccess
+			m.DialogTitle = "Connection Successful"
+			m.DialogMessage = fmt.Sprintf("Successfully connected to %s\nServer version: %s", msg.Endpoint, msg.Version)
+			// テスト接続のクライアントは閉じる
+			if msg.Client != nil {
+				msg.Client.Close()
+			}
+		} else {
+			// 実接続の場合はテーブル一覧を取得して画面遷移
 			m.NosqlClient = msg.Client
 			m.Endpoint = msg.Endpoint
-			// テーブル一覧を取得
 			return m, db.FetchTables(msg.Client)
 		}
 	}

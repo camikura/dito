@@ -35,6 +35,14 @@ const (
 	RightPaneModeDetail // Record detail view
 )
 
+// DialogType represents the type of dialog
+type DialogType int
+
+const (
+	DialogTypeSuccess DialogType = iota
+	DialogTypeError
+)
+
 // OnPremiseConfig holds on-premise connection configuration
 type OnPremiseConfig struct {
 	Endpoint      string
@@ -87,6 +95,11 @@ type Model struct {
 	ViewportOffset   int // Display start position
 	ViewportSize     int // Number of rows to display at once
 	HorizontalOffset int // Horizontal scroll offset (column-based, 0-indexed)
+	// Dialog
+	DialogVisible bool
+	DialogType    DialogType
+	DialogTitle   string
+	DialogMessage string
 }
 
 // InitialModel returns the initial application model

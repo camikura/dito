@@ -58,7 +58,7 @@ func RenderTableListView(m app.TableListViewModel) string {
 	}
 	leftPaneStyle := lipgloss.NewStyle().
 		Width(leftPaneWidth).
-		Height(m.Height - 8). // タイトル行、ヘッダー、セパレーター×3、ステータス、フッター、ボーダー×2を除く
+		Height(m.Height - 6). // タイトル行、ヘッダー、セパレーター×1、フッター、ボーダー×2を除く
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderRight(true).
 		BorderForeground(lipgloss.Color(borderColor)).
@@ -103,8 +103,8 @@ func RenderTableListView(m app.TableListViewModel) string {
 			})
 		} else if m.RightPaneMode == app.RightPaneModeList {
 			// グリッドビューモード
-			// rightPane全体の高さ(m.Height-8)からSQLエリア(2行)を引く
-			rightPaneHeight := m.Height - 10
+			// rightPane全体の高さ(m.Height-6)からSQLエリア(2行)を引く
+			rightPaneHeight := m.Height - 8
 
 			// データの取得状態を確認
 			data, exists := m.TableData[selectedTableName]
@@ -162,7 +162,7 @@ func RenderTableListView(m app.TableListViewModel) string {
 
 	rightPaneStyle := lipgloss.NewStyle().
 		Width(rightPaneWidth).
-		Height(m.Height - 8).
+		Height(m.Height - 6).
 		Padding(0, 1)
 	// 末尾の空行を削除
 	rightPaneContent = strings.TrimSuffix(rightPaneContent, "\n")
@@ -170,48 +170,6 @@ func RenderTableListView(m app.TableListViewModel) string {
 
 	// 2ペインを横に並べる
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
-
-	// ステータスバー
-	statusBarStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#CCCCCC")).
-		Padding(0, 1).
-		Width(m.Width - 2)
-	var status string
-	if len(m.Tables) > 0 {
-		selectedTableName := m.Tables[m.SelectedTable]
-		if m.RightPaneMode == app.RightPaneModeList || m.RightPaneMode == app.RightPaneModeDetail {
-			// グリッドビュー/レコードビューモード: テーブル名と行数を表示
-			if data, exists := m.TableData[selectedTableName]; exists {
-				if data.Err != nil {
-					// エラーが発生した場合は赤色で表示
-					errorStyle := lipgloss.NewStyle().
-						Foreground(lipgloss.Color("#FF0000")).
-						Padding(0, 1)
-					status = errorStyle.Render(fmt.Sprintf("Error: %v", data.Err))
-				} else if len(data.Rows) > 0 {
-					totalRows := len(data.Rows)
-					// データがまだある場合は "+" を追加
-					moreIndicator := ""
-					if data.HasMore {
-						moreIndicator = "+"
-					}
-					// テーブル名と行数のみ表示
-					status = statusBarStyle.Render(fmt.Sprintf("Table: %s (%d%s rows)", selectedTableName, totalRows, moreIndicator))
-				} else {
-					status = statusBarStyle.Render(fmt.Sprintf("Table: %s (0 rows)", selectedTableName))
-				}
-			} else if m.LoadingData {
-				status = statusBarStyle.Render(fmt.Sprintf("Table: %s (loading...)", selectedTableName))
-			} else {
-				status = statusBarStyle.Render(fmt.Sprintf("Table: %s", selectedTableName))
-			}
-		} else {
-			// スキーマビューモード: テーブル名のみ表示
-			status = statusBarStyle.Render(fmt.Sprintf("Table: %s", selectedTableName))
-		}
-	} else {
-		status = statusBarStyle.Render("")
-	}
 
 	// フッター
 	footerStyle := lipgloss.NewStyle().
@@ -229,7 +187,6 @@ func RenderTableListView(m app.TableListViewModel) string {
 
 	// セパレーター
 	topSeparator := ui.Separator(m.Width - 2)
-	statusSeparator := ui.Separator(m.Width - 2)
 
 	// 全体を組み立て
 	content := lipgloss.JoinVertical(
@@ -237,9 +194,7 @@ func RenderTableListView(m app.TableListViewModel) string {
 		header,
 		topSeparator,
 		panes,
-		statusSeparator,
-		status,
-		statusSeparator,
+		topSeparator,
 		footer,
 	)
 
