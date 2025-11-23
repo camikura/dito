@@ -24,13 +24,23 @@ func RenderSelectionScreen(vm ScreenViewModel) string {
 		Cursor:  vm.Model.Cursor,
 	})
 
-	// ステータスメッセージ（この画面では空）
-	statusMessage := ""
-
 	// ヘルプテキスト
 	helpText := "Tab/Shift+Tab or ↑/↓: Navigate  Enter: Select  q: Quit"
 
-	return renderWithBorder(vm.Width, vm.Height, content, statusMessage, helpText)
+	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
+
+	// ダイアログが表示されている場合は重ねて表示
+	if vm.Model.DialogVisible {
+		dialog := RenderDialog(vm.Width, vm.Height, DialogModel{
+			Type:    vm.Model.DialogType,
+			Title:   vm.Model.DialogTitle,
+			Message: vm.Model.DialogMessage,
+		})
+		// ベース画面の上にダイアログを重ねる（簡易的な実装）
+		return overlayDialog(baseScreen, dialog)
+	}
+
+	return baseScreen
 }
 
 // RenderOnPremiseConfigScreen renders the on-premise configuration screen with border
@@ -44,18 +54,23 @@ func RenderOnPremiseConfigScreen(vm ScreenViewModel) string {
 		CursorPos: vm.Model.OnPremiseConfig.CursorPos,
 	})
 
-	// ステータスメッセージ
-	statusMessage := buildConnectionStatusMessage(
-		vm.Model.OnPremiseConfig.Status,
-		vm.Model.OnPremiseConfig.ServerVersion,
-		vm.Model.OnPremiseConfig.ErrorMsg,
-		vm.Width,
-	)
-
 	// ヘルプテキスト
 	helpText := "Tab/Shift+Tab: Navigate  Space: Toggle  Enter: Execute  Esc: Back  Ctrl+C: Quit"
 
-	return renderWithBorder(vm.Width, vm.Height, content, statusMessage, helpText)
+	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
+
+	// ダイアログが表示されている場合は重ねて表示
+	if vm.Model.DialogVisible {
+		dialog := RenderDialog(vm.Width, vm.Height, DialogModel{
+			Type:    vm.Model.DialogType,
+			Title:   vm.Model.DialogTitle,
+			Message: vm.Model.DialogMessage,
+		})
+		// ベース画面の上にダイアログを重ねる（簡易的な実装）
+		return overlayDialog(baseScreen, dialog)
+	}
+
+	return baseScreen
 }
 
 // RenderCloudConfigScreen renders the cloud configuration screen with border
@@ -70,54 +85,33 @@ func RenderCloudConfigScreen(vm ScreenViewModel) string {
 		CursorPos:   vm.Model.CloudConfig.CursorPos,
 	})
 
-	// ステータスメッセージ
-	statusMessage := buildConnectionStatusMessage(
-		vm.Model.CloudConfig.Status,
-		vm.Model.CloudConfig.ServerVersion,
-		vm.Model.CloudConfig.ErrorMsg,
-		vm.Width,
-	)
-
 	// ヘルプテキスト
 	helpText := "Tab/Shift+Tab: Navigate  Space: Toggle  Enter: Execute  Esc: Back  Ctrl+C: Quit"
 
-	return renderWithBorder(vm.Width, vm.Height, content, statusMessage, helpText)
-}
+	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
 
-// buildConnectionStatusMessage builds the status message for connection screens
-func buildConnectionStatusMessage(status app.ConnectionStatus, serverVersion string, errorMsg string, width int) string {
-	statusStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00FF00"))
-	errorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF0000"))
-
-	var statusMessage string
-	switch status {
-	case app.StatusConnecting:
-		statusMessage = statusStyle.Render("Connecting...")
-	case app.StatusConnected:
-		msg := "Connected"
-		if serverVersion != "" {
-			msg = serverVersion
-		}
-		statusMessage = statusStyle.Render(msg)
-	case app.StatusError:
-		msg := "Connection failed"
-		if errorMsg != "" {
-			errMsg := errorMsg
-			maxWidth := width - 10
-			if len(errMsg) > maxWidth {
-				errMsg = errMsg[:maxWidth] + "..."
-			}
-			msg = errMsg
-		}
-		statusMessage = errorStyle.Render(msg)
+	// ダイアログが表示されている場合は重ねて表示
+	if vm.Model.DialogVisible {
+		dialog := RenderDialog(vm.Width, vm.Height, DialogModel{
+			Type:    vm.Model.DialogType,
+			Title:   vm.Model.DialogTitle,
+			Message: vm.Model.DialogMessage,
+		})
+		// ベース画面の上にダイアログを重ねる（簡易的な実装）
+		return overlayDialog(baseScreen, dialog)
 	}
-	return statusMessage
+
+	return baseScreen
 }
 
-// renderWithBorder renders the content with border, status, and footer
-func renderWithBorder(width, height int, content, statusMessage, helpText string) string {
+// overlayDialog overlays a dialog on top of a base screen (simple implementation)
+func overlayDialog(baseScreen, dialog string) string {
+	// ダイアログは既に中央配置されているので、そのまま返す
+	return dialog
+}
+
+// renderWithBorder renders the content with border and footer
+func renderWithBorder(width, height int, content, helpText string) string {
 	// 共通スタイル
 	statusBarStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
@@ -125,7 +119,7 @@ func renderWithBorder(width, height int, content, statusMessage, helpText string
 		Width(width - 2)
 
 	// コンテンツを左寄せ
-	contentHeight := height - 7 // タイトル行、空行、セパレーター×3、ステータスエリア、フッターを除く
+	contentHeight := height - 5 // タイトル行、空行、セパレーター×1、フッターを除く
 	contentStyle := lipgloss.NewStyle().
 		Width(width - 2).
 		Height(contentHeight).
@@ -137,12 +131,6 @@ func renderWithBorder(width, height int, content, statusMessage, helpText string
 
 	// セパレーター
 	separator := ui.Separator(width - 2)
-
-	// ステータスエリア
-	statusAreaStyle := lipgloss.NewStyle().
-		Padding(0, 1).
-		Width(width - 2)
-	statusArea := statusAreaStyle.Render(statusMessage)
 
 	// フッター
 	footer := statusBarStyle.Render(helpText)
@@ -172,8 +160,6 @@ func renderWithBorder(width, height int, content, statusMessage, helpText string
 	// コンテンツを行ごとに分割してボーダーを追加
 	lines := []string{
 		leftAlignedContent,
-		separator,
-		statusArea,
 		separator,
 		footer,
 	}

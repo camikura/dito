@@ -171,9 +171,14 @@ func TestModelUpdate(t *testing.T) {
 						t.Errorf("Update() Height = %d, want %d", m.Height, msg.Height)
 					}
 				case connectionResultMsg:
-					if msg.Err == nil {
-						if m.OnPremiseConfig.Status != app.StatusConnected {
-							t.Error("Update() should set status to connected")
+					// Status should always be reset to Disconnected
+					if m.OnPremiseConfig.Status != app.StatusDisconnected {
+						t.Error("Update() should reset status to disconnected")
+					}
+					// For test connections or errors, dialog should be visible
+					if msg.IsTest || msg.Err != nil {
+						if !m.DialogVisible {
+							t.Error("Update() should show dialog for test connection or error")
 						}
 					}
 				case tableListResultMsg:

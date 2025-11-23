@@ -149,11 +149,12 @@ func TestHandleKeyPress(t *testing.T) {
 
 func TestHandleConnectionResult(t *testing.T) {
 	tests := []struct {
-		name           string
-		initialModel   app.Model
-		msg            db.ConnectionResult
-		expectedStatus app.ConnectionStatus
-		expectCmd      bool
+		name               string
+		initialModel       app.Model
+		msg                db.ConnectionResult
+		expectDialogVisible bool
+		expectDialogType   app.DialogType
+		expectCmd          bool
 	}{
 		{
 			name: "successful connection - test mode",
@@ -163,12 +164,14 @@ func TestHandleConnectionResult(t *testing.T) {
 				},
 			},
 			msg: db.ConnectionResult{
-				Err:     nil,
-				Version: "Oracle NoSQL Database 23.1",
-				IsTest:  true,
+				Err:      nil,
+				Version:  "Oracle NoSQL Database 23.1",
+				IsTest:   true,
+				Endpoint: "localhost:8080",
 			},
-			expectedStatus: app.StatusConnected,
-			expectCmd:      false,
+			expectDialogVisible: true,
+			expectDialogType:    app.DialogTypeSuccess,
+			expectCmd:           false,
 		},
 		{
 			name: "successful connection - not test mode",
@@ -183,8 +186,9 @@ func TestHandleConnectionResult(t *testing.T) {
 				IsTest:   false,
 				Endpoint: "localhost:8080",
 			},
-			expectedStatus: app.StatusConnected,
-			expectCmd:      true, // should fetch tables
+			expectDialogVisible: false,
+			expectDialogType:    app.DialogTypeSuccess,
+			expectCmd:           true, // should fetch tables
 		},
 		{
 			name: "failed connection",
@@ -197,8 +201,9 @@ func TestHandleConnectionResult(t *testing.T) {
 				Err:    errors.New("connection refused"),
 				IsTest: false,
 			},
-			expectedStatus: app.StatusError,
-			expectCmd:      false,
+			expectDialogVisible: true,
+			expectDialogType:    app.DialogTypeError,
+			expectCmd:           false,
 		},
 	}
 
@@ -206,9 +211,10 @@ func TestHandleConnectionResult(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resultModel, resultCmd := HandleConnectionResult(tt.initialModel, tt.msg)
 
-			if resultModel.OnPremiseConfig.Status != tt.expectedStatus {
+			// Status should always be reset to Disconnected
+			if resultModel.OnPremiseConfig.Status != app.StatusDisconnected {
 				t.Errorf("HandleConnectionResult() Status = %v, want %v",
-					resultModel.OnPremiseConfig.Status, tt.expectedStatus)
+					resultModel.OnPremiseConfig.Status, app.StatusDisconnected)
 			}
 
 			if tt.expectCmd && resultCmd == nil {
@@ -218,16 +224,21 @@ func TestHandleConnectionResult(t *testing.T) {
 				t.Errorf("HandleConnectionResult() should not return a command but got one")
 			}
 
-			// Check error message is set when there's an error
-			if tt.msg.Err != nil && resultModel.OnPremiseConfig.ErrorMsg == "" {
-				t.Errorf("HandleConnectionResult() should set ErrorMsg when error occurs")
+			// Check dialog visibility
+			if resultModel.DialogVisible != tt.expectDialogVisible {
+				t.Errorf("HandleConnectionResult() DialogVisible = %v, want %v",
+					resultModel.DialogVisible, tt.expectDialogVisible)
 			}
 
-			// Check version is set when connection is successful
-			if tt.msg.Err == nil && tt.msg.Version != "" &&
-				resultModel.OnPremiseConfig.ServerVersion != tt.msg.Version {
-				t.Errorf("HandleConnectionResult() ServerVersion = %v, want %v",
-					resultModel.OnPremiseConfig.ServerVersion, tt.msg.Version)
+			// Check dialog type when dialog is visible
+			if tt.expectDialogVisible && resultModel.DialogType != tt.expectDialogType {
+				t.Errorf("HandleConnectionResult() DialogType = %v, want %v",
+					resultModel.DialogType, tt.expectDialogType)
+			}
+
+			// Check dialog message is set when dialog is visible
+			if tt.expectDialogVisible && resultModel.DialogMessage == "" {
+				t.Errorf("HandleConnectionResult() should set DialogMessage when dialog is visible")
 			}
 		})
 	}
