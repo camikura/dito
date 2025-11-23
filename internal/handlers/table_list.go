@@ -277,6 +277,12 @@ func handleSQLEditor(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		m.SQLCursorPos = len(m.EditSQL)
 		return m, nil
 
+	case tea.KeySpace:
+		// スペース入力
+		m.EditSQL = m.EditSQL[:m.SQLCursorPos] + " " + m.EditSQL[m.SQLCursorPos:]
+		m.SQLCursorPos++
+		return m, nil
+
 	case tea.KeyRunes:
 		// 通常の文字入力
 		runes := msg.Runes
