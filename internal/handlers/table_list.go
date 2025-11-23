@@ -57,8 +57,9 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 					}
 
 					// 残り10行以内まで来たら、さらにデータがある場合は追加取得
+					// ただし、カスタムSQLの場合（LastPKValues == nil）は追加取得不可
 					remainingRows := totalRows - m.SelectedDataRow - 1
-					if remainingRows <= 10 && data.HasMore && !m.LoadingData {
+					if remainingRows <= 10 && data.HasMore && !m.LoadingData && data.LastPKValues != nil {
 						m.LoadingData = true
 						// PRIMARY KEYを取得
 						var primaryKeys []string
