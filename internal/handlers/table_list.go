@@ -104,7 +104,11 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			return m, nil
 		}
 		// スキーマビュー → 接続設定画面に戻る
+		// 接続状態をリセット
 		m.Screen = app.ScreenOnPremiseConfig
+		m.OnPremiseConfig.Status = app.StatusDisconnected
+		m.OnPremiseConfig.ErrorMsg = ""
+		m.OnPremiseConfig.ServerVersion = ""
 		return m, nil
 	case "enter", "o":
 		if m.RightPaneMode == app.RightPaneModeSchema {
