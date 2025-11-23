@@ -32,8 +32,10 @@ func (vt *VerticalTable) Render() string {
 	// Render each key-value pair
 	for _, key := range vt.Keys {
 		value := fmt.Sprintf("%v", vt.Data[key])
-		// Left-align the key with padding and use focused style for labels
-		label := StyleFocused.Render(fmt.Sprintf("%-*s", maxKeyWidth, key))
+		// Left-align the key with padding and use header style (without underline) for labels
+		// This matches the grid view column headers but without underline
+		labelStyle := StyleHeader.Copy().Underline(false)
+		label := labelStyle.Render(fmt.Sprintf("%-*s", maxKeyWidth, key))
 		result.WriteString(label + "  " + StyleNormal.Render(value) + "\n")
 	}
 
