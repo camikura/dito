@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/camikura/dito/internal/app"
@@ -10,6 +12,11 @@ import (
 
 // HandleTableList handles the table list screen input
 func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+	// SQLエディタダイアログが表示されている場合は専用ハンドラーを呼び出す
+	if m.SQLEditorVisible {
+		return handleSQLEditor(m, msg)
+	}
+
 	oldSelection := m.SelectedTable
 
 	switch msg.String() {
@@ -92,6 +99,22 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 				m.HorizontalOffset++
 			}
 		}
+	case "e":
+		// グリッドビューでSQLエディタダイアログを表示
+		if m.RightPaneMode == app.RightPaneModeList {
+			m.SQLEditorVisible = true
+			// 現在のテーブルのSQLを初期値として設定
+			if len(m.Tables) > 0 {
+				tableName := m.Tables[m.SelectedTable]
+				if data, exists := m.TableData[tableName]; exists && data.DisplaySQL != "" {
+					m.EditSQL = data.DisplaySQL
+				} else {
+					m.EditSQL = fmt.Sprintf("SELECT * FROM %s", tableName)
+				}
+				m.SQLCursorPos = len(m.EditSQL) // カーソルを末尾に
+			}
+			return m, nil
+		}
 	case "esc", "u":
 		if m.RightPaneMode == app.RightPaneModeDetail {
 			// レコードビュー → グリッドビュー
@@ -157,6 +180,93 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			m.LoadingDetails = true
 			return m, db.FetchTableDetails(m.NosqlClient, tableName)
 		}
+	}
+
+	return m, nil
+}
+
+// executeCustomSQL executes custom SQL and preserves the table list
+func executeCustomSQL(m app.Model) (app.Model, tea.Cmd) {
+	// SQLエディタダイアログを閉じる
+	m.SQLEditorVisible = false
+
+	// カスタムSQLを実行
+	// TODO: カスタムSQL実行機能を実装
+	// 現在はプレースホルダー
+	m.DialogVisible = true
+	m.DialogType = app.DialogTypeError
+	m.DialogTitle = "Not Implemented"
+	m.DialogMessage = "Custom SQL execution is not yet implemented"
+
+	return m, nil
+}
+
+// handleSQLEditor handles SQL editor dialog input
+func handleSQLEditor(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		// クライアントをクローズしてから終了
+		if m.NosqlClient != nil {
+			m.NosqlClient.Close()
+		}
+		return m, tea.Quit
+
+	case tea.KeyEsc:
+		// SQLエディタダイアログを閉じる
+		m.SQLEditorVisible = false
+		return m, nil
+
+	case tea.KeyEnter:
+		// Ctrl+Enterでの実行
+		if msg.String() == "ctrl+enter" {
+			return executeCustomSQL(m)
+		}
+		// 通常のEnterは改行として扱う
+		m.EditSQL = m.EditSQL[:m.SQLCursorPos] + "\n" + m.EditSQL[m.SQLCursorPos:]
+		m.SQLCursorPos++
+		return m, nil
+
+	case tea.KeyBackspace:
+		if m.SQLCursorPos > 0 {
+			m.EditSQL = m.EditSQL[:m.SQLCursorPos-1] + m.EditSQL[m.SQLCursorPos:]
+			m.SQLCursorPos--
+		}
+		return m, nil
+
+	case tea.KeyDelete:
+		if m.SQLCursorPos < len(m.EditSQL) {
+			m.EditSQL = m.EditSQL[:m.SQLCursorPos] + m.EditSQL[m.SQLCursorPos+1:]
+		}
+		return m, nil
+
+	case tea.KeyLeft:
+		if m.SQLCursorPos > 0 {
+			m.SQLCursorPos--
+		}
+		return m, nil
+
+	case tea.KeyRight:
+		if m.SQLCursorPos < len(m.EditSQL) {
+			m.SQLCursorPos++
+		}
+		return m, nil
+
+	case tea.KeyHome, tea.KeyCtrlA:
+		m.SQLCursorPos = 0
+		return m, nil
+
+	case tea.KeyEnd, tea.KeyCtrlE:
+		m.SQLCursorPos = len(m.EditSQL)
+		return m, nil
+
+	case tea.KeyRunes:
+		// 通常の文字入力
+		runes := msg.Runes
+		for _, r := range runes {
+			m.EditSQL = m.EditSQL[:m.SQLCursorPos] + string(r) + m.EditSQL[m.SQLCursorPos:]
+			m.SQLCursorPos++
+		}
+		return m, nil
 	}
 
 	return m, nil
