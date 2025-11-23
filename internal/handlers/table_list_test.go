@@ -180,12 +180,17 @@ func TestHandleTableList(t *testing.T) {
 			expectQuitCmd:      false,
 		},
 		{
-			name: "esc/u switches from schema to on-premise config",
+			name: "esc/u switches from schema to on-premise config and resets connection status",
 			initialModel: app.Model{
 				Screen:        app.ScreenTableList,
 				Tables:        []string{"users"},
 				SelectedTable: 0,
 				RightPaneMode: app.RightPaneModeSchema,
+				OnPremiseConfig: app.OnPremiseConfig{
+					Status:        app.StatusConnected,
+					ServerVersion: "Oracle NoSQL Database 23.1",
+					ErrorMsg:      "",
+				},
 			},
 			key:                "esc",
 			expectedScreen:     app.ScreenOnPremiseConfig,
@@ -363,6 +368,19 @@ func TestHandleTableList(t *testing.T) {
 				expectedOffset := tt.initialModel.HorizontalOffset - 1
 				if resultModel.HorizontalOffset != expectedOffset {
 					t.Errorf("HandleTableList() HorizontalOffset = %v, want %v", resultModel.HorizontalOffset, expectedOffset)
+				}
+			}
+
+			// Check connection status reset when returning to config screen
+			if (tt.key == "esc" || tt.key == "u") && tt.initialModel.RightPaneMode == app.RightPaneModeSchema && tt.expectedScreen == app.ScreenOnPremiseConfig {
+				if resultModel.OnPremiseConfig.Status != app.StatusDisconnected {
+					t.Errorf("HandleTableList() should reset OnPremiseConfig.Status to StatusDisconnected, got %v", resultModel.OnPremiseConfig.Status)
+				}
+				if resultModel.OnPremiseConfig.ServerVersion != "" {
+					t.Errorf("HandleTableList() should clear OnPremiseConfig.ServerVersion, got %v", resultModel.OnPremiseConfig.ServerVersion)
+				}
+				if resultModel.OnPremiseConfig.ErrorMsg != "" {
+					t.Errorf("HandleTableList() should clear OnPremiseConfig.ErrorMsg, got %v", resultModel.OnPremiseConfig.ErrorMsg)
 				}
 			}
 		})
