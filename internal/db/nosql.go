@@ -1,12 +1,15 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/oracle/nosql-go-sdk/nosqldb"
 	"github.com/oracle/nosql-go-sdk/nosqldb/nosqlerr"
+	"github.com/oracle/nosql-go-sdk/nosqldb/types"
 )
 
 // ConnectionResult represents the result of a connection attempt.
@@ -224,7 +227,10 @@ func fetchTableDataWithCursor(client *nosqldb.Client, tableName string, limit in
 			}
 
 			for _, result := range results {
-				rows = append(rows, result.Map())
+				row := result.Map()
+				// Convert SDK-specific types (e.g., *types.MapValue) to native Go types
+				convertedRow := convertRowValues(row)
+				rows = append(rows, convertedRow)
 			}
 
 			// Exit if no continuation token
@@ -260,6 +266,105 @@ func fetchTableDataWithCursor(client *nosqldb.Client, tableName string, limit in
 			DisplaySQL:   displayStatement,
 		}
 	}
+}
+
+// convertRowValues converts SDK-specific types in a row to native Go types.
+// This is needed for JSON fields which are returned as *types.MapValue by the SDK.
+func convertRowValues(row map[string]interface{}) map[string]interface{} {
+	converted := make(map[string]interface{})
+	for key, val := range row {
+		converted[key] = convertValue(val)
+	}
+	return converted
+}
+
+// convertValue recursively converts SDK-specific types to native Go types.
+func convertValue(val interface{}) interface{} {
+	if val == nil {
+		return nil
+	}
+
+	// Handle *types.MapValue (JSON object)
+	if mapVal, ok := val.(*types.MapValue); ok {
+		return convertMapValue(mapVal)
+	}
+
+	// Handle types.MapValue (non-pointer)
+	if mapVal, ok := val.(types.MapValue); ok {
+		return convertMapValue(&mapVal)
+	}
+
+	// Use reflection to handle other SDK types
+	v := reflect.ValueOf(val)
+
+	// If it's a pointer, dereference it
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil
+		}
+		v = v.Elem()
+	}
+
+	// Handle map types
+	if v.Kind() == reflect.Map {
+		result := make(map[string]interface{})
+		for _, key := range v.MapKeys() {
+			keyStr := fmt.Sprintf("%v", key.Interface())
+			result[keyStr] = convertValue(v.MapIndex(key).Interface())
+		}
+		return result
+	}
+
+	// Handle slice/array types
+	if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
+		length := v.Len()
+		result := make([]interface{}, length)
+		for i := 0; i < length; i++ {
+			result[i] = convertValue(v.Index(i).Interface())
+		}
+		return result
+	}
+
+	// If we reach here, it might be an SDK type we don't recognize
+	// Try to convert it using JSON marshal/unmarshal as a last resort
+	jsonBytes, err := json.Marshal(val)
+	if err == nil {
+		var result interface{}
+		if err := json.Unmarshal(jsonBytes, &result); err == nil {
+			return result
+		}
+	}
+
+	// Return primitive types as-is
+	return val
+}
+
+// convertMapValue converts *types.MapValue to map[string]interface{}
+func convertMapValue(mapVal *types.MapValue) map[string]interface{} {
+	if mapVal == nil {
+		return nil
+	}
+
+	// Try to marshal to JSON and back to get a clean map[string]interface{}
+	jsonBytes, err := json.Marshal(mapVal)
+	if err != nil {
+		// Fallback: return empty map for conversion errors
+		return make(map[string]interface{})
+	}
+
+	var result map[string]interface{}
+	err = json.Unmarshal(jsonBytes, &result)
+	if err != nil {
+		// Fallback: return empty map for unmarshal errors
+		return make(map[string]interface{})
+	}
+
+	// Ensure we return an initialized map, not nil
+	if result == nil {
+		return make(map[string]interface{})
+	}
+
+	return result
 }
 
 // formatValue formats a value for SQL statement.

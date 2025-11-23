@@ -31,12 +31,35 @@ func (vt *VerticalTable) Render() string {
 
 	// Render each key-value pair
 	for _, key := range vt.Keys {
-		value := fmt.Sprintf("%v", vt.Data[key])
+		value := FormatValuePretty(vt.Data[key])
 		// Left-align the key with padding and use header style (without underline) for labels
 		// This matches the grid view column headers but without underline
 		labelStyle := StyleHeader.Copy().Underline(false)
 		label := labelStyle.Render(fmt.Sprintf("%-*s", maxKeyWidth, key))
-		result.WriteString(label + "  " + StyleNormal.Render(value) + "\n")
+
+		// Choose style based on value (dim for null)
+		valueStyle := StyleNormal
+		if value == "(null)" {
+			valueStyle = StyleDim
+		}
+
+		// Handle multi-line values (e.g., formatted JSON)
+		// Add indentation to continuation lines to align with the value column
+		lines := strings.Split(value, "\n")
+		if len(lines) > 1 {
+			// Multi-line value: indent continuation lines
+			indent := strings.Repeat(" ", maxKeyWidth+2)
+			for i, line := range lines {
+				if i == 0 {
+					result.WriteString(label + "  " + valueStyle.Render(line) + "\n")
+				} else {
+					result.WriteString(indent + valueStyle.Render(line) + "\n")
+				}
+			}
+		} else {
+			// Single-line value
+			result.WriteString(label + "  " + valueStyle.Render(value) + "\n")
+		}
 	}
 
 	// Remove trailing newline
