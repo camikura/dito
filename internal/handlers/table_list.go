@@ -117,7 +117,7 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-	case "esc", "u":
+	case "esc":
 		if m.RightPaneMode == app.RightPaneModeDetail {
 			// レコードビュー → グリッドビュー
 			m.RightPaneMode = app.RightPaneModeList
@@ -159,7 +159,7 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		m.OnPremiseConfig.ErrorMsg = ""
 		m.OnPremiseConfig.ServerVersion = ""
 		return m, nil
-	case "enter", "o":
+	case "enter":
 		if m.RightPaneMode == app.RightPaneModeSchema {
 			// スキーマビュー → グリッドビュー
 			m.RightPaneMode = app.RightPaneModeList
