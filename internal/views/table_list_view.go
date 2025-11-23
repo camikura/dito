@@ -188,11 +188,11 @@ func RenderTableListView(m app.TableListViewModel) string {
 		Width(m.Width - 2)
 	var footer string
 	if m.RightPaneMode == app.RightPaneModeList {
-		footer = footerStyle.Render("j/k: Scroll  h/l: Scroll Left/Right  e: Edit SQL  Enter: Detail  ESC: Back  q: Quit")
+		footer = footerStyle.Render("j/k: Scroll  h/l: Scroll Left/Right  e: Edit SQL  Enter: Detail  ESC: Back")
 	} else if m.RightPaneMode == app.RightPaneModeDetail {
-		footer = footerStyle.Render("j/k: Scroll  ESC: Back to List  q: Quit")
+		footer = footerStyle.Render("j/k: Scroll  ESC: Back")
 	} else {
-		footer = footerStyle.Render("j/k: Navigate  Enter: View Data  ESC: Back  q: Quit")
+		footer = footerStyle.Render("j/k: Navigate  Enter: View Data  ESC: Back")
 	}
 
 	// セパレーター

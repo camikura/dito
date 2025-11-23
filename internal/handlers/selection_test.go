@@ -30,18 +30,6 @@ func TestHandleSelection(t *testing.T) {
 			expectQuitCmd:  true,
 		},
 		{
-			name: "quit with q",
-			initialModel: app.Model{
-				Screen:  app.ScreenSelection,
-				Choices: []string{"Cloud", "On-Premise"},
-				Cursor:  0,
-			},
-			key:           "q",
-			expectedScreen: app.ScreenSelection,
-			expectedCursor: 0,
-			expectQuitCmd:  true,
-		},
-		{
 			name: "cursor down with down key",
 			initialModel: app.Model{
 				Screen:  app.ScreenSelection,
@@ -145,9 +133,6 @@ func TestHandleSelection(t *testing.T) {
 			switch tt.key {
 			case "ctrl+c":
 				msg.Type = tea.KeyCtrlC
-			case "q":
-				msg.Type = tea.KeyRunes
-				msg.Runes = []rune{'q'}
 			case "up":
 				msg.Type = tea.KeyUp
 			case "down":
