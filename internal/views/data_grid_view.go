@@ -40,13 +40,25 @@ func RenderDataGridView(m DataGridViewModel) string {
 		return fmt.Sprintf("No data found\n\nSQL:\n%s", m.SQL)
 	}
 
-	// Get column names in DDL definition order
+	// Get column names from actual query results
+	// First, collect all columns that exist in the data
+	dataColumns := make(map[string]bool)
+	if len(m.Rows) > 0 {
+		for key := range m.Rows[0] {
+			dataColumns[key] = true
+		}
+	}
+
+	// Use schema order if available, but only include columns that exist in the data
 	var columnNames []string
 	if m.TableSchema != nil && m.TableSchema.DDL != "" {
 		primaryKeys := ParsePrimaryKeysFromDDL(m.TableSchema.DDL)
 		columns := ParseColumnsFromDDL(m.TableSchema.DDL, primaryKeys)
 		for _, col := range columns {
-			columnNames = append(columnNames, col.Name)
+			// Only include columns that are actually in the query results
+			if dataColumns[col.Name] {
+				columnNames = append(columnNames, col.Name)
+			}
 		}
 	} else if len(m.Rows) > 0 {
 		// If DDL is not available, get from data (order is undefined)
