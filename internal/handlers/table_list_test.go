@@ -34,21 +34,6 @@ func TestHandleTableList(t *testing.T) {
 			expectQuitCmd:      true,
 		},
 		{
-			name: "quit with q",
-			initialModel: app.Model{
-				Screen:        app.ScreenTableList,
-				Tables:        []string{"users", "products"},
-				SelectedTable: 0,
-				RightPaneMode: app.RightPaneModeSchema,
-			},
-			key:                "q",
-			expectedScreen:     app.ScreenTableList,
-			expectedRightPane:  app.RightPaneModeSchema,
-			expectedTableIndex: 0,
-			expectedDataRow:    0,
-			expectQuitCmd:      true,
-		},
-		{
 			name: "navigate down in schema mode",
 			initialModel: app.Model{
 				Screen:        app.ScreenTableList,
@@ -149,7 +134,7 @@ func TestHandleTableList(t *testing.T) {
 			expectQuitCmd:      false,
 		},
 		{
-			name: "esc/u switches from detail to list mode",
+			name: "esc switches from detail to list mode",
 			initialModel: app.Model{
 				Screen:        app.ScreenTableList,
 				Tables:        []string{"users"},
@@ -164,23 +149,7 @@ func TestHandleTableList(t *testing.T) {
 			expectQuitCmd:      false,
 		},
 		{
-			name: "esc/u switches from list to schema mode",
-			initialModel: app.Model{
-				Screen:         app.ScreenTableList,
-				Tables:         []string{"users"},
-				SelectedTable:  0,
-				RightPaneMode:  app.RightPaneModeList,
-				HorizontalOffset: 5,
-			},
-			key:                "u",
-			expectedScreen:     app.ScreenTableList,
-			expectedRightPane:  app.RightPaneModeSchema,
-			expectedTableIndex: 0,
-			expectedDataRow:    0,
-			expectQuitCmd:      false,
-		},
-		{
-			name: "esc/u switches from schema to on-premise config and resets connection status",
+			name: "esc switches from schema to on-premise config and resets connection status",
 			initialModel: app.Model{
 				Screen:        app.ScreenTableList,
 				Tables:        []string{"users"},
@@ -346,13 +315,7 @@ func TestHandleTableList(t *testing.T) {
 			}
 
 			// Special checks
-			if tt.key == "u" && tt.initialModel.RightPaneMode == app.RightPaneModeList {
-				if resultModel.HorizontalOffset != 0 {
-					t.Error("HandleTableList() should reset HorizontalOffset when switching from list to schema mode")
-				}
-			}
-
-			if (tt.key == "enter" || tt.key == "o") && tt.initialModel.RightPaneMode == app.RightPaneModeSchema {
+			if tt.key == "enter" && tt.initialModel.RightPaneMode == app.RightPaneModeSchema {
 				if resultModel.SelectedDataRow != 0 {
 					t.Error("HandleTableList() should reset SelectedDataRow when switching to list mode")
 				}

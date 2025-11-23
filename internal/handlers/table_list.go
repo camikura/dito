@@ -21,7 +21,7 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	oldSelection := m.SelectedTable
 
 	switch msg.String() {
-	case "ctrl+c", "q":
+	case "ctrl+c":
 		// クライアントをクローズしてから終了
 		if m.NosqlClient != nil {
 			m.NosqlClient.Close()

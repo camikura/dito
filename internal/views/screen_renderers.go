@@ -25,7 +25,7 @@ func RenderSelectionScreen(vm ScreenViewModel) string {
 	})
 
 	// ヘルプテキスト
-	helpText := "Tab/Shift+Tab or ↑/↓: Navigate  Enter: Select  q: Quit"
+	helpText := "Tab/Shift+Tab or ↑/↓: Navigate  Enter: Select  Ctrl+C: Quit"
 
 	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
 

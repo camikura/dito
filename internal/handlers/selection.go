@@ -9,7 +9,7 @@ import (
 // HandleSelection handles the connection selection screen input
 func HandleSelection(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c", "q":
+	case "ctrl+c":
 		return m, tea.Quit
 	case "up", "shift+tab":
 		m.Cursor--
