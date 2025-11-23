@@ -3,15 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/camikura/dito/internal/app"
 	"github.com/camikura/dito/internal/db"
 	"github.com/camikura/dito/internal/handlers"
-	"github.com/camikura/dito/internal/ui"
 	"github.com/camikura/dito/internal/views"
 )
 
@@ -60,37 +57,19 @@ func (m model) View() string {
 		return "Loading..."
 	}
 
-	// 共通スタイル
-	statusBarStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Padding(0, 1).
-		Width(m.Width - 2)
+	vm := views.ScreenViewModel{
+		Width:  m.Width,
+		Height: m.Height,
+		Model:  m.Model,
+	}
 
-	// メインコンテンツ
-	var content string
 	switch m.Screen {
 	case app.ScreenSelection:
-		content = views.RenderConnectionSelection(views.ConnectionSelectionModel{
-			Choices: m.Choices,
-			Cursor:  m.Cursor,
-		})
+		return views.RenderSelectionScreen(vm)
 	case app.ScreenOnPremiseConfig:
-		content = views.RenderOnPremiseForm(views.OnPremiseFormModel{
-			Endpoint:  m.OnPremiseConfig.Endpoint,
-			Port:      m.OnPremiseConfig.Port,
-			Secure:    m.OnPremiseConfig.Secure,
-			Focus:     m.OnPremiseConfig.Focus,
-			CursorPos: m.OnPremiseConfig.CursorPos,
-		})
+		return views.RenderOnPremiseConfigScreen(vm)
 	case app.ScreenCloudConfig:
-		content = views.RenderCloudForm(views.CloudFormModel{
-			Region:      m.CloudConfig.Region,
-			Compartment: m.CloudConfig.Compartment,
-			AuthMethod:  m.CloudConfig.AuthMethod,
-			ConfigFile:  m.CloudConfig.ConfigFile,
-			Focus:       m.CloudConfig.Focus,
-			CursorPos:   m.CloudConfig.CursorPos,
-		})
+		return views.RenderCloudConfigScreen(vm)
 	case app.ScreenTableList:
 		return views.RenderTableListView(views.TableListViewModel{
 			Width:            m.Width,
@@ -108,137 +87,8 @@ func (m model) View() string {
 			ViewportOffset:   m.ViewportOffset,
 		})
 	default:
-		content = "Unknown screen"
+		return "Unknown screen"
 	}
-
-	// コンテンツを左寄せ
-	contentHeight := m.Height - 7 // タイトル行、空行、セパレーター×3、ステータスエリア、フッターを除く
-	contentStyle := lipgloss.NewStyle().
-		Width(m.Width - 2).
-		Height(contentHeight).
-		AlignVertical(lipgloss.Top).
-		AlignHorizontal(lipgloss.Left).
-		PaddingLeft(1)
-
-	leftAlignedContent := contentStyle.Render(content)
-
-	// セパレーター
-	separator := ui.Separator(m.Width - 2)
-
-	// ステータス表示エリア（1行）
-	var statusMessage string
-	statusStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00FF00"))
-	errorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF0000"))
-
-	if m.Screen == app.ScreenOnPremiseConfig {
-		switch m.OnPremiseConfig.Status {
-		case app.StatusConnecting:
-			statusMessage = statusStyle.Render("Connecting...")
-		case app.StatusConnected:
-			msg := "Connected"
-			if m.OnPremiseConfig.ServerVersion != "" {
-				msg = m.OnPremiseConfig.ServerVersion
-			}
-			statusMessage = statusStyle.Render(msg)
-		case app.StatusError:
-			msg := "Connection failed"
-			if m.OnPremiseConfig.ErrorMsg != "" {
-				errMsg := m.OnPremiseConfig.ErrorMsg
-				maxWidth := m.Width - 10
-				if len(errMsg) > maxWidth {
-					errMsg = errMsg[:maxWidth] + "..."
-				}
-				msg = errMsg
-			}
-			statusMessage = errorStyle.Render(msg)
-		}
-	} else if m.Screen == app.ScreenCloudConfig {
-		switch m.CloudConfig.Status {
-		case app.StatusConnecting:
-			statusMessage = statusStyle.Render("Connecting...")
-		case app.StatusConnected:
-			msg := "Connected"
-			if m.CloudConfig.ServerVersion != "" {
-				msg = m.CloudConfig.ServerVersion
-			}
-			statusMessage = statusStyle.Render(msg)
-		case app.StatusError:
-			msg := "Connection failed"
-			if m.CloudConfig.ErrorMsg != "" {
-				errMsg := m.CloudConfig.ErrorMsg
-				maxWidth := m.Width - 10
-				if len(errMsg) > maxWidth {
-					errMsg = errMsg[:maxWidth] + "..."
-				}
-				msg = errMsg
-			}
-			statusMessage = errorStyle.Render(msg)
-		}
-	}
-
-	statusAreaStyle := lipgloss.NewStyle().
-		Padding(0, 1).
-		Width(m.Width - 2)
-	statusArea := statusAreaStyle.Render(statusMessage)
-
-	// フッター（ヘルプテキスト）
-	var helpText string
-	switch m.Screen {
-	case app.ScreenSelection:
-		helpText = "Tab/Shift+Tab or ↑/↓: Navigate  Enter: Select  q: Quit"
-	case app.ScreenOnPremiseConfig:
-		helpText = "Tab/Shift+Tab: Navigate  Space: Toggle  Enter: Execute  Esc: Back  Ctrl+C: Quit"
-	case app.ScreenCloudConfig:
-		helpText = "Tab/Shift+Tab: Navigate  Space: Toggle  Enter: Execute  Esc: Back  Ctrl+C: Quit"
-	}
-	footer := statusBarStyle.Render(helpText)
-
-	// 全体を組み立て（手動でボーダーを描画）
-	borderStyleColor := lipgloss.NewStyle().Foreground(lipgloss.Color("#00D9FF"))
-
-	// 上部ボーダー: ╭── Dito ─────...╮
-	title := " Dito "
-	// 全体の幅 = m.Width
-	// "╭──" = 3文字, title = 6文字, "╮" = 1文字
-	// 残りの "─" = m.Width - 3 - 6 - 1 = m.Width - 10
-	topBorder := borderStyleColor.Render("╭──" + title + strings.Repeat("─", m.Width-10) + "╮")
-
-	// 左右のボーダー文字
-	leftBorder := borderStyleColor.Render("│")
-	rightBorder := borderStyleColor.Render("│")
-
-	// コンテンツの各行にボーダーを追加
-	var result strings.Builder
-	result.WriteString(topBorder + "\n")
-
-	// タイトル行の下に空行を追加
-	emptyLine := strings.Repeat(" ", m.Width-2)
-	result.WriteString(leftBorder + emptyLine + rightBorder + "\n")
-
-	// コンテンツを行ごとに分割してボーダーを追加
-	lines := []string{
-		leftAlignedContent,
-		separator,
-		statusArea,
-		separator,
-		footer,
-	}
-
-	for _, line := range lines {
-		for _, l := range strings.Split(line, "\n") {
-			if l != "" {
-				result.WriteString(leftBorder + l + rightBorder + "\n")
-			}
-		}
-	}
-
-	// 下部ボーダー: ╰─────...╯
-	bottomBorder := borderStyleColor.Render("╰" + strings.Repeat("─", m.Width-2) + "╯")
-	result.WriteString(bottomBorder)
-
-	return result.String()
 }
 
 // テーブル一覧画面のView
