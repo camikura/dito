@@ -259,8 +259,8 @@ func handleSQLEditor(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		m.SQLEditorVisible = false
 		return m, nil
 
-	case tea.KeyCtrlS, tea.KeyCtrlR:
-		// Ctrl+S または Ctrl+R でSQL実行
+	case tea.KeyCtrlR:
+		// Ctrl+R でSQL実行
 		return executeCustomSQL(m)
 
 	case tea.KeyEnter:
