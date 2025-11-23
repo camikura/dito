@@ -234,11 +234,11 @@ func handleSQLEditor(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		m.SQLEditorVisible = false
 		return m, nil
 
+	case tea.KeyCtrlS, tea.KeyCtrlR:
+		// Ctrl+S または Ctrl+R でSQL実行
+		return executeCustomSQL(m)
+
 	case tea.KeyEnter:
-		// Ctrl+Enterでの実行
-		if msg.String() == "ctrl+enter" {
-			return executeCustomSQL(m)
-		}
 		// 通常のEnterは改行として扱う
 		m.EditSQL = m.EditSQL[:m.SQLCursorPos] + "\n" + m.EditSQL[m.SQLCursorPos:]
 		m.SQLCursorPos++
