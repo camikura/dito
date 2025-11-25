@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/camikura/dito/internal/db"
 	"github.com/camikura/dito/internal/views"
 )
 
@@ -597,33 +598,6 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 		contentLines = 5
 	}
 
-	// Prepare content
-	var displayLines []string
-	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
-		displayLines = []string{"No data"}
-	} else {
-		tableName := m.Tables[m.SelectedTable]
-		data, exists := m.TableData[tableName]
-		if !exists || data == nil {
-			if m.LoadingData {
-				displayLines = []string{"Loading..."}
-			} else {
-				displayLines = []string{"No data"}
-			}
-		} else {
-			// Render data rows
-			if len(data.Rows) == 0 {
-				displayLines = []string{"No rows"}
-			} else {
-				// Simple data rendering - just show row count for now
-				displayLines = append(displayLines, "Rows: "+string(rune(len(data.Rows)+48)))
-				displayLines = append(displayLines, "")
-				// TODO: Implement proper grid rendering in Phase 3
-				displayLines = append(displayLines, "(Grid view coming in Phase 3)")
-			}
-		}
-	}
-
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
@@ -631,26 +605,290 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
-	// Render content lines
-	for i := 0; i < contentLines; i++ {
-		var line string
-		if i < len(displayLines) {
-			content := displayLines[i]
-			if len(content) > width-2 {
-				content = content[:width-5] + "..."
+	// Prepare content
+	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+		// No table selected
+		for i := 0; i < contentLines; i++ {
+			line := "No data"
+			if i > 0 {
+				line = ""
 			}
-			paddingLen := width - len(content) - 2
+			paddingLen := width - len(line) - 2
 			if paddingLen < 0 {
 				paddingLen = 0
 			}
-			line = content + strings.Repeat(" ", paddingLen)
-		} else {
-			line = strings.Repeat(" ", width-2)
+			result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 		}
-		result.WriteString(leftBorder + line + rightBorder + "\n")
+	} else {
+		tableName := m.Tables[m.SelectedTable]
+		data, exists := m.TableData[tableName]
+		if !exists || data == nil {
+			// No data loaded yet
+			message := "No data"
+			if m.LoadingData {
+				message = "Loading..."
+			}
+			for i := 0; i < contentLines; i++ {
+				line := ""
+				if i == 0 {
+					line = message
+				}
+				paddingLen := width - len(line) - 2
+				if paddingLen < 0 {
+					paddingLen = 0
+				}
+				result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+			}
+		} else if len(data.Rows) == 0 {
+			// No rows in result
+			for i := 0; i < contentLines; i++ {
+				line := "No rows"
+				if i > 0 {
+					line = ""
+				}
+				paddingLen := width - len(line) - 2
+				if paddingLen < 0 {
+					paddingLen = 0
+				}
+				result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+			}
+		} else {
+			// Render grid view
+			result.WriteString(renderGridView(m, data, width, contentLines, leftBorder, rightBorder))
+		}
 	}
 
 	result.WriteString(bottomBorder)
 
 	return result.String()
+}
+
+// renderGridView renders the data grid with headers, separator, and rows
+func renderGridView(m Model, data *db.TableDataResult, width int, contentLines int, leftBorder, rightBorder string) string {
+	var result strings.Builder
+
+	// Extract column names from first row
+	var columns []string
+	if len(data.Rows) > 0 {
+		for col := range data.Rows[0] {
+			columns = append(columns, col)
+		}
+		// Sort columns for consistent display
+		// For better UX, we should order by schema, but for now just sort alphabetically
+		sortColumns(columns)
+	}
+
+	// Get column types from schema
+	tableName := m.Tables[m.SelectedTable]
+	columnTypes := getColumnTypes(m, tableName, columns)
+
+	// Calculate column widths
+	contentWidth := width - 2 // Subtract borders
+	columnWidths := calculateColumnWidths(columns, data.Rows, contentWidth)
+
+	// Line 1: Header row
+	headerLine := renderHeaderRow(columns, columnWidths, contentWidth)
+	result.WriteString(leftBorder + headerLine + rightBorder + "\n")
+
+	// Line 2: Separator (── ───── ────)
+	separatorLine := renderSeparator(columnWidths, contentWidth)
+	result.WriteString(leftBorder + separatorLine + rightBorder + "\n")
+
+	// Lines 3+: Data rows
+	dataLinesAvailable := contentLines - 2 // Subtract header and separator
+	for i := 0; i < dataLinesAvailable; i++ {
+		rowIndex := i + m.ViewportOffset
+		if rowIndex < len(data.Rows) {
+			isSelected := rowIndex == m.SelectedDataRow
+			rowLine := renderDataRow(columns, data.Rows[rowIndex], columnWidths, columnTypes, contentWidth, isSelected)
+			result.WriteString(leftBorder + rowLine + rightBorder + "\n")
+		} else {
+			// Empty line
+			emptyLine := strings.Repeat(" ", contentWidth)
+			result.WriteString(leftBorder + emptyLine + rightBorder + "\n")
+		}
+	}
+
+	return result.String()
+}
+
+// getColumnTypes extracts column types from schema information
+func getColumnTypes(m Model, tableName string, columns []string) map[string]string {
+	types := make(map[string]string)
+
+	if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+		if details.Schema.DDL != "" {
+			// Parse column types from DDL
+			primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+			cols := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+			for _, col := range cols {
+				// Remove " (Primary Key)" suffix if present
+				colType := col.Type
+				if idx := strings.Index(colType, " (Primary Key)"); idx != -1 {
+					colType = colType[:idx]
+				}
+				types[col.Name] = colType
+			}
+		}
+	}
+
+	return types
+}
+
+// sortColumns sorts column names (simple alphabetical for now)
+func sortColumns(columns []string) {
+	// Simple bubble sort
+	n := len(columns)
+	for i := 0; i < n-1; i++ {
+		for j := 0; j < n-i-1; j++ {
+			if columns[j] > columns[j+1] {
+				columns[j], columns[j+1] = columns[j+1], columns[j]
+			}
+		}
+	}
+}
+
+// calculateColumnWidths calculates optimal width for each column
+func calculateColumnWidths(columns []string, rows []map[string]interface{}, totalWidth int) []int {
+	if len(columns) == 0 {
+		return []int{}
+	}
+
+	// Start with header widths
+	widths := make([]int, len(columns))
+	for i, col := range columns {
+		widths[i] = len(col)
+	}
+
+	// Check data widths (sample first 100 rows for performance)
+	sampleSize := len(rows)
+	if sampleSize > 100 {
+		sampleSize = 100
+	}
+	for i := 0; i < sampleSize; i++ {
+		row := rows[i]
+		for j, col := range columns {
+			if val, exists := row[col]; exists && val != nil {
+				valStr := fmt.Sprintf("%v", val)
+				if len(valStr) > widths[j] {
+					widths[j] = len(valStr)
+				}
+			}
+		}
+	}
+
+	// Add 1 space padding between columns
+	totalNeeded := 0
+	for _, w := range widths {
+		totalNeeded += w
+	}
+	totalNeeded += len(columns) - 1 // Spaces between columns
+
+	// If total exceeds available width, proportionally reduce
+	if totalNeeded > totalWidth {
+		scale := float64(totalWidth-len(columns)+1) / float64(totalNeeded-len(columns)+1)
+		for i := range widths {
+			widths[i] = int(float64(widths[i]) * scale)
+			if widths[i] < 3 {
+				widths[i] = 3 // Minimum width
+			}
+		}
+	}
+
+	return widths
+}
+
+// renderHeaderRow renders the column headers
+func renderHeaderRow(columns []string, widths []int, totalWidth int) string {
+	var parts []string
+	for i, col := range columns {
+		w := widths[i]
+		if len(col) > w {
+			col = col[:w-1] + "…"
+		} else {
+			col = col + strings.Repeat(" ", w-len(col))
+		}
+		parts = append(parts, col)
+	}
+	line := strings.Join(parts, " ")
+
+	// Pad to full width
+	if len(line) < totalWidth {
+		line += strings.Repeat(" ", totalWidth-len(line))
+	} else if len(line) > totalWidth {
+		line = line[:totalWidth]
+	}
+
+	return line
+}
+
+// renderSeparator renders the separator line (── ───── ────)
+func renderSeparator(widths []int, totalWidth int) string {
+	var parts []string
+	for _, w := range widths {
+		parts = append(parts, strings.Repeat("─", w))
+	}
+	line := strings.Join(parts, " ")
+
+	// Pad to full width
+	if len(line) < totalWidth {
+		line += strings.Repeat(" ", totalWidth-len(line))
+	} else if len(line) > totalWidth {
+		line = line[:totalWidth]
+	}
+
+	return line
+}
+
+// renderDataRow renders a single data row
+func renderDataRow(columns []string, row map[string]interface{}, widths []int, columnTypes map[string]string, totalWidth int, isSelected bool) string {
+	var parts []string
+	for i, col := range columns {
+		w := widths[i]
+		val := ""
+		if v, exists := row[col]; exists && v != nil {
+			val = fmt.Sprintf("%v", v)
+		}
+
+		// Check if this column is numeric type
+		colType := columnTypes[col]
+		isNumeric := isNumericType(colType)
+
+		if len(val) > w {
+			val = val[:w-1] + "…"
+		} else {
+			// Right-align numeric columns, left-align others
+			if isNumeric {
+				val = strings.Repeat(" ", w-len(val)) + val
+			} else {
+				val = val + strings.Repeat(" ", w-len(val))
+			}
+		}
+		parts = append(parts, val)
+	}
+	line := strings.Join(parts, " ")
+
+	// Pad to full width
+	if len(line) < totalWidth {
+		line += strings.Repeat(" ", totalWidth-len(line))
+	} else if len(line) > totalWidth {
+		line = line[:totalWidth]
+	}
+
+	// Apply full-span background color for selected row
+	if isSelected {
+		line = lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000")).Render(line)
+	}
+
+	return line
+}
+
+// isNumericType checks if a column type is numeric
+func isNumericType(colType string) bool {
+	upperType := strings.ToUpper(colType)
+	return strings.Contains(upperType, "INTEGER") ||
+		strings.Contains(upperType, "LONG") ||
+		strings.Contains(upperType, "DOUBLE") ||
+		strings.Contains(upperType, "FLOAT") ||
+		strings.Contains(upperType, "NUMBER")
 }
