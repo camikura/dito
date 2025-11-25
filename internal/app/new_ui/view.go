@@ -48,13 +48,13 @@ func RenderView(m Model) string {
 	var footerContent string
 	switch m.CurrentPane {
 	case FocusPaneConnection:
-		footerContent = "Navigate: ↑/↓ | Switch Pane: tab"
+		footerContent = "Switch Pane: tab"
 	case FocusPaneTables:
 		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
 	case FocusPaneSQL:
 		footerContent = "Switch Pane: tab | Edit SQL: e"
 	case FocusPaneData:
-		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Edit SQL: e"
+		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
 	}
 
 	footerPadding := m.Width - len(footerContent) - len("Dito") - 1
