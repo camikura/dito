@@ -9,7 +9,7 @@ import (
 // Color definitions
 const (
 	ColorPrimary  = "#00D9FF" // Cyan for active borders
-	ColorInactive = "#666666" // Gray for inactive borders
+	ColorInactive = "#AAAAAA" // Light gray for inactive borders
 	ColorGreen    = "#00FF00" // Green for connection status
 	ColorLabel    = "#00D9FF" // Cyan for section labels
 	ColorHelp     = "#888888" // Gray for help text
@@ -149,12 +149,12 @@ func renderTablesPane(m Model, width int) string {
 func renderSchemaPane(m Model, width int) string {
 	titleText := " Schema "
 
-	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
+	// Schema pane is never focused (display-only)
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorInactive))
+	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
 	content := "Select a table"
 
-	// Schema pane is never focused (display-only)
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorInactive))
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
