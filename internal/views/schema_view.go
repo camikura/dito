@@ -9,8 +9,9 @@ import (
 
 // ColumnInfo represents a column with its name and type.
 type ColumnInfo struct {
-	Name string
-	Type string
+	Name         string
+	Type         string
+	IsPrimaryKey bool
 }
 
 // SchemaViewModel represents the data needed to render the schema view.
@@ -176,11 +177,18 @@ func ParseColumnsFromDDL(ddl string, primaryKeys []string) []ColumnInfo {
 			typ := parts[1]
 
 			// Check if it's a PRIMARY KEY
-			if pkMap[name] {
-				typ += " (Primary Key)"
+			isPK := pkMap[name]
+
+			// Add (Primary Key) suffix to type if it's a primary key
+			if isPK {
+				typ = typ + " (Primary Key)"
 			}
 
-			columns = append(columns, ColumnInfo{Name: name, Type: typ})
+			columns = append(columns, ColumnInfo{
+				Name:         name,
+				Type:         typ,
+				IsPrimaryKey: isPK,
+			})
 		}
 	}
 

@@ -85,7 +85,19 @@ func (m model) View() string {
 
 // New UI methods
 func (m newUIModel) Init() tea.Cmd {
-	return nil
+	// Auto-connect if environment variables are set
+	endpoint := os.Getenv("DITO_ENDPOINT")
+	port := os.Getenv("DITO_PORT")
+
+	if endpoint == "" {
+		endpoint = "localhost"
+	}
+	if port == "" {
+		port = "8080"
+	}
+
+	// Attempt connection on startup
+	return db.Connect(endpoint, port, false)
 }
 
 func (m newUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
