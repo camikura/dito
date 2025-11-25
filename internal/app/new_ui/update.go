@@ -281,9 +281,22 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.SelectedDataRow > 0 {
 			m.SelectedDataRow--
 
-			// Adjust viewport offset if cursor goes above visible area
-			if m.SelectedDataRow < m.ViewportOffset {
-				m.ViewportOffset = m.SelectedDataRow
+			// Calculate middle position of visible area
+			middlePosition := dataVisibleLines / 2
+
+			// Calculate cursor position relative to viewport
+			cursorPositionInView := m.SelectedDataRow - m.ViewportOffset
+
+			// Scrolling logic (reverse of down):
+			// 1. Last: cursor moves from bottom to middle (no scroll)
+			// 2. Middle: cursor stays at middle, viewport scrolls up
+			// 3. First: viewport stops at 0, cursor moves to top
+			if cursorPositionInView < middlePosition && m.ViewportOffset > 0 {
+				// Cursor is before middle and we can still scroll up
+				m.ViewportOffset = m.SelectedDataRow - middlePosition
+				if m.ViewportOffset < 0 {
+					m.ViewportOffset = 0
+				}
 			}
 		}
 		return m, nil
@@ -292,16 +305,25 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if totalRows > 0 && m.SelectedDataRow < totalRows-1 {
 			m.SelectedDataRow++
 
+			// Calculate middle position of visible area
+			middlePosition := dataVisibleLines / 2
+
 			// Calculate maximum viewport offset (when last row is at bottom of screen)
 			maxViewportOffset := totalRows - dataVisibleLines
 			if maxViewportOffset < 0 {
 				maxViewportOffset = 0
 			}
 
-			// Adjust viewport offset if cursor goes below visible area
-			// But don't scroll past maxViewportOffset
-			if m.SelectedDataRow >= m.ViewportOffset+dataVisibleLines {
-				m.ViewportOffset = m.SelectedDataRow - dataVisibleLines + 1
+			// Calculate cursor position relative to viewport
+			cursorPositionInView := m.SelectedDataRow - m.ViewportOffset
+
+			// Scrolling logic:
+			// 1. First: cursor moves to middle of screen (no scroll)
+			// 2. Middle: cursor stays at middle, viewport scrolls
+			// 3. End: viewport stops at max, cursor moves to bottom
+			if cursorPositionInView > middlePosition && m.ViewportOffset < maxViewportOffset {
+				// Cursor is past middle and we can still scroll
+				m.ViewportOffset = m.SelectedDataRow - middlePosition
 				if m.ViewportOffset > maxViewportOffset {
 					m.ViewportOffset = maxViewportOffset
 				}
