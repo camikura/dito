@@ -5,6 +5,7 @@
 *.so
 *.dylib
 /dito
+cmd/dito/dito
 
 # Test binary, built with `go test -c`
 *.test
@@ -22,6 +23,7 @@ vendor/
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
