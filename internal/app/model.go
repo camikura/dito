@@ -52,7 +52,6 @@ type OnPremiseConfig struct {
 	Status        ConnectionStatus
 	ErrorMsg      string
 	ServerVersion string
-	CursorPos     int // Text input cursor position
 }
 
 // CloudConfig holds cloud connection configuration
@@ -65,7 +64,6 @@ type CloudConfig struct {
 	Status        ConnectionStatus
 	ErrorMsg      string
 	ServerVersion string
-	CursorPos     int // Text input cursor position
 }
 
 // Model is the main application model
@@ -99,6 +97,11 @@ type Model struct {
 	SQLEditorVisible bool   // Whether SQL editor dialog is visible
 	EditSQL          string // SQL query being edited
 	SQLCursorPos     int    // Cursor position in SQL editor
+	// Text Input Dialog
+	TextInputVisible   bool   // Whether text input dialog is visible
+	TextInputValue     string // Text being edited
+	TextInputCursorPos int    // Cursor position in text input
+	TextInputLabel     string // Label for the input field
 	// Dialog
 	DialogVisible bool
 	DialogType    DialogType
@@ -113,12 +116,11 @@ func InitialModel() Model {
 		Choices:  []string{"Oracle NoSQL Cloud Service", "On-Premise"},
 		Selected: make(map[int]struct{}),
 		OnPremiseConfig: OnPremiseConfig{
-			Endpoint:  "localhost",
-			Port:      "8080",
-			Secure:    false,
-			Focus:     0,
-			Status:    StatusDisconnected,
-			CursorPos: 9, // End of "localhost"
+			Endpoint: "localhost",
+			Port:     "8080",
+			Secure:   false,
+			Focus:    0,
+			Status:   StatusDisconnected,
 		},
 		CloudConfig: CloudConfig{
 			Region:      "us-ashburn-1",
@@ -127,7 +129,6 @@ func InitialModel() Model {
 			ConfigFile:  "DEFAULT",
 			Focus:       0,
 			Status:      StatusDisconnected,
-			CursorPos:   12, // End of "us-ashburn-1"
 		},
 		TableDetails:  make(map[string]*db.TableDetailsResult),
 		RightPaneMode: RightPaneModeSchema,

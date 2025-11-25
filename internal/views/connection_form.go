@@ -10,11 +10,10 @@ import (
 
 // OnPremiseFormModel represents the data needed to render the on-premise connection form.
 type OnPremiseFormModel struct {
-	Endpoint  string
-	Port      string
-	Secure    bool
-	Focus     int // Index of focused field (0: endpoint, 1: port, 2: secure, 3: test button, 4: connect button)
-	CursorPos int // Cursor position in text input
+	Endpoint string
+	Port     string
+	Secure   bool
+	Focus    int // Index of focused field (0: endpoint, 1: port, 2: secure, 3: test button, 4: connect button)
 }
 
 // CloudFormModel represents the data needed to render the cloud connection form.
@@ -24,7 +23,6 @@ type CloudFormModel struct {
 	AuthMethod  int    // 0: OCI Config Profile, 1: Instance Principal, 2: Resource Principal
 	ConfigFile  string
 	Focus       int // Index of focused field
-	CursorPos   int // Cursor position in text input
 }
 
 // RenderOnPremiseForm renders the on-premise connection configuration form.
@@ -52,7 +50,7 @@ func RenderOnPremiseForm(m OnPremiseFormModel) string {
 	s.WriteString(titleStyle.Render("On-Premise Connection") + "\n")
 
 	// Endpoint
-	endpointField := ui.TextField(m.Endpoint, 25, m.Focus == 0, m.CursorPos)
+	endpointField := ui.TextField(m.Endpoint, 25, m.Focus == 0, 0)
 	if m.Focus == 0 {
 		s.WriteString(" " + labelStyle.Render("Endpoint:") + " " + focusedStyle.Render(endpointField) + "\n")
 	} else {
@@ -60,7 +58,7 @@ func RenderOnPremiseForm(m OnPremiseFormModel) string {
 	}
 
 	// Port
-	portField := ui.TextField(m.Port, 8, m.Focus == 1, m.CursorPos)
+	portField := ui.TextField(m.Port, 8, m.Focus == 1, 0)
 	if m.Focus == 1 {
 		s.WriteString(" " + labelStyle.Render("Port:") + " " + focusedStyle.Render(portField) + "\n")
 	} else {
@@ -103,7 +101,7 @@ func RenderCloudForm(m CloudFormModel) string {
 	s.WriteString(titleStyle.Render("Cloud Connection") + "\n")
 
 	// Region
-	regionField := ui.TextField(m.Region, 25, m.Focus == 0, m.CursorPos)
+	regionField := ui.TextField(m.Region, 25, m.Focus == 0, 0)
 	if m.Focus == 0 {
 		s.WriteString(" " + labelStyle.Render("Region:") + " " + focusedStyle.Render(regionField) + "\n")
 	} else {
@@ -111,7 +109,7 @@ func RenderCloudForm(m CloudFormModel) string {
 	}
 
 	// Compartment
-	compartmentField := ui.TextField(m.Compartment, 25, m.Focus == 1, m.CursorPos)
+	compartmentField := ui.TextField(m.Compartment, 25, m.Focus == 1, 0)
 	if m.Focus == 1 {
 		s.WriteString(" " + labelStyle.Render("Compartment:") + " " + focusedStyle.Render(compartmentField) + "\n\n")
 	} else {
@@ -129,7 +127,7 @@ func RenderCloudForm(m CloudFormModel) string {
 	s.WriteString("\n")
 
 	// Config File
-	configFileField := ui.TextField(m.ConfigFile, 25, m.Focus == 5, m.CursorPos)
+	configFileField := ui.TextField(m.ConfigFile, 25, m.Focus == 5, 0)
 	if m.Focus == 5 {
 		s.WriteString(" " + labelStyle.Render("Config File:") + " " + focusedStyle.Render(configFileField) + "\n\n")
 	} else {

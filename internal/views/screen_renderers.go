@@ -25,7 +25,7 @@ func RenderSelectionScreen(vm ScreenViewModel) string {
 	})
 
 	// ヘルプテキスト
-	helpText := "Tab/Shift+Tab or ↑/↓: Navigate  Enter: Select  Ctrl+C: Quit"
+	helpText := "Navigate: ↑/↓ | Select: <enter>"
 
 	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
 
@@ -47,17 +47,28 @@ func RenderSelectionScreen(vm ScreenViewModel) string {
 func RenderOnPremiseConfigScreen(vm ScreenViewModel) string {
 	// メインコンテンツ
 	content := RenderOnPremiseForm(OnPremiseFormModel{
-		Endpoint:  vm.Model.OnPremiseConfig.Endpoint,
-		Port:      vm.Model.OnPremiseConfig.Port,
-		Secure:    vm.Model.OnPremiseConfig.Secure,
-		Focus:     vm.Model.OnPremiseConfig.Focus,
-		CursorPos: vm.Model.OnPremiseConfig.CursorPos,
+		Endpoint: vm.Model.OnPremiseConfig.Endpoint,
+		Port:     vm.Model.OnPremiseConfig.Port,
+		Secure:   vm.Model.OnPremiseConfig.Secure,
+		Focus:    vm.Model.OnPremiseConfig.Focus,
 	})
 
 	// ヘルプテキスト
-	helpText := "Tab/Shift+Tab: Navigate  Space: Toggle  Enter: Execute  Esc: Back  Ctrl+C: Quit"
+	helpText := "Navigate: ↑/↓ | Toggle: <space> | Edit/Execute: <enter> | Back: <esc>"
 
 	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
+
+	// テキスト入力ダイアログが表示されている場合
+	if vm.Model.TextInputVisible {
+		dialog := RenderTextInputDialog(TextInputDialogViewModel{
+			Label:     vm.Model.TextInputLabel,
+			Value:     vm.Model.TextInputValue,
+			CursorPos: vm.Model.TextInputCursorPos,
+			Width:     vm.Width,
+			Height:    vm.Height,
+		})
+		return overlayDialog(baseScreen, dialog)
+	}
 
 	// ダイアログが表示されている場合は重ねて表示
 	if vm.Model.DialogVisible {
@@ -82,13 +93,24 @@ func RenderCloudConfigScreen(vm ScreenViewModel) string {
 		AuthMethod:  vm.Model.CloudConfig.AuthMethod,
 		ConfigFile:  vm.Model.CloudConfig.ConfigFile,
 		Focus:       vm.Model.CloudConfig.Focus,
-		CursorPos:   vm.Model.CloudConfig.CursorPos,
 	})
 
 	// ヘルプテキスト
-	helpText := "Tab/Shift+Tab: Navigate  Space: Toggle  Enter: Execute  Esc: Back  Ctrl+C: Quit"
+	helpText := "Navigate: ↑/↓ | Toggle: <space> | Edit/Execute: <enter> | Back: <esc>"
 
 	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
+
+	// テキスト入力ダイアログが表示されている場合
+	if vm.Model.TextInputVisible {
+		dialog := RenderTextInputDialog(TextInputDialogViewModel{
+			Label:     vm.Model.TextInputLabel,
+			Value:     vm.Model.TextInputValue,
+			CursorPos: vm.Model.TextInputCursorPos,
+			Width:     vm.Width,
+			Height:    vm.Height,
+		})
+		return overlayDialog(baseScreen, dialog)
+	}
 
 	// ダイアログが表示されている場合は重ねて表示
 	if vm.Model.DialogVisible {

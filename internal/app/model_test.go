@@ -43,9 +43,6 @@ func TestInitialModel(t *testing.T) {
 	if model.OnPremiseConfig.Status != StatusDisconnected {
 		t.Errorf("InitialModel() OnPremiseConfig.Status = %v, want %v", model.OnPremiseConfig.Status, StatusDisconnected)
 	}
-	if model.OnPremiseConfig.CursorPos != 9 {
-		t.Errorf("InitialModel() OnPremiseConfig.CursorPos = %d, want 9", model.OnPremiseConfig.CursorPos)
-	}
 
 	// Check CloudConfig defaults
 	if model.CloudConfig.Region != "us-ashburn-1" {
@@ -62,9 +59,6 @@ func TestInitialModel(t *testing.T) {
 	}
 	if model.CloudConfig.Status != StatusDisconnected {
 		t.Errorf("InitialModel() CloudConfig.Status = %v, want %v", model.CloudConfig.Status, StatusDisconnected)
-	}
-	if model.CloudConfig.CursorPos != 12 {
-		t.Errorf("InitialModel() CloudConfig.CursorPos = %d, want 12", model.CloudConfig.CursorPos)
 	}
 
 	// Check table-related maps are initialized

@@ -38,7 +38,7 @@ func RenderSQLEditorDialog(m SQLEditorDialogViewModel) string {
 	title := ui.StyleTitle.Render("SQL Editor")
 
 	// ヘルプテキスト
-	help := ui.StyleLabel.Render("Ctrl+R: Execute  ESC: Cancel")
+	help := ui.StyleLabel.Render("Execute: ctrl+r | Cancel: <esc>")
 
 	// SQL入力エリア
 	sqlAreaHeight := dialogHeight - 4 // タイトル、ヘルプ、ボーダー分を引く

@@ -9,6 +9,11 @@ import (
 
 // HandleCloudConfig handles the cloud connection configuration screen input
 func HandleCloudConfig(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+	// テキスト入力ダイアログが表示されている場合は専用ハンドラーを呼び出す
+	if m.TextInputVisible {
+		return handleTextInputDialog(m, msg)
+	}
+
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
@@ -16,36 +21,38 @@ func HandleCloudConfig(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		// エディション選択画面に戻る
 		m.Screen = app.ScreenSelection
 		return m, nil
-	case "tab":
-		// 次のフィールドへ
-		m.CloudConfig.Focus = (m.CloudConfig.Focus + 1) % 8
-		// テキスト入力フィールドの場合、カーソルを末尾に
-		if m.CloudConfig.Focus == 0 {
-			m.CloudConfig.CursorPos = len(m.CloudConfig.Region)
-		} else if m.CloudConfig.Focus == 1 {
-			m.CloudConfig.CursorPos = len(m.CloudConfig.Compartment)
-		} else if m.CloudConfig.Focus == 5 {
-			m.CloudConfig.CursorPos = len(m.CloudConfig.ConfigFile)
-		}
-		return m, nil
-	case "shift+tab":
+	case "up", "k":
 		// 前のフィールドへ
 		m.CloudConfig.Focus--
 		if m.CloudConfig.Focus < 0 {
 			m.CloudConfig.Focus = 7
 		}
-		// テキスト入力フィールドの場合、カーソルを末尾に
-		if m.CloudConfig.Focus == 0 {
-			m.CloudConfig.CursorPos = len(m.CloudConfig.Region)
-		} else if m.CloudConfig.Focus == 1 {
-			m.CloudConfig.CursorPos = len(m.CloudConfig.Compartment)
-		} else if m.CloudConfig.Focus == 5 {
-			m.CloudConfig.CursorPos = len(m.CloudConfig.ConfigFile)
-		}
+		return m, nil
+	case "down", "j":
+		// 次のフィールドへ
+		m.CloudConfig.Focus = (m.CloudConfig.Focus + 1) % 8
 		return m, nil
 	case "enter":
-		// ボタンが選択されている場合
-		if m.CloudConfig.Focus == 6 {
+		// テキストフィールドの場合はダイアログを開く
+		if m.CloudConfig.Focus == 0 {
+			m.TextInputVisible = true
+			m.TextInputLabel = "Region"
+			m.TextInputValue = m.CloudConfig.Region
+			m.TextInputCursorPos = len(m.CloudConfig.Region)
+			return m, nil
+		} else if m.CloudConfig.Focus == 1 {
+			m.TextInputVisible = true
+			m.TextInputLabel = "Compartment"
+			m.TextInputValue = m.CloudConfig.Compartment
+			m.TextInputCursorPos = len(m.CloudConfig.Compartment)
+			return m, nil
+		} else if m.CloudConfig.Focus == 5 {
+			m.TextInputVisible = true
+			m.TextInputLabel = "Config File"
+			m.TextInputValue = m.CloudConfig.ConfigFile
+			m.TextInputCursorPos = len(m.CloudConfig.ConfigFile)
+			return m, nil
+		} else if m.CloudConfig.Focus == 6 {
 			// 接続テスト - TODO: Cloud接続実装
 			m.CloudConfig.Status = app.StatusConnecting
 			m.CloudConfig.ErrorMsg = ""
@@ -63,59 +70,17 @@ func HandleCloudConfig(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			m.CloudConfig.AuthMethod = m.CloudConfig.Focus - 2
 		}
 		return m, nil
-	case "left":
-		// カーソルを左に移動
-		if m.CloudConfig.CursorPos > 0 {
-			m.CloudConfig.CursorPos--
-		}
-		return m, nil
-	case "right":
-		// カーソルを右に移動
-		var maxPos int
-		if m.CloudConfig.Focus == 0 {
-			maxPos = len(m.CloudConfig.Region)
-		} else if m.CloudConfig.Focus == 1 {
-			maxPos = len(m.CloudConfig.Compartment)
-		} else if m.CloudConfig.Focus == 5 {
-			maxPos = len(m.CloudConfig.ConfigFile)
-		}
-		if m.CloudConfig.CursorPos < maxPos {
-			m.CloudConfig.CursorPos++
-		}
-		return m, nil
-	case "backspace":
-		// テキストフィールドの入力削除
-		if m.CloudConfig.Focus == 0 && m.CloudConfig.CursorPos > 0 {
-			m.CloudConfig.Region = m.CloudConfig.Region[:m.CloudConfig.CursorPos-1] + m.CloudConfig.Region[m.CloudConfig.CursorPos:]
-			m.CloudConfig.CursorPos--
-		} else if m.CloudConfig.Focus == 1 && m.CloudConfig.CursorPos > 0 {
-			m.CloudConfig.Compartment = m.CloudConfig.Compartment[:m.CloudConfig.CursorPos-1] + m.CloudConfig.Compartment[m.CloudConfig.CursorPos:]
-			m.CloudConfig.CursorPos--
-		} else if m.CloudConfig.Focus == 5 && m.CloudConfig.CursorPos > 0 {
-			m.CloudConfig.ConfigFile = m.CloudConfig.ConfigFile[:m.CloudConfig.CursorPos-1] + m.CloudConfig.ConfigFile[m.CloudConfig.CursorPos:]
-			m.CloudConfig.CursorPos--
-		}
-		return m, nil
-	default:
-		// テキスト入力
-		if len(msg.String()) == 1 {
-			if m.CloudConfig.Focus == 0 {
-				m.CloudConfig.Region = m.CloudConfig.Region[:m.CloudConfig.CursorPos] + msg.String() + m.CloudConfig.Region[m.CloudConfig.CursorPos:]
-				m.CloudConfig.CursorPos++
-			} else if m.CloudConfig.Focus == 1 {
-				m.CloudConfig.Compartment = m.CloudConfig.Compartment[:m.CloudConfig.CursorPos] + msg.String() + m.CloudConfig.Compartment[m.CloudConfig.CursorPos:]
-				m.CloudConfig.CursorPos++
-			} else if m.CloudConfig.Focus == 5 {
-				m.CloudConfig.ConfigFile = m.CloudConfig.ConfigFile[:m.CloudConfig.CursorPos] + msg.String() + m.CloudConfig.ConfigFile[m.CloudConfig.CursorPos:]
-				m.CloudConfig.CursorPos++
-			}
-		}
-		return m, nil
 	}
+	return m, nil
 }
 
 // HandleOnPremiseConfig handles the on-premise connection configuration screen input
 func HandleOnPremiseConfig(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+	// テキスト入力ダイアログが表示されている場合は専用ハンドラーを呼び出す
+	if m.TextInputVisible {
+		return handleTextInputDialog(m, msg)
+	}
+
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
@@ -123,32 +88,32 @@ func HandleOnPremiseConfig(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		// エディション選択画面に戻る
 		m.Screen = app.ScreenSelection
 		return m, nil
-	case "tab":
-		// 次のフィールドへ
-		m.OnPremiseConfig.Focus = (m.OnPremiseConfig.Focus + 1) % 5
-		// テキスト入力フィールドの場合、カーソルを末尾に
-		if m.OnPremiseConfig.Focus == 0 {
-			m.OnPremiseConfig.CursorPos = len(m.OnPremiseConfig.Endpoint)
-		} else if m.OnPremiseConfig.Focus == 1 {
-			m.OnPremiseConfig.CursorPos = len(m.OnPremiseConfig.Port)
-		}
-		return m, nil
-	case "shift+tab":
+	case "up", "k":
 		// 前のフィールドへ
 		m.OnPremiseConfig.Focus--
 		if m.OnPremiseConfig.Focus < 0 {
 			m.OnPremiseConfig.Focus = 4
 		}
-		// テキスト入力フィールドの場合、カーソルを末尾に
-		if m.OnPremiseConfig.Focus == 0 {
-			m.OnPremiseConfig.CursorPos = len(m.OnPremiseConfig.Endpoint)
-		} else if m.OnPremiseConfig.Focus == 1 {
-			m.OnPremiseConfig.CursorPos = len(m.OnPremiseConfig.Port)
-		}
+		return m, nil
+	case "down", "j":
+		// 次のフィールドへ
+		m.OnPremiseConfig.Focus = (m.OnPremiseConfig.Focus + 1) % 5
 		return m, nil
 	case "enter":
-		// ボタンが選択されている場合
-		if m.OnPremiseConfig.Focus == 3 {
+		// テキストフィールドの場合はダイアログを開く
+		if m.OnPremiseConfig.Focus == 0 {
+			m.TextInputVisible = true
+			m.TextInputLabel = "Endpoint"
+			m.TextInputValue = m.OnPremiseConfig.Endpoint
+			m.TextInputCursorPos = len(m.OnPremiseConfig.Endpoint)
+			return m, nil
+		} else if m.OnPremiseConfig.Focus == 1 {
+			m.TextInputVisible = true
+			m.TextInputLabel = "Port"
+			m.TextInputValue = m.OnPremiseConfig.Port
+			m.TextInputCursorPos = len(m.OnPremiseConfig.Port)
+			return m, nil
+		} else if m.OnPremiseConfig.Focus == 3 {
 			// 接続テスト（テスト接続なので画面遷移しない）
 			m.OnPremiseConfig.Status = app.StatusConnecting
 			m.OnPremiseConfig.ErrorMsg = ""
@@ -166,45 +131,89 @@ func HandleOnPremiseConfig(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			m.OnPremiseConfig.Secure = !m.OnPremiseConfig.Secure
 		}
 		return m, nil
-	case "left":
-		// カーソルを左に移動
-		if m.OnPremiseConfig.CursorPos > 0 {
-			m.OnPremiseConfig.CursorPos--
-		}
+	}
+	return m, nil
+}
+
+// handleTextInputDialog handles text input dialog input for connection forms
+func handleTextInputDialog(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		return m, tea.Quit
+
+	case tea.KeyEsc:
+		// ダイアログを閉じる（変更を破棄）
+		m.TextInputVisible = false
 		return m, nil
-	case "right":
-		// カーソルを右に移動
-		var maxPos int
-		if m.OnPremiseConfig.Focus == 0 {
-			maxPos = len(m.OnPremiseConfig.Endpoint)
-		} else if m.OnPremiseConfig.Focus == 1 {
-			maxPos = len(m.OnPremiseConfig.Port)
-		}
-		if m.OnPremiseConfig.CursorPos < maxPos {
-			m.OnPremiseConfig.CursorPos++
-		}
-		return m, nil
-	case "backspace":
-		// テキストフィールドの入力削除
-		if m.OnPremiseConfig.Focus == 0 && m.OnPremiseConfig.CursorPos > 0 {
-			m.OnPremiseConfig.Endpoint = m.OnPremiseConfig.Endpoint[:m.OnPremiseConfig.CursorPos-1] + m.OnPremiseConfig.Endpoint[m.OnPremiseConfig.CursorPos:]
-			m.OnPremiseConfig.CursorPos--
-		} else if m.OnPremiseConfig.Focus == 1 && m.OnPremiseConfig.CursorPos > 0 {
-			m.OnPremiseConfig.Port = m.OnPremiseConfig.Port[:m.OnPremiseConfig.CursorPos-1] + m.OnPremiseConfig.Port[m.OnPremiseConfig.CursorPos:]
-			m.OnPremiseConfig.CursorPos--
-		}
-		return m, nil
-	default:
-		// テキスト入力
-		if len(msg.String()) == 1 {
+
+	case tea.KeyEnter:
+		// 変更を保存してダイアログを閉じる
+		if m.Screen == app.ScreenOnPremiseConfig {
 			if m.OnPremiseConfig.Focus == 0 {
-				m.OnPremiseConfig.Endpoint = m.OnPremiseConfig.Endpoint[:m.OnPremiseConfig.CursorPos] + msg.String() + m.OnPremiseConfig.Endpoint[m.OnPremiseConfig.CursorPos:]
-				m.OnPremiseConfig.CursorPos++
+				m.OnPremiseConfig.Endpoint = m.TextInputValue
 			} else if m.OnPremiseConfig.Focus == 1 {
-				m.OnPremiseConfig.Port = m.OnPremiseConfig.Port[:m.OnPremiseConfig.CursorPos] + msg.String() + m.OnPremiseConfig.Port[m.OnPremiseConfig.CursorPos:]
-				m.OnPremiseConfig.CursorPos++
+				m.OnPremiseConfig.Port = m.TextInputValue
 			}
+		} else if m.Screen == app.ScreenCloudConfig {
+			if m.CloudConfig.Focus == 0 {
+				m.CloudConfig.Region = m.TextInputValue
+			} else if m.CloudConfig.Focus == 1 {
+				m.CloudConfig.Compartment = m.TextInputValue
+			} else if m.CloudConfig.Focus == 5 {
+				m.CloudConfig.ConfigFile = m.TextInputValue
+			}
+		}
+		m.TextInputVisible = false
+		return m, nil
+
+	case tea.KeyBackspace:
+		if m.TextInputCursorPos > 0 {
+			m.TextInputValue = m.TextInputValue[:m.TextInputCursorPos-1] + m.TextInputValue[m.TextInputCursorPos:]
+			m.TextInputCursorPos--
+		}
+		return m, nil
+
+	case tea.KeyDelete:
+		if m.TextInputCursorPos < len(m.TextInputValue) {
+			m.TextInputValue = m.TextInputValue[:m.TextInputCursorPos] + m.TextInputValue[m.TextInputCursorPos+1:]
+		}
+		return m, nil
+
+	case tea.KeyLeft:
+		if m.TextInputCursorPos > 0 {
+			m.TextInputCursorPos--
+		}
+		return m, nil
+
+	case tea.KeyRight:
+		if m.TextInputCursorPos < len(m.TextInputValue) {
+			m.TextInputCursorPos++
+		}
+		return m, nil
+
+	case tea.KeyHome, tea.KeyCtrlA:
+		m.TextInputCursorPos = 0
+		return m, nil
+
+	case tea.KeyEnd, tea.KeyCtrlE:
+		m.TextInputCursorPos = len(m.TextInputValue)
+		return m, nil
+
+	case tea.KeySpace:
+		// スペース入力
+		m.TextInputValue = m.TextInputValue[:m.TextInputCursorPos] + " " + m.TextInputValue[m.TextInputCursorPos:]
+		m.TextInputCursorPos++
+		return m, nil
+
+	case tea.KeyRunes:
+		// 通常の文字入力
+		runes := msg.Runes
+		for _, r := range runes {
+			m.TextInputValue = m.TextInputValue[:m.TextInputCursorPos] + string(r) + m.TextInputValue[m.TextInputCursorPos:]
+			m.TextInputCursorPos++
 		}
 		return m, nil
 	}
+
+	return m, nil
 }
