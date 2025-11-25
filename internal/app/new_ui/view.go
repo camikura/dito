@@ -90,7 +90,13 @@ func renderConnectionPane(m Model, width int) string {
 	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
 	content := "(not configured)"
-	if m.Endpoint != "" {
+	if m.ConnectionMsg != "" {
+		// Show error message if connection failed
+		content = m.ConnectionMsg
+		if len(content) > width-4 {
+			content = content[:width-7] + "..."
+		}
+	} else if m.Endpoint != "" {
 		content = m.Endpoint
 	}
 

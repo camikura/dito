@@ -17,6 +17,9 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return handleKeyPress(m, msg)
 
+	case db.ConnectionResult:
+		return handleConnectionResult(m, msg)
+
 	case db.TableListResult:
 		return handleTableListResult(m, msg)
 
@@ -120,6 +123,24 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func handleConnectionResult(m Model, msg db.ConnectionResult) (Model, tea.Cmd) {
+	if msg.Err != nil {
+		// Connection failed
+		m.Connected = false
+		m.ConnectionMsg = msg.Err.Error()
+		return m, nil
+	}
+
+	// Connection successful
+	m.Connected = true
+	m.NosqlClient = msg.Client
+	m.Endpoint = msg.Endpoint
+	m.ConnectionMsg = ""
+
+	// Fetch table list
+	return m, db.FetchTables(msg.Client)
 }
 
 func handleTableListResult(m Model, msg db.TableListResult) (Model, tea.Cmd) {
