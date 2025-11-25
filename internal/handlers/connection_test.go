@@ -26,7 +26,6 @@ func TestHandleOnPremiseConfig(t *testing.T) {
 					Endpoint:  "localhost",
 					Port:      "8080",
 					Focus:     0,
-					CursorPos: 9,
 				},
 			},
 			key:            "ctrl+c",
@@ -43,7 +42,6 @@ func TestHandleOnPremiseConfig(t *testing.T) {
 					Endpoint:  "localhost",
 					Port:      "8080",
 					Focus:     0,
-					CursorPos: 9,
 				},
 			},
 			key:            "esc",
@@ -53,70 +51,34 @@ func TestHandleOnPremiseConfig(t *testing.T) {
 			expectDbCmd:    false,
 		},
 		{
-			name: "tab to next field",
+			name: "down to next field",
 			initialModel: app.Model{
 				Screen: app.ScreenOnPremiseConfig,
 				OnPremiseConfig: app.OnPremiseConfig{
 					Endpoint:  "localhost",
 					Port:      "8080",
 					Focus:     0,
-					CursorPos: 9,
 				},
 			},
-			key:            "tab",
+			key:            "down",
 			expectedScreen: app.ScreenOnPremiseConfig,
 			expectedFocus:  1,
 			expectQuitCmd:  false,
 			expectDbCmd:    false,
 		},
 		{
-			name: "tab wraps to beginning",
-			initialModel: app.Model{
-				Screen: app.ScreenOnPremiseConfig,
-				OnPremiseConfig: app.OnPremiseConfig{
-					Endpoint:  "localhost",
-					Port:      "8080",
-					Focus:     4,
-					CursorPos: 9,
-				},
-			},
-			key:            "tab",
-			expectedScreen: app.ScreenOnPremiseConfig,
-			expectedFocus:  0,
-			expectQuitCmd:  false,
-			expectDbCmd:    false,
-		},
-		{
-			name: "shift+tab to previous field",
+			name: "up to previous field",
 			initialModel: app.Model{
 				Screen: app.ScreenOnPremiseConfig,
 				OnPremiseConfig: app.OnPremiseConfig{
 					Endpoint:  "localhost",
 					Port:      "8080",
 					Focus:     1,
-					CursorPos: 4,
 				},
 			},
-			key:            "shift+tab",
+			key:            "up",
 			expectedScreen: app.ScreenOnPremiseConfig,
 			expectedFocus:  0,
-			expectQuitCmd:  false,
-			expectDbCmd:    false,
-		},
-		{
-			name: "shift+tab wraps to end",
-			initialModel: app.Model{
-				Screen: app.ScreenOnPremiseConfig,
-				OnPremiseConfig: app.OnPremiseConfig{
-					Endpoint:  "localhost",
-					Port:      "8080",
-					Focus:     0,
-					CursorPos: 9,
-				},
-			},
-			key:            "shift+tab",
-			expectedScreen: app.ScreenOnPremiseConfig,
-			expectedFocus:  4,
 			expectQuitCmd:  false,
 			expectDbCmd:    false,
 		},
@@ -129,7 +91,6 @@ func TestHandleOnPremiseConfig(t *testing.T) {
 					Port:      "8080",
 					Secure:    false,
 					Focus:     2,
-					CursorPos: 0,
 				},
 			},
 			key:            " ",
@@ -146,7 +107,6 @@ func TestHandleOnPremiseConfig(t *testing.T) {
 					Endpoint:  "localhost",
 					Port:      "8080",
 					Focus:     3,
-					CursorPos: 0,
 				},
 			},
 			key:            "enter",
@@ -163,7 +123,6 @@ func TestHandleOnPremiseConfig(t *testing.T) {
 					Endpoint:  "localhost",
 					Port:      "8080",
 					Focus:     4,
-					CursorPos: 0,
 				},
 			},
 			key:            "enter",
@@ -171,57 +130,6 @@ func TestHandleOnPremiseConfig(t *testing.T) {
 			expectedFocus:  4,
 			expectQuitCmd:  false,
 			expectDbCmd:    true, // db.Connect command should be returned
-		},
-		{
-			name: "backspace deletes character in endpoint field",
-			initialModel: app.Model{
-				Screen: app.ScreenOnPremiseConfig,
-				OnPremiseConfig: app.OnPremiseConfig{
-					Endpoint:  "localhost",
-					Port:      "8080",
-					Focus:     0,
-					CursorPos: 9,
-				},
-			},
-			key:            "backspace",
-			expectedScreen: app.ScreenOnPremiseConfig,
-			expectedFocus:  0,
-			expectQuitCmd:  false,
-			expectDbCmd:    false,
-		},
-		{
-			name: "left arrow moves cursor left",
-			initialModel: app.Model{
-				Screen: app.ScreenOnPremiseConfig,
-				OnPremiseConfig: app.OnPremiseConfig{
-					Endpoint:  "localhost",
-					Port:      "8080",
-					Focus:     0,
-					CursorPos: 5,
-				},
-			},
-			key:            "left",
-			expectedScreen: app.ScreenOnPremiseConfig,
-			expectedFocus:  0,
-			expectQuitCmd:  false,
-			expectDbCmd:    false,
-		},
-		{
-			name: "right arrow moves cursor right",
-			initialModel: app.Model{
-				Screen: app.ScreenOnPremiseConfig,
-				OnPremiseConfig: app.OnPremiseConfig{
-					Endpoint:  "localhost",
-					Port:      "8080",
-					Focus:     0,
-					CursorPos: 5,
-				},
-			},
-			key:            "right",
-			expectedScreen: app.ScreenOnPremiseConfig,
-			expectedFocus:  0,
-			expectQuitCmd:  false,
-			expectDbCmd:    false,
 		},
 	}
 
@@ -273,23 +181,6 @@ func TestHandleOnPremiseConfig(t *testing.T) {
 				}
 			}
 
-			if tt.key == "left" && tt.initialModel.OnPremiseConfig.CursorPos > 0 {
-				expectedCursorPos := tt.initialModel.OnPremiseConfig.CursorPos - 1
-				if resultModel.OnPremiseConfig.CursorPos != expectedCursorPos {
-					t.Errorf("HandleOnPremiseConfig() CursorPos = %v, want %v", resultModel.OnPremiseConfig.CursorPos, expectedCursorPos)
-				}
-			}
-
-			if tt.key == "right" && tt.initialModel.OnPremiseConfig.Focus == 0 {
-				expectedCursorPos := tt.initialModel.OnPremiseConfig.CursorPos + 1
-				maxPos := len(tt.initialModel.OnPremiseConfig.Endpoint)
-				if expectedCursorPos <= maxPos {
-					if resultModel.OnPremiseConfig.CursorPos != expectedCursorPos {
-						t.Errorf("HandleOnPremiseConfig() CursorPos = %v, want %v", resultModel.OnPremiseConfig.CursorPos, expectedCursorPos)
-					}
-				}
-			}
-
 			if (tt.key == "enter") && (tt.initialModel.OnPremiseConfig.Focus == 3 || tt.initialModel.OnPremiseConfig.Focus == 4) {
 				if resultModel.OnPremiseConfig.Status != app.StatusConnecting {
 					t.Errorf("HandleOnPremiseConfig() Status should be StatusConnecting")
@@ -318,7 +209,6 @@ func TestHandleCloudConfig(t *testing.T) {
 					AuthMethod:  0,
 					ConfigFile:  "DEFAULT",
 					Focus:       0,
-					CursorPos:   12,
 				},
 			},
 			key:            "ctrl+c",
@@ -336,7 +226,6 @@ func TestHandleCloudConfig(t *testing.T) {
 					AuthMethod:  0,
 					ConfigFile:  "DEFAULT",
 					Focus:       0,
-					CursorPos:   12,
 				},
 			},
 			key:            "esc",
@@ -345,7 +234,7 @@ func TestHandleCloudConfig(t *testing.T) {
 			expectQuitCmd:  false,
 		},
 		{
-			name: "tab to next field",
+			name: "down to next field",
 			initialModel: app.Model{
 				Screen: app.ScreenCloudConfig,
 				CloudConfig: app.CloudConfig{
@@ -354,10 +243,9 @@ func TestHandleCloudConfig(t *testing.T) {
 					AuthMethod:  0,
 					ConfigFile:  "DEFAULT",
 					Focus:       0,
-					CursorPos:   12,
 				},
 			},
-			key:            "tab",
+			key:            "down",
 			expectedScreen: app.ScreenCloudConfig,
 			expectedFocus:  1,
 			expectQuitCmd:  false,
@@ -372,7 +260,6 @@ func TestHandleCloudConfig(t *testing.T) {
 					AuthMethod:  0,
 					ConfigFile:  "DEFAULT",
 					Focus:       2,
-					CursorPos:   0,
 				},
 			},
 			key:            " ",

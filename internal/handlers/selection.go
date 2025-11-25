@@ -11,12 +11,12 @@ func HandleSelection(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
-	case "up", "shift+tab":
+	case "up", "k":
 		m.Cursor--
 		if m.Cursor < 0 {
 			m.Cursor = len(m.Choices) - 1
 		}
-	case "down", "tab":
+	case "down", "j":
 		m.Cursor = (m.Cursor + 1) % len(m.Choices)
 	case "enter":
 		// 0: Cloud, 1: On-Premise

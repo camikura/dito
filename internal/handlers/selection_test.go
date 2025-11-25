@@ -42,18 +42,6 @@ func TestHandleSelection(t *testing.T) {
 			expectQuitCmd:  false,
 		},
 		{
-			name: "cursor down with tab key",
-			initialModel: app.Model{
-				Screen:  app.ScreenSelection,
-				Choices: []string{"Cloud", "On-Premise"},
-				Cursor:  0,
-			},
-			key:           "tab",
-			expectedScreen: app.ScreenSelection,
-			expectedCursor: 1,
-			expectQuitCmd:  false,
-		},
-		{
 			name: "cursor wraps to beginning when at end",
 			initialModel: app.Model{
 				Screen:  app.ScreenSelection,
@@ -73,18 +61,6 @@ func TestHandleSelection(t *testing.T) {
 				Cursor:  1,
 			},
 			key:           "up",
-			expectedScreen: app.ScreenSelection,
-			expectedCursor: 0,
-			expectQuitCmd:  false,
-		},
-		{
-			name: "cursor up with shift+tab key",
-			initialModel: app.Model{
-				Screen:  app.ScreenSelection,
-				Choices: []string{"Cloud", "On-Premise"},
-				Cursor:  1,
-			},
-			key:           "shift+tab",
 			expectedScreen: app.ScreenSelection,
 			expectedCursor: 0,
 			expectQuitCmd:  false,
