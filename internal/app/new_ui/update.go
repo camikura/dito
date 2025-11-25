@@ -1,9 +1,13 @@
 package new_ui
 
 import (
+	"sort"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/camikura/dito/internal/db"
+	"github.com/camikura/dito/internal/views"
 )
 
 // Update handles messages and updates the model
@@ -12,6 +16,76 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+
+		// Calculate pane heights dynamically
+		// Use actual connection pane height from model, or default to 5 if not yet set
+		connectionPaneHeight := m.ConnectionPaneHeight
+		if connectionPaneHeight == 0 {
+			connectionPaneHeight = 5 // Default for cloud connection
+		}
+		// Available height for Tables, Schema, and SQL content (2:2:1 ratio)
+		// Total: m.Height = leftPanes + footer
+		// leftPanes = Connection + Tables(+2) + Schema(+2) + SQL(+2)
+		// So: availableHeight = m.Height - 1(footer) - connectionPaneHeight - 6(borders)
+		availableHeight := m.Height - 1 - connectionPaneHeight - 6
+
+		// Split available height in 2:2:1 ratio (Tables:Schema:SQL)
+		totalParts := 5 // 2+2+1
+		partHeight := availableHeight / totalParts
+		remainder := availableHeight % totalParts
+
+		m.TablesHeight = partHeight * 2
+		m.SchemaHeight = partHeight * 2
+		m.SQLHeight = partHeight
+
+		// Distribute remainder to maximize space usage (may be up to 4)
+		for remainder > 0 {
+			if remainder >= 1 {
+				m.TablesHeight++
+				remainder--
+			}
+			if remainder >= 1 {
+				m.SchemaHeight++
+				remainder--
+			}
+			if remainder >= 1 {
+				m.SQLHeight++
+				remainder--
+			}
+		}
+
+		// Ensure minimum heights
+		if m.TablesHeight < 3 {
+			m.TablesHeight = 3
+		}
+		if m.SchemaHeight < 3 {
+			m.SchemaHeight = 3
+		}
+		if m.SQLHeight < 2 {
+			m.SQLHeight = 2
+		}
+
+		// After applying minimum heights, check if we have unused space
+		usedHeight := m.TablesHeight + m.SchemaHeight + m.SQLHeight
+		if usedHeight < availableHeight {
+			// Distribute unused space in 2:2:1 ratio again
+			extraSpace := availableHeight - usedHeight
+			for extraSpace > 0 {
+				if extraSpace >= 1 {
+					m.TablesHeight++
+					extraSpace--
+				}
+				if extraSpace >= 1 {
+					m.SchemaHeight++
+					extraSpace--
+				}
+				if extraSpace >= 1 {
+					m.SQLHeight++
+					extraSpace--
+				}
+			}
+		}
+
 		return m, nil
 
 	case tea.KeyMsg:
@@ -51,6 +125,8 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch m.CurrentPane {
 	case FocusPaneTables:
 		return handleTablesKeys(m, msg)
+	case FocusPaneSchema:
+		return handleSchemaKeys(m, msg)
 	case FocusPaneData:
 		return handleDataKeys(m, msg)
 	}
@@ -59,10 +135,20 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	visibleLines := m.TablesHeight // Tables pane visible height (dynamic)
+
 	switch msg.String() {
 	case "up", "k":
 		if m.CursorTable > 0 {
 			m.CursorTable--
+			m.SelectedTable = m.CursorTable // Move selection with cursor
+			m.SchemaScrollOffset = 0 // Reset scroll when changing tables
+
+			// Adjust scroll offset to keep cursor visible
+			if m.CursorTable < m.TablesScrollOffset {
+				m.TablesScrollOffset = m.CursorTable
+			}
+
 			// Auto-update schema for table under cursor
 			if m.CursorTable < len(m.Tables) {
 				tableName := m.Tables[m.CursorTable]
@@ -74,6 +160,14 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "down", "j":
 		if m.CursorTable < len(m.Tables)-1 {
 			m.CursorTable++
+			m.SelectedTable = m.CursorTable // Move selection with cursor
+			m.SchemaScrollOffset = 0 // Reset scroll when changing tables
+
+			// Adjust scroll offset to keep cursor visible
+			if m.CursorTable >= m.TablesScrollOffset+visibleLines {
+				m.TablesScrollOffset = m.CursorTable - visibleLines + 1
+			}
+
 			// Auto-update schema for table under cursor
 			if m.CursorTable < len(m.Tables) {
 				tableName := m.Tables[m.CursorTable]
@@ -101,6 +195,50 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 			// Load table data
 			return m, db.FetchTableData(m.NosqlClient, tableName, 1000, primaryKeys)
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Calculate max scroll offset based on content
+	var maxScroll int
+	if len(m.Tables) > 0 && m.CursorTable < len(m.Tables) {
+		tableName := m.Tables[m.CursorTable]
+		if details, exists := m.TableDetails[tableName]; exists && details != nil {
+			// Count content lines
+			lineCount := 1 // "Columns:"
+			if details.Schema.DDL != "" {
+				primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+				columns := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+				lineCount += len(columns)
+			}
+			lineCount += 2 // Empty line + "Indexes:"
+			lineCount += len(details.Indexes)
+			if len(details.Indexes) == 0 {
+				lineCount++ // "(none)" line
+			}
+
+			// Max scroll = total lines - visible lines (dynamic)
+			maxScroll = lineCount - m.SchemaHeight
+			if maxScroll < 0 {
+				maxScroll = 0
+			}
+		}
+	}
+
+	switch msg.String() {
+	case "down", "j": // Scroll down
+		if m.SchemaScrollOffset < maxScroll {
+			m.SchemaScrollOffset++
+		}
+		return m, nil
+
+	case "up", "k": // Scroll up
+		if m.SchemaScrollOffset > 0 {
+			m.SchemaScrollOffset--
 		}
 		return m, nil
 	}
@@ -149,14 +287,64 @@ func handleTableListResult(m Model, msg db.TableListResult) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.Tables = msg.Tables
+	// Sort tables for tree display (parents before children)
+	m.Tables = sortTablesForTree(msg.Tables)
 	if len(m.Tables) > 0 {
 		m.CursorTable = 0
+		m.SelectedTable = 0 // Initialize selection to first table
 		// Fetch details for first table
 		return m, db.FetchTableDetails(m.NosqlClient, m.Tables[0])
 	}
 
 	return m, nil
+}
+
+// sortTablesForTree sorts table names so parent tables appear before their children
+// e.g., ["users.phones", "users", "products", "users.addresses"] ->
+//       ["products", "users", "users.addresses", "users.phones"]
+func sortTablesForTree(tables []string) []string {
+	sorted := make([]string, len(tables))
+	copy(sorted, tables)
+
+	sort.Slice(sorted, func(i, j int) bool {
+		a, b := sorted[i], sorted[j]
+
+		// Get parent names
+		parentA := a
+		if dotIndex := strings.LastIndex(a, "."); dotIndex != -1 {
+			parentA = a[:dotIndex]
+		}
+		parentB := b
+		if dotIndex := strings.LastIndex(b, "."); dotIndex != -1 {
+			parentB = b[:dotIndex]
+		}
+
+		// If one is parent of the other, parent comes first
+		if a == parentB {
+			return true // a is parent of b
+		}
+		if b == parentA {
+			return false // b is parent of a
+		}
+
+		// If they have the same parent, sort alphabetically
+		if parentA == parentB {
+			return a < b
+		}
+
+		// Different parents - sort by parent name, then by full name
+		if parentA != a && parentB != b {
+			// Both are children - compare parents first
+			if parentA != parentB {
+				return parentA < parentB
+			}
+		}
+
+		// One is parent, one is not - sort by full name
+		return a < b
+	})
+
+	return sorted
 }
 
 func handleTableDetailsResult(m Model, msg db.TableDetailsResult) (Model, tea.Cmd) {

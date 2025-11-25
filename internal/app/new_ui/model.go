@@ -12,6 +12,7 @@ type FocusPane int
 const (
 	FocusPaneConnection FocusPane = iota
 	FocusPaneTables
+	FocusPaneSchema
 	FocusPaneSQL
 	FocusPaneData
 )
@@ -21,6 +22,12 @@ type Model struct {
 	// Window dimensions
 	Width  int
 	Height int
+
+	// Pane heights (calculated dynamically)
+	ConnectionPaneHeight int // Actual height of rendered connection pane
+	TablesHeight         int
+	SchemaHeight         int
+	SQLHeight            int
 
 	// Focus management
 	CurrentPane FocusPane
@@ -34,11 +41,13 @@ type Model struct {
 	Tables        []string
 	SelectedTable int  // Index of selected table (marked with *)
 	CursorTable   int  // Index of table under cursor
+	TablesScrollOffset int  // Scroll offset for tables pane
 	NosqlClient   *nosqldb.Client
 
 	// Schema (display only, auto-updated from cursor position)
-	TableDetails   map[string]*db.TableDetailsResult
-	LoadingDetails bool
+	TableDetails     map[string]*db.TableDetailsResult
+	LoadingDetails   bool
+	SchemaScrollOffset int  // Scroll offset for schema pane
 
 	// SQL
 	CurrentSQL string
@@ -69,11 +78,13 @@ func InitialModel() Model {
 
 // NextPane moves focus to the next focusable pane
 func (m Model) NextPane() Model {
-	// Focus order: Connection → Tables → SQL → Data
+	// Focus order: Connection → Tables → Schema → SQL → Data
 	switch m.CurrentPane {
 	case FocusPaneConnection:
 		m.CurrentPane = FocusPaneTables
 	case FocusPaneTables:
+		m.CurrentPane = FocusPaneSchema
+	case FocusPaneSchema:
 		m.CurrentPane = FocusPaneSQL
 	case FocusPaneSQL:
 		m.CurrentPane = FocusPaneData
@@ -85,14 +96,16 @@ func (m Model) NextPane() Model {
 
 // PrevPane moves focus to the previous focusable pane
 func (m Model) PrevPane() Model {
-	// Focus order: Connection ← Tables ← SQL ← Data
+	// Focus order: Connection ← Tables ← Schema ← SQL ← Data
 	switch m.CurrentPane {
 	case FocusPaneConnection:
 		m.CurrentPane = FocusPaneData
 	case FocusPaneTables:
 		m.CurrentPane = FocusPaneConnection
-	case FocusPaneSQL:
+	case FocusPaneSchema:
 		m.CurrentPane = FocusPaneTables
+	case FocusPaneSQL:
+		m.CurrentPane = FocusPaneSchema
 	case FocusPaneData:
 		m.CurrentPane = FocusPaneSQL
 	}
