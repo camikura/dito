@@ -8,11 +8,11 @@ import (
 
 // Color definitions
 const (
-	ColorPrimary   = "#00D9FF" // Cyan for active borders
-	ColorInactive  = "#666666" // Gray for inactive borders
-	ColorGreen     = "#00FF00" // Green for connection status
-	ColorLabel     = "#00D9FF" // Cyan for section labels
-	ColorHelp      = "#888888" // Gray for help text
+	ColorPrimary  = "#00D9FF" // Cyan for active borders
+	ColorInactive = "#666666" // Gray for inactive borders
+	ColorGreen    = "#00FF00" // Green for connection status
+	ColorLabel    = "#00D9FF" // Cyan for section labels
+	ColorHelp     = "#888888" // Gray for help text
 )
 
 // RenderView renders the new UI
@@ -23,14 +23,14 @@ func RenderView(m Model) string {
 
 	// Layout configuration
 	leftPaneWidth := 30
-	rightPaneWidth := m.Width - leftPaneWidth - 3 // -3 for borders
+	rightPaneWidth := m.Width - leftPaneWidth - 3 // -3 for space between panes
 
 	// Render each pane
 	connectionPane := renderConnectionPane(m, leftPaneWidth)
 	tablesPane := renderTablesPane(m, leftPaneWidth)
 	schemaPane := renderSchemaPane(m, leftPaneWidth)
 	sqlPane := renderSQLPane(m, leftPaneWidth)
-	dataPane := renderDataPane(m, rightPaneWidth)
+	dataPane := renderDataPane(m, rightPaneWidth, m.Height)
 
 	// Join left panes vertically
 	leftPanes := lipgloss.JoinVertical(
@@ -44,59 +44,18 @@ func RenderView(m Model) string {
 	// Join left and right panes horizontally
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanes, dataPane)
 
-	// Header (right-aligned connection info)
-	headerContent := ""
-	if m.Connected {
-		headerContent = strings.Repeat(" ", m.Width-len(m.Endpoint)-14) + "Connected to " + m.Endpoint
-	}
-	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorHelp)).
-		Padding(0, 1).
-		Width(m.Width - 2)
-	header := headerStyle.Render(headerContent)
-
 	// Footer
 	footerContent := "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e"
-	footerPadding := m.Width - len(footerContent) - len("Dito") - 4
+	footerPadding := m.Width - len(footerContent) - len("Dito") - 1
 	if footerPadding < 0 {
 		footerPadding = 0
 	}
 	footerContent += strings.Repeat(" ", footerPadding) + "Dito"
-	footerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorHelp)).
-		Padding(0, 1).
-		Width(m.Width - 2)
-	footer := footerStyle.Render(footerContent)
 
-	// Separator
-	separator := strings.Repeat("─", m.Width-2)
-
-	// Assemble content
-	content := lipgloss.JoinVertical(
-		lipgloss.Left,
-		header,
-		separator,
-		panes,
-		separator,
-		footer,
-	)
-
-	// Add borders
-	borderStyleColor := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
-	title := " Dito "
-	topBorder := borderStyleColor.Render("╭──" + title + strings.Repeat("─", m.Width-10) + "╮")
-	leftBorder := borderStyleColor.Render("│")
-	rightBorder := borderStyleColor.Render("│")
-
+	// Assemble final output
 	var result strings.Builder
-	result.WriteString(topBorder + "\n")
-
-	for _, line := range strings.Split(content, "\n") {
-		result.WriteString(leftBorder + line + rightBorder + "\n")
-	}
-
-	bottomBorder := borderStyleColor.Render("╰" + strings.Repeat("─", m.Width-2) + "╯")
-	result.WriteString(bottomBorder)
+	result.WriteString(panes + "\n")
+	result.WriteString(footerContent)
 
 	return result.String()
 }
@@ -109,6 +68,11 @@ func renderConnectionPane(m Model, width int) string {
 		titleText = " Connection "
 	}
 
+	borderColor := ColorInactive
+	if m.CurrentPane == FocusPaneConnection {
+		borderColor = ColorPrimary
+	}
+
 	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
 
 	content := "(not configured)"
@@ -116,19 +80,9 @@ func renderConnectionPane(m Model, width int) string {
 		content = m.Endpoint
 	}
 
-	borderColor := ColorInactive
-	if m.CurrentPane == FocusPaneConnection {
-		borderColor = ColorPrimary
-	}
+	// Pad content to width
+	contentPadded := " " + content + strings.Repeat(" ", width-len(content)-3)
 
-	contentStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Padding(0, 1).
-		Width(width - 2)
-
-	borderedContent := contentStyle.Render(content)
-
-	// Add side borders
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
@@ -136,97 +90,162 @@ func renderConnectionPane(m Model, width int) string {
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
-	result.WriteString(leftBorder + borderedContent + rightBorder + "\n")
+	result.WriteString(leftBorder + contentPadded + rightBorder + "\n")
 	result.WriteString(bottomBorder)
 
 	return result.String()
 }
 
 func renderTablesPane(m Model, width int) string {
-	title := "╭─ Tables"
+	titleText := " Tables"
 	if len(m.Tables) > 0 {
-		title += lipgloss.NewStyle().Render(" (" + string(rune(len(m.Tables)+48)) + ")")
+		titleText += " (" + string(rune(len(m.Tables)+48)) + ")"
 	}
-	title += " " + strings.Repeat("─", width-len(title)-1) + "╮"
-
-	content := "No tables"
-	if len(m.Tables) > 0 {
-		// Placeholder for table list
-		content = "  users\n    addresses\n    phones\n  products\n  orders"
-	}
+	titleText += " "
 
 	borderColor := ColorInactive
 	if m.CurrentPane == FocusPaneTables {
 		borderColor = ColorPrimary
 	}
 
-	paneStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Width(width).
-		Height(8).
-		Padding(0, 1)
+	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
 
-	return title + "\n" + paneStyle.Render(content)
+	// Content lines
+	contentLines := []string{"No tables"}
+	if len(m.Tables) > 0 {
+		contentLines = []string{
+			"  users",
+			"    addresses",
+			"    phones",
+			"  products",
+			"  orders",
+		}
+	}
+
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
+	leftBorder := borderStyle.Render("│")
+	rightBorder := borderStyle.Render("│")
+	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
+
+	var result strings.Builder
+	result.WriteString(title + "\n")
+
+	// Render content lines (fixed height: 8 lines)
+	for i := 0; i < 8; i++ {
+		var line string
+		if i < len(contentLines) {
+			line = " " + contentLines[i] + strings.Repeat(" ", width-len(contentLines[i])-3)
+		} else {
+			line = strings.Repeat(" ", width-2)
+		}
+		result.WriteString(leftBorder + line + rightBorder + "\n")
+	}
+
+	result.WriteString(bottomBorder)
+
+	return result.String()
 }
 
 func renderSchemaPane(m Model, width int) string {
-	title := "╭─ Schema " + strings.Repeat("─", width-len("╭─ Schema ")-1) + "╮"
+	titleText := " Schema "
+
+	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
 
 	content := "Select a table"
 
 	// Schema pane is never focused (display-only)
-	paneStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(ColorInactive)).
-		Width(width).
-		Height(8).
-		Padding(0, 1)
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorInactive))
+	leftBorder := borderStyle.Render("│")
+	rightBorder := borderStyle.Render("│")
+	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
-	return title + "\n" + paneStyle.Render(content)
+	var result strings.Builder
+	result.WriteString(title + "\n")
+
+	// Render content lines (fixed height: 8 lines)
+	for i := 0; i < 8; i++ {
+		var line string
+		if i == 0 {
+			line = " " + content + strings.Repeat(" ", width-len(content)-3)
+		} else {
+			line = strings.Repeat(" ", width-2)
+		}
+		result.WriteString(leftBorder + line + rightBorder + "\n")
+	}
+
+	result.WriteString(bottomBorder)
+
+	return result.String()
 }
 
 func renderSQLPane(m Model, width int) string {
-	title := "╭─ SQL " + strings.Repeat("─", width-len("╭─ SQL ")-1) + "╮"
-
-	content := ""
-	if m.CurrentSQL != "" {
-		content = m.CurrentSQL
-	}
+	titleText := " SQL "
 
 	borderColor := ColorInactive
 	if m.CurrentPane == FocusPaneSQL {
 		borderColor = ColorPrimary
 	}
 
-	paneStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Width(width).
-		Height(3).
-		Padding(0, 1)
+	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
 
-	return title + "\n" + paneStyle.Render(content)
+	content := ""
+	if m.CurrentSQL != "" {
+		content = m.CurrentSQL
+	}
+
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
+	leftBorder := borderStyle.Render("│")
+	rightBorder := borderStyle.Render("│")
+	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
+
+	contentPadded := " " + content + strings.Repeat(" ", width-len(content)-3)
+
+	var result strings.Builder
+	result.WriteString(title + "\n")
+	result.WriteString(leftBorder + contentPadded + rightBorder + "\n")
+	result.WriteString(bottomBorder)
+
+	return result.String()
 }
 
-func renderDataPane(m Model, width int) string {
-	title := "╭─ Data " + strings.Repeat("─", width-len("╭─ Data ")-1) + "╮"
-
-	content := "No data"
+func renderDataPane(m Model, width int, totalHeight int) string {
+	titleText := " Data "
 
 	borderColor := ColorInactive
 	if m.CurrentPane == FocusPaneData {
 		borderColor = ColorPrimary
 	}
 
-	paneHeight := m.Height - 6
+	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
 
-	paneStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Width(width).
-		Height(paneHeight).
-		Padding(0, 1)
+	content := "No data"
 
-	return title + "\n" + paneStyle.Render(content)
+	// Calculate height: total - (Connection:3 + Tables:10 + Schema:10 + SQL:3 + footer:1) = total - 27
+	paneHeight := totalHeight - 27
+	if paneHeight < 5 {
+		paneHeight = 5
+	}
+
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
+	leftBorder := borderStyle.Render("│")
+	rightBorder := borderStyle.Render("│")
+	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
+
+	var result strings.Builder
+	result.WriteString(title + "\n")
+
+	// Render content lines
+	for i := 0; i < paneHeight; i++ {
+		var line string
+		if i == 0 {
+			line = " " + content + strings.Repeat(" ", width-len(content)-3)
+		} else {
+			line = strings.Repeat(" ", width-2)
+		}
+		result.WriteString(leftBorder + line + rightBorder + "\n")
+	}
+
+	result.WriteString(bottomBorder)
+
+	return result.String()
 }
