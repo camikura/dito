@@ -221,8 +221,9 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 
 	content := "No data"
 
-	// Calculate height: total - (Connection:3 + Tables:10 + Schema:10 + SQL:3 + footer:1) = total - 27
-	paneHeight := totalHeight - 27
+	// Calculate height to fill remaining space
+	// Connection:3 + Tables:10 + Schema:10 + SQL:3 = 26 lines
+	paneHeight := totalHeight - 26 - 1 // -1 for footer
 	if paneHeight < 5 {
 		paneHeight = 5
 	}
