@@ -25,7 +25,7 @@ func RenderSelectionScreen(vm ScreenViewModel) string {
 	})
 
 	// ヘルプテキスト
-	helpText := "↑/↓: Navigate  Enter: Select  Ctrl+C: Quit"
+	helpText := "Navigate: ↑/↓ | Select: <enter>"
 
 	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
 
@@ -54,7 +54,7 @@ func RenderOnPremiseConfigScreen(vm ScreenViewModel) string {
 	})
 
 	// ヘルプテキスト
-	helpText := "↑/↓: Navigate  Space: Toggle  Enter: Edit/Execute  Esc: Back  Ctrl+C: Quit"
+	helpText := "Navigate: ↑/↓ | Toggle: <space> | Edit/Execute: <enter> | Back: <esc>"
 
 	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
 
@@ -96,7 +96,7 @@ func RenderCloudConfigScreen(vm ScreenViewModel) string {
 	})
 
 	// ヘルプテキスト
-	helpText := "↑/↓: Navigate  Space: Toggle  Enter: Edit/Execute  Esc: Back  Ctrl+C: Quit"
+	helpText := "Navigate: ↑/↓ | Toggle: <space> | Edit/Execute: <enter> | Back: <esc>"
 
 	baseScreen := renderWithBorder(vm.Width, vm.Height, content, helpText)
 

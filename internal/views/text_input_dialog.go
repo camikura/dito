@@ -46,7 +46,7 @@ func RenderTextInputDialog(m TextInputDialogViewModel) string {
 	inputField := inputStyle.Render(displayValue)
 
 	// ヘルプテキスト
-	help := ui.StyleLabel.Render("Enter: Save  ESC: Cancel")
+	help := ui.StyleLabel.Render("Save: <enter> | Cancel: <esc>")
 
 	// ダイアログ内容を組み立て
 	content := lipgloss.JoinVertical(
