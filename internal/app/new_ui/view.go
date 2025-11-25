@@ -754,10 +754,35 @@ func calculateColumnWidths(columns []string, rows []map[string]interface{}, tota
 		return []int{}
 	}
 
+	numCols := len(columns)
+	separatorSpace := numCols - 1 // 1 space between each column
+	availableForColumns := totalWidth - separatorSpace
+
+	// If we can't even fit all columns with minimum width, give equal minimal space
+	if availableForColumns < numCols*3 {
+		minWidth := availableForColumns / numCols
+		if minWidth < 1 {
+			minWidth = 1
+		}
+		widths := make([]int, numCols)
+		for i := range widths {
+			widths[i] = minWidth
+		}
+		// Distribute any remainder
+		remainder := availableForColumns - (minWidth * numCols)
+		for i := 0; i < remainder; i++ {
+			widths[i]++
+		}
+		return widths
+	}
+
 	// Start with header widths
-	widths := make([]int, len(columns))
+	widths := make([]int, numCols)
 	for i, col := range columns {
 		widths[i] = len(col)
+		if widths[i] < 3 {
+			widths[i] = 3 // Minimum width
+		}
 	}
 
 	// Check data widths (sample first 100 rows for performance)
@@ -777,61 +802,50 @@ func calculateColumnWidths(columns []string, rows []map[string]interface{}, tota
 		}
 	}
 
-	// Calculate space needed for column separators
-	separatorSpace := len(columns) - 1 // 1 space between each column
-
-	// If total exceeds available width, proportionally reduce
+	// Calculate total needed
 	totalNeeded := 0
 	for _, w := range widths {
 		totalNeeded += w
 	}
-	totalNeeded += separatorSpace
 
-	if totalNeeded > totalWidth {
-		// Available width for columns (excluding separators)
-		availableForColumns := totalWidth - separatorSpace
-		if availableForColumns < len(columns)*3 {
-			// Not enough space even with minimum widths, use minimum
-			for i := range widths {
+	// If total exceeds available width, proportionally reduce
+	if totalNeeded > availableForColumns {
+		// Proportionally scale down
+		scale := float64(availableForColumns) / float64(totalNeeded)
+		for i := range widths {
+			widths[i] = int(float64(widths[i]) * scale)
+			if widths[i] < 3 {
 				widths[i] = 3
 			}
-		} else {
-			// Proportionally scale down
-			scale := float64(availableForColumns) / float64(totalNeeded-separatorSpace)
-			for i := range widths {
-				widths[i] = int(float64(widths[i]) * scale)
-				if widths[i] < 3 {
-					widths[i] = 3
+		}
+
+		// After applying minimum widths, verify total fits
+		actualTotal := 0
+		for _, w := range widths {
+			actualTotal += w
+		}
+
+		// If still too wide, reduce from largest columns iteratively
+		for actualTotal > availableForColumns {
+			// Find largest column
+			maxIdx := 0
+			maxWidth := widths[0]
+			for i, w := range widths {
+				if w > maxWidth {
+					maxWidth = w
+					maxIdx = i
 				}
 			}
-
-			// After applying minimum widths, verify total fits
-			actualTotal := separatorSpace
-			for _, w := range widths {
-				actualTotal += w
-			}
-
-			// If still too wide, reduce from largest columns
-			if actualTotal > totalWidth {
-				excess := actualTotal - totalWidth
-				for excess > 0 {
-					// Find largest column
-					maxIdx := 0
-					maxWidth := widths[0]
-					for i, w := range widths {
-						if w > maxWidth {
-							maxWidth = w
-							maxIdx = i
-						}
-					}
-					// Reduce it by 1 if possible
-					if widths[maxIdx] > 3 {
-						widths[maxIdx]--
-						excess--
-					} else {
-						// All columns at minimum, can't reduce further
-						break
-					}
+			// Reduce it by 1 if possible
+			if widths[maxIdx] > 3 {
+				widths[maxIdx]--
+				actualTotal--
+			} else {
+				// All columns at minimum, forcefully reduce
+				widths[maxIdx]--
+				actualTotal--
+				if widths[maxIdx] < 1 {
+					widths[maxIdx] = 1
 				}
 			}
 		}
@@ -854,10 +868,11 @@ func renderHeaderRow(columns []string, widths []int, totalWidth int) string {
 	}
 	line := strings.Join(parts, " ")
 
-	// Pad to full width
-	if len(line) < totalWidth {
-		line += strings.Repeat(" ", totalWidth-len(line))
-	} else if len(line) > totalWidth {
+	// Ensure exact width
+	currentLen := len(line)
+	if currentLen < totalWidth {
+		line += strings.Repeat(" ", totalWidth-currentLen)
+	} else if currentLen > totalWidth {
 		line = line[:totalWidth]
 	}
 
@@ -872,10 +887,11 @@ func renderSeparator(widths []int, totalWidth int) string {
 	}
 	line := strings.Join(parts, " ")
 
-	// Pad to full width
-	if len(line) < totalWidth {
-		line += strings.Repeat(" ", totalWidth-len(line))
-	} else if len(line) > totalWidth {
+	// Ensure exact width
+	currentLen := len(line)
+	if currentLen < totalWidth {
+		line += strings.Repeat(" ", totalWidth-currentLen)
+	} else if currentLen > totalWidth {
 		line = line[:totalWidth]
 	}
 
@@ -910,10 +926,11 @@ func renderDataRow(columns []string, row map[string]interface{}, widths []int, c
 	}
 	line := strings.Join(parts, " ")
 
-	// Pad to full width
-	if len(line) < totalWidth {
-		line += strings.Repeat(" ", totalWidth-len(line))
-	} else if len(line) > totalWidth {
+	// Ensure exact width BEFORE applying styles
+	currentLen := len(line)
+	if currentLen < totalWidth {
+		line += strings.Repeat(" ", totalWidth-currentLen)
+	} else if currentLen > totalWidth {
 		line = line[:totalWidth]
 	}
 
