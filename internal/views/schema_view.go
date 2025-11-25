@@ -179,6 +179,11 @@ func ParseColumnsFromDDL(ddl string, primaryKeys []string) []ColumnInfo {
 			// Check if it's a PRIMARY KEY
 			isPK := pkMap[name]
 
+			// Add (Primary Key) suffix to type if it's a primary key
+			if isPK {
+				typ = typ + " (Primary Key)"
+			}
+
 			columns = append(columns, ColumnInfo{
 				Name:         name,
 				Type:         typ,
