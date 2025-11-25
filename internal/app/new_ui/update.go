@@ -258,6 +258,21 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		// TODO: Check row count
 		m.SelectedDataRow++
 		return m, nil
+
+	case "left", "h":
+		// Scroll left
+		if m.HorizontalOffset > 0 {
+			m.HorizontalOffset -= 5 // Scroll by 5 characters
+			if m.HorizontalOffset < 0 {
+				m.HorizontalOffset = 0
+			}
+		}
+		return m, nil
+
+	case "right", "l":
+		// Scroll right
+		m.HorizontalOffset += 5 // Scroll by 5 characters
+		return m, nil
 	}
 
 	return m, nil

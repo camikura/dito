@@ -682,25 +682,25 @@ func renderGridView(m Model, data *db.TableDataResult, width int, contentLines i
 	tableName := m.Tables[m.SelectedTable]
 	columnTypes := getColumnTypes(m, tableName, columns)
 
-	// Calculate column widths
+	// Calculate column widths based on content (no forced shrinking)
 	contentWidth := width - 2 // Subtract borders
-	columnWidths := calculateColumnWidths(columns, data.Rows, contentWidth)
+	columnWidths := calculateNaturalColumnWidths(columns, data.Rows)
 
-	// Line 1: Header row
-	headerLine := renderHeaderRow(columns, columnWidths, contentWidth)
+	// Line 1: Header row (with horizontal scroll)
+	headerLine := renderHeaderRowWithScroll(columns, columnWidths, contentWidth, m.HorizontalOffset)
 	result.WriteString(leftBorder + headerLine + rightBorder + "\n")
 
-	// Line 2: Separator (── ───── ────)
-	separatorLine := renderSeparator(columnWidths, contentWidth)
+	// Line 2: Separator (── ───── ────) (with horizontal scroll)
+	separatorLine := renderSeparatorWithScroll(columnWidths, contentWidth, m.HorizontalOffset)
 	result.WriteString(leftBorder + separatorLine + rightBorder + "\n")
 
-	// Lines 3+: Data rows
+	// Lines 3+: Data rows (with horizontal scroll)
 	dataLinesAvailable := contentLines - 2 // Subtract header and separator
 	for i := 0; i < dataLinesAvailable; i++ {
 		rowIndex := i + m.ViewportOffset
 		if rowIndex < len(data.Rows) {
 			isSelected := rowIndex == m.SelectedDataRow
-			rowLine := renderDataRow(columns, data.Rows[rowIndex], columnWidths, columnTypes, contentWidth, isSelected)
+			rowLine := renderDataRowWithScroll(columns, data.Rows[rowIndex], columnWidths, columnTypes, contentWidth, m.HorizontalOffset, isSelected)
 			result.WriteString(leftBorder + rowLine + rightBorder + "\n")
 		} else {
 			// Empty line
@@ -746,6 +746,49 @@ func sortColumns(columns []string) {
 			}
 		}
 	}
+}
+
+// calculateNaturalColumnWidths calculates natural width for each column without forcing to fit
+func calculateNaturalColumnWidths(columns []string, rows []map[string]interface{}) []int {
+	if len(columns) == 0 {
+		return []int{}
+	}
+
+	widths := make([]int, len(columns))
+
+	// Start with header widths
+	for i, col := range columns {
+		widths[i] = len(col)
+		if widths[i] < 3 {
+			widths[i] = 3 // Minimum width
+		}
+	}
+
+	// Check data widths (sample first 100 rows for performance)
+	sampleSize := len(rows)
+	if sampleSize > 100 {
+		sampleSize = 100
+	}
+	for i := 0; i < sampleSize; i++ {
+		row := rows[i]
+		for j, col := range columns {
+			if val, exists := row[col]; exists && val != nil {
+				valStr := fmt.Sprintf("%v", val)
+				if len(valStr) > widths[j] {
+					widths[j] = len(valStr)
+				}
+			}
+		}
+	}
+
+	// Cap maximum width at 50 characters per column for readability
+	for i := range widths {
+		if widths[i] > 50 {
+			widths[i] = 50
+		}
+	}
+
+	return widths
 }
 
 // calculateColumnWidths calculates optimal width for each column
@@ -854,6 +897,36 @@ func calculateColumnWidths(columns []string, rows []map[string]interface{}, tota
 	return widths
 }
 
+// renderHeaderRowWithScroll renders the column headers with horizontal scroll
+func renderHeaderRowWithScroll(columns []string, widths []int, viewWidth int, hOffset int) string {
+	// Build full header line
+	var parts []string
+	for i, col := range columns {
+		w := widths[i]
+		if len(col) > w {
+			col = col[:w-1] + "…"
+		} else {
+			col = col + strings.Repeat(" ", w-len(col))
+		}
+		parts = append(parts, col)
+	}
+	fullLine := strings.Join(parts, " ")
+
+	// Apply horizontal offset
+	if hOffset >= len(fullLine) {
+		return strings.Repeat(" ", viewWidth)
+	}
+
+	visiblePart := fullLine[hOffset:]
+	if len(visiblePart) > viewWidth {
+		visiblePart = visiblePart[:viewWidth]
+	} else if len(visiblePart) < viewWidth {
+		visiblePart += strings.Repeat(" ", viewWidth-len(visiblePart))
+	}
+
+	return visiblePart
+}
+
 // renderHeaderRow renders the column headers
 func renderHeaderRow(columns []string, widths []int, totalWidth int) string {
 	var parts []string
@@ -879,6 +952,30 @@ func renderHeaderRow(columns []string, widths []int, totalWidth int) string {
 	return line
 }
 
+// renderSeparatorWithScroll renders the separator line with horizontal scroll
+func renderSeparatorWithScroll(widths []int, viewWidth int, hOffset int) string {
+	// Build full separator line
+	var parts []string
+	for _, w := range widths {
+		parts = append(parts, strings.Repeat("─", w))
+	}
+	fullLine := strings.Join(parts, " ")
+
+	// Apply horizontal offset
+	if hOffset >= len(fullLine) {
+		return strings.Repeat(" ", viewWidth)
+	}
+
+	visiblePart := fullLine[hOffset:]
+	if len(visiblePart) > viewWidth {
+		visiblePart = visiblePart[:viewWidth]
+	} else if len(visiblePart) < viewWidth {
+		visiblePart += strings.Repeat(" ", viewWidth-len(visiblePart))
+	}
+
+	return visiblePart
+}
+
 // renderSeparator renders the separator line (── ───── ────)
 func renderSeparator(widths []int, totalWidth int) string {
 	var parts []string
@@ -896,6 +993,56 @@ func renderSeparator(widths []int, totalWidth int) string {
 	}
 
 	return line
+}
+
+// renderDataRowWithScroll renders a single data row with horizontal scroll
+func renderDataRowWithScroll(columns []string, row map[string]interface{}, widths []int, columnTypes map[string]string, viewWidth int, hOffset int, isSelected bool) string {
+	// Build full row line
+	var parts []string
+	for i, col := range columns {
+		w := widths[i]
+		val := ""
+		if v, exists := row[col]; exists && v != nil {
+			val = fmt.Sprintf("%v", v)
+		}
+
+		// Check if this column is numeric type
+		colType := columnTypes[col]
+		isNumeric := isNumericType(colType)
+
+		if len(val) > w {
+			val = val[:w-1] + "…"
+		} else {
+			// Right-align numeric columns, left-align others
+			if isNumeric {
+				val = strings.Repeat(" ", w-len(val)) + val
+			} else {
+				val = val + strings.Repeat(" ", w-len(val))
+			}
+		}
+		parts = append(parts, val)
+	}
+	fullLine := strings.Join(parts, " ")
+
+	// Apply horizontal offset
+	var visiblePart string
+	if hOffset >= len(fullLine) {
+		visiblePart = strings.Repeat(" ", viewWidth)
+	} else {
+		visiblePart = fullLine[hOffset:]
+		if len(visiblePart) > viewWidth {
+			visiblePart = visiblePart[:viewWidth]
+		} else if len(visiblePart) < viewWidth {
+			visiblePart += strings.Repeat(" ", viewWidth-len(visiblePart))
+		}
+	}
+
+	// Apply full-span background color for selected row
+	if isSelected {
+		visiblePart = lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000")).Render(visiblePart)
+	}
+
+	return visiblePart
 }
 
 // renderDataRow renders a single data row
