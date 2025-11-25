@@ -44,8 +44,19 @@ func RenderView(m Model) string {
 	// Join left and right panes horizontally
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanes, dataPane)
 
-	// Footer
-	footerContent := "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e"
+	// Footer (changes based on focused pane)
+	var footerContent string
+	switch m.CurrentPane {
+	case FocusPaneConnection:
+		footerContent = "Navigate: ↑/↓ | Switch Pane: tab"
+	case FocusPaneTables:
+		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
+	case FocusPaneSQL:
+		footerContent = "Switch Pane: tab | Edit SQL: e"
+	case FocusPaneData:
+		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Edit SQL: e"
+	}
+
 	footerPadding := m.Width - len(footerContent) - len("Dito") - 1
 	if footerPadding < 0 {
 		footerPadding = 0
