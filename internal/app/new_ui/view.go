@@ -667,19 +667,11 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 func renderGridView(m Model, data *db.TableDataResult, width int, contentLines int, leftBorder, rightBorder string) string {
 	var result strings.Builder
 
-	// Extract column names from first row
-	var columns []string
-	if len(data.Rows) > 0 {
-		for col := range data.Rows[0] {
-			columns = append(columns, col)
-		}
-		// Sort columns for consistent display
-		// For better UX, we should order by schema, but for now just sort alphabetically
-		sortColumns(columns)
-	}
+	// Get column names in schema definition order
+	tableName := m.Tables[m.SelectedTable]
+	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
 	// Get column types from schema
-	tableName := m.Tables[m.SelectedTable]
 	columnTypes := getColumnTypes(m, tableName, columns)
 
 	// Calculate column widths based on content (no forced shrinking)
@@ -710,6 +702,39 @@ func renderGridView(m Model, data *db.TableDataResult, width int, contentLines i
 	}
 
 	return result.String()
+}
+
+// getColumnsInSchemaOrder returns column names in schema definition order
+func getColumnsInSchemaOrder(m Model, tableName string, rows []map[string]interface{}) []string {
+	var columns []string
+
+	// Try to get columns from schema DDL first
+	if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+		if details.Schema.DDL != "" {
+			primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+			cols := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+
+			// Extract column names in schema order
+			for _, col := range cols {
+				columns = append(columns, col.Name)
+			}
+
+			// If we successfully got columns from schema, return them
+			if len(columns) > 0 {
+				return columns
+			}
+		}
+	}
+
+	// Fallback: extract from first row and sort alphabetically
+	if len(rows) > 0 {
+		for col := range rows[0] {
+			columns = append(columns, col)
+		}
+		sortColumns(columns)
+	}
+
+	return columns
 }
 
 // getColumnTypes extracts column types from schema information
@@ -903,25 +928,36 @@ func renderHeaderRowWithScroll(columns []string, widths []int, viewWidth int, hO
 	var parts []string
 	for i, col := range columns {
 		w := widths[i]
-		if len(col) > w {
-			col = col[:w-1] + "…"
+		colRunes := []rune(col)
+		if len(colRunes) > w {
+			col = string(colRunes[:w-1]) + "…"
 		} else {
-			col = col + strings.Repeat(" ", w-len(col))
+			col = col + strings.Repeat(" ", w-len(colRunes))
 		}
 		parts = append(parts, col)
 	}
 	fullLine := strings.Join(parts, " ")
 
+	// Convert to runes for proper character counting
+	runes := []rune(fullLine)
+	runeLen := len(runes)
+
 	// Apply horizontal offset
-	if hOffset >= len(fullLine) {
+	if hOffset >= runeLen {
 		return strings.Repeat(" ", viewWidth)
 	}
 
-	visiblePart := fullLine[hOffset:]
-	if len(visiblePart) > viewWidth {
-		visiblePart = visiblePart[:viewWidth]
-	} else if len(visiblePart) < viewWidth {
-		visiblePart += strings.Repeat(" ", viewWidth-len(visiblePart))
+	visibleRunes := runes[hOffset:]
+	if len(visibleRunes) > viewWidth {
+		visibleRunes = visibleRunes[:viewWidth]
+	}
+
+	visiblePart := string(visibleRunes)
+
+	// Pad to exact width if needed
+	currentLen := len([]rune(visiblePart))
+	if currentLen < viewWidth {
+		visiblePart += strings.Repeat(" ", viewWidth-currentLen)
 	}
 
 	return visiblePart
@@ -954,23 +990,33 @@ func renderHeaderRow(columns []string, widths []int, totalWidth int) string {
 
 // renderSeparatorWithScroll renders the separator line with horizontal scroll
 func renderSeparatorWithScroll(widths []int, viewWidth int, hOffset int) string {
-	// Build full separator line
+	// Build full separator line using runes for proper length calculation
 	var parts []string
 	for _, w := range widths {
 		parts = append(parts, strings.Repeat("─", w))
 	}
 	fullLine := strings.Join(parts, " ")
 
+	// Convert to runes for proper character counting
+	runes := []rune(fullLine)
+	runeLen := len(runes)
+
 	// Apply horizontal offset
-	if hOffset >= len(fullLine) {
+	if hOffset >= runeLen {
 		return strings.Repeat(" ", viewWidth)
 	}
 
-	visiblePart := fullLine[hOffset:]
-	if len(visiblePart) > viewWidth {
-		visiblePart = visiblePart[:viewWidth]
-	} else if len(visiblePart) < viewWidth {
-		visiblePart += strings.Repeat(" ", viewWidth-len(visiblePart))
+	visibleRunes := runes[hOffset:]
+	if len(visibleRunes) > viewWidth {
+		visibleRunes = visibleRunes[:viewWidth]
+	}
+
+	visiblePart := string(visibleRunes)
+
+	// Pad to exact width if needed
+	currentLen := len([]rune(visiblePart))
+	if currentLen < viewWidth {
+		visiblePart += strings.Repeat(" ", viewWidth-currentLen)
 	}
 
 	return visiblePart
@@ -1010,30 +1056,40 @@ func renderDataRowWithScroll(columns []string, row map[string]interface{}, width
 		colType := columnTypes[col]
 		isNumeric := isNumericType(colType)
 
-		if len(val) > w {
-			val = val[:w-1] + "…"
+		valRunes := []rune(val)
+		if len(valRunes) > w {
+			val = string(valRunes[:w-1]) + "…"
 		} else {
 			// Right-align numeric columns, left-align others
 			if isNumeric {
-				val = strings.Repeat(" ", w-len(val)) + val
+				val = strings.Repeat(" ", w-len(valRunes)) + val
 			} else {
-				val = val + strings.Repeat(" ", w-len(val))
+				val = val + strings.Repeat(" ", w-len(valRunes))
 			}
 		}
 		parts = append(parts, val)
 	}
 	fullLine := strings.Join(parts, " ")
 
+	// Convert to runes for proper character counting
+	runes := []rune(fullLine)
+	runeLen := len(runes)
+
 	// Apply horizontal offset
 	var visiblePart string
-	if hOffset >= len(fullLine) {
+	if hOffset >= runeLen {
 		visiblePart = strings.Repeat(" ", viewWidth)
 	} else {
-		visiblePart = fullLine[hOffset:]
-		if len(visiblePart) > viewWidth {
-			visiblePart = visiblePart[:viewWidth]
-		} else if len(visiblePart) < viewWidth {
-			visiblePart += strings.Repeat(" ", viewWidth-len(visiblePart))
+		visibleRunes := runes[hOffset:]
+		if len(visibleRunes) > viewWidth {
+			visibleRunes = visibleRunes[:viewWidth]
+		}
+		visiblePart = string(visibleRunes)
+
+		// Pad to exact width if needed
+		currentLen := len([]rune(visiblePart))
+		if currentLen < viewWidth {
+			visiblePart += strings.Repeat(" ", viewWidth-currentLen)
 		}
 	}
 
