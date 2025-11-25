@@ -186,6 +186,11 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.CurrentSQL = "SELECT * FROM " + tableName
 			m.CustomSQL = false
 
+			// Reset data scrolling state
+			m.SelectedDataRow = 0
+			m.ViewportOffset = 0
+			m.HorizontalOffset = 0
+
 			// Get primary keys from schema if available
 			var primaryKeys []string
 			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
@@ -247,16 +252,47 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Get total row count for current table
+	var totalRows int
+	if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		tableName := m.Tables[m.SelectedTable]
+		if data, exists := m.TableData[tableName]; exists && data != nil {
+			totalRows = len(data.Rows)
+		}
+	}
+
+	// Calculate visible lines (Data pane height - 2 for header and separator)
+	visibleLines := m.Height - m.ConnectionPaneHeight - m.TablesHeight - m.SchemaHeight - m.SQLHeight - 8 // 8 = borders + footer
+	if visibleLines < 1 {
+		visibleLines = 1
+	}
+	// Subtract 2 for header and separator in data pane
+	dataVisibleLines := visibleLines - 2
+	if dataVisibleLines < 1 {
+		dataVisibleLines = 1
+	}
+
 	switch msg.String() {
 	case "up", "k":
 		if m.SelectedDataRow > 0 {
 			m.SelectedDataRow--
+
+			// Adjust viewport offset if cursor goes above visible area
+			if m.SelectedDataRow < m.ViewportOffset {
+				m.ViewportOffset = m.SelectedDataRow
+			}
 		}
 		return m, nil
 
 	case "down", "j":
-		// TODO: Check row count
-		m.SelectedDataRow++
+		if totalRows > 0 && m.SelectedDataRow < totalRows-1 {
+			m.SelectedDataRow++
+
+			// Adjust viewport offset if cursor goes below visible area
+			if m.SelectedDataRow >= m.ViewportOffset+dataVisibleLines {
+				m.ViewportOffset = m.SelectedDataRow - dataVisibleLines + 1
+			}
+		}
 		return m, nil
 
 	case "left", "h":
