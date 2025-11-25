@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/camikura/dito/internal/app"
+	"github.com/camikura/dito/internal/app/new_ui"
 	"github.com/camikura/dito/internal/db"
 	"github.com/camikura/dito/internal/handlers"
 	"github.com/camikura/dito/internal/views"
@@ -21,6 +22,11 @@ type tableDataResultMsg = db.TableDataResult
 // model wraps app.Model to allow methods in main package
 type model struct {
 	app.Model
+}
+
+// newUIModel wraps new_ui.Model to allow methods in main package
+type newUIModel struct {
+	new_ui.Model
 }
 
 // Initメソッド
@@ -77,13 +83,43 @@ func (m model) View() string {
 	}
 }
 
+// New UI methods
+func (m newUIModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m newUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.Model, cmd = new_ui.Update(m.Model, msg)
+	return m, cmd
+}
+
+func (m newUIModel) View() string {
+	return new_ui.RenderView(m.Model)
+}
+
 // テーブル一覧画面のView
 func main() {
-	p := tea.NewProgram(
-		model{Model: app.InitialModel()},
-		tea.WithAltScreen(),       // 全画面モード
-		tea.WithMouseCellMotion(), // マウスサポート（オプション）
-	)
+	// Feature flag for new UI
+	useNewUI := os.Getenv("DITO_NEW_UI") == "true"
+
+	var p *tea.Program
+	if useNewUI {
+		// Use new lazygit-style UI
+		p = tea.NewProgram(
+			newUIModel{Model: new_ui.InitialModel()},
+			tea.WithAltScreen(),
+			tea.WithMouseCellMotion(),
+		)
+	} else {
+		// Use existing UI (default)
+		p = tea.NewProgram(
+			model{Model: app.InitialModel()},
+			tea.WithAltScreen(),
+			tea.WithMouseCellMotion(),
+		)
+	}
+
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v", err)
 		os.Exit(1)
