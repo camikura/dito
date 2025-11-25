@@ -296,6 +296,15 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			if m.SelectedDataRow >= m.ViewportOffset+dataVisibleLines {
 				m.ViewportOffset = m.SelectedDataRow - dataVisibleLines + 1
 			}
+
+			// Limit viewport offset so we don't scroll past the last screen
+			maxViewportOffset := totalRows - dataVisibleLines
+			if maxViewportOffset < 0 {
+				maxViewportOffset = 0
+			}
+			if m.ViewportOffset > maxViewportOffset {
+				m.ViewportOffset = maxViewportOffset
+			}
 		}
 		return m, nil
 
