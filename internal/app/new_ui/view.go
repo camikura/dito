@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/camikura/dito/internal/views"
 )
 
 // Color definitions
@@ -122,21 +124,32 @@ func renderTablesPane(m Model, width int) string {
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
-	// Content lines
-	contentLines := []string{"No tables"}
-	if len(m.Tables) > 0 {
-		contentLines = []string{
-			"  users",
-			"    addresses",
-			"    phones",
-			"  products",
-			"  orders",
+	// Prepare content lines
+	var contentLines []string
+	if len(m.Tables) == 0 {
+		contentLines = []string{"No tables"}
+	} else {
+		// Render each table with proper selection/cursor highlighting
+		for i, tableName := range m.Tables {
+			var prefix string
+			if i == m.SelectedTable {
+				prefix = "* "
+			} else {
+				prefix = "  "
+			}
+			contentLines = append(contentLines, prefix+tableName)
 		}
 	}
 
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
+
+	// Styles for selection
+	selectedStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color(ColorPrimary)).
+		Foreground(lipgloss.Color("#000000")).
+		Width(width - 2)
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
@@ -145,11 +158,19 @@ func renderTablesPane(m Model, width int) string {
 	for i := 0; i < 8; i++ {
 		var line string
 		if i < len(contentLines) {
-			line = " " + contentLines[i] + strings.Repeat(" ", width-len(contentLines[i])-3)
+			content := contentLines[i]
+			// Apply full-span background if this is the cursor position
+			if i == m.CursorTable && len(m.Tables) > 0 {
+				line = selectedStyle.Render(" " + content + strings.Repeat(" ", width-len(content)-3))
+				result.WriteString(leftBorder + line + rightBorder + "\n")
+			} else {
+				line = " " + content + strings.Repeat(" ", width-len(content)-3)
+				result.WriteString(leftBorder + line + rightBorder + "\n")
+			}
 		} else {
 			line = strings.Repeat(" ", width-2)
+			result.WriteString(leftBorder + line + rightBorder + "\n")
 		}
-		result.WriteString(leftBorder + line + rightBorder + "\n")
 	}
 
 	result.WriteString(bottomBorder)
@@ -164,7 +185,31 @@ func renderSchemaPane(m Model, width int) string {
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorInactive))
 	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
-	content := "Select a table"
+	// Prepare content lines
+	var contentLines []string
+	if len(m.Tables) == 0 || m.CursorTable >= len(m.Tables) {
+		contentLines = []string{"Select a table"}
+	} else {
+		tableName := m.Tables[m.CursorTable]
+		details, exists := m.TableDetails[tableName]
+		if !exists || details == nil {
+			contentLines = []string{"Loading..."}
+		} else {
+			// Render schema information
+			contentLines = append(contentLines, "Columns:")
+			if details.Schema.DDL != "" {
+				primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+				columns := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+				for _, col := range columns {
+					colLine := "  " + col.Name + " " + col.Type
+					if len(colLine) > width-4 {
+						colLine = colLine[:width-7] + "..."
+					}
+					contentLines = append(contentLines, colLine)
+				}
+			}
+		}
+	}
 
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
@@ -176,7 +221,11 @@ func renderSchemaPane(m Model, width int) string {
 	// Render content lines (fixed height: 8 lines)
 	for i := 0; i < 8; i++ {
 		var line string
-		if i == 0 {
+		if i < len(contentLines) {
+			content := contentLines[i]
+			if len(content) > width-4 {
+				content = content[:width-7] + "..."
+			}
 			line = " " + content + strings.Repeat(" ", width-len(content)-3)
 		} else {
 			line = strings.Repeat(" ", width-2)
@@ -230,8 +279,6 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
-	content := "No data"
-
 	// Data pane should fill entire screen height minus footer
 	// Data pane structure: title(1) + content lines(?) + bottom(1)
 	// Total height: totalHeight - 1 (footer)
@@ -239,6 +286,33 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	contentLines := totalHeight - 3
 	if contentLines < 5 {
 		contentLines = 5
+	}
+
+	// Prepare content
+	var displayLines []string
+	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+		displayLines = []string{"No data"}
+	} else {
+		tableName := m.Tables[m.SelectedTable]
+		data, exists := m.TableData[tableName]
+		if !exists || data == nil {
+			if m.LoadingData {
+				displayLines = []string{"Loading..."}
+			} else {
+				displayLines = []string{"No data"}
+			}
+		} else {
+			// Render data rows
+			if len(data.Rows) == 0 {
+				displayLines = []string{"No rows"}
+			} else {
+				// Simple data rendering - just show row count for now
+				displayLines = append(displayLines, "Rows: "+string(rune(len(data.Rows)+48)))
+				displayLines = append(displayLines, "")
+				// TODO: Implement proper grid rendering in Phase 3
+				displayLines = append(displayLines, "(Grid view coming in Phase 3)")
+			}
+		}
 	}
 
 	leftBorder := borderStyle.Render("│")
@@ -251,7 +325,11 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	// Render content lines
 	for i := 0; i < contentLines; i++ {
 		var line string
-		if i == 0 {
+		if i < len(displayLines) {
+			content := displayLines[i]
+			if len(content) > width-4 {
+				content = content[:width-7] + "..."
+			}
 			line = " " + content + strings.Repeat(" ", width-len(content)-3)
 		} else {
 			line = strings.Repeat(" ", width-2)
