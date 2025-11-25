@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/camikura/dito/internal/db"
+	"github.com/camikura/dito/internal/ui"
 	"github.com/camikura/dito/internal/views"
 )
 
@@ -140,7 +141,14 @@ func RenderView(m Model) string {
 	result.WriteString(panes + "\n")
 	result.WriteString(footerContent)
 
-	return result.String()
+	baseView := result.String()
+
+	// Overlay record detail dialog if visible
+	if m.RecordDetailVisible {
+		return renderRecordDetailDialog(m)
+	}
+
+	return baseView
 }
 
 func renderConnectionPane(m Model, width int) string {
@@ -584,7 +592,14 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
-	titleText := " Data "
+	// Build title with table name if available
+	var titleText string
+	if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		tableName := m.Tables[m.SelectedTable]
+		titleText = fmt.Sprintf(" Data (%s) ", tableName)
+	} else {
+		titleText = " Data "
+	}
 	styledTitle := titleStyle.Render(titleText)
 	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", width-len(titleText)-3) + "╮")
 
@@ -678,6 +693,33 @@ func renderGridView(m Model, data *db.TableDataResult, width int, contentLines i
 	contentWidth := width - 2 // Subtract borders
 	columnWidths := calculateNaturalColumnWidths(columns, data.Rows)
 
+	// Ensure the last column is visible when HorizontalOffset=0
+	// Calculate total width
+	totalWidth := 0
+	for _, w := range columnWidths {
+		totalWidth += w
+	}
+	if len(columnWidths) > 0 {
+		totalWidth += len(columnWidths) - 1 // Add separators
+	}
+
+	// If total width exceeds screen and we're not scrolled, shrink last column to fit
+	if totalWidth > contentWidth && m.HorizontalOffset == 0 && len(columnWidths) > 0 {
+		// Calculate width used by all columns except the last
+		widthExceptLast := 0
+		for i := 0; i < len(columnWidths)-1; i++ {
+			widthExceptLast += columnWidths[i]
+		}
+		widthExceptLast += len(columnWidths) - 1 // Add separators
+
+		// Adjust last column to fit
+		availableForLast := contentWidth - widthExceptLast
+		if availableForLast >= 5 {
+			// At least 5 chars for meaningful content + ellipsis
+			columnWidths[len(columnWidths)-1] = availableForLast
+		}
+	}
+
 	// Line 1: Header row (with horizontal scroll)
 	headerLine := renderHeaderRowWithScroll(columns, columnWidths, contentWidth, m.HorizontalOffset)
 	result.WriteString(leftBorder + headerLine + rightBorder + "\n")
@@ -704,38 +746,6 @@ func renderGridView(m Model, data *db.TableDataResult, width int, contentLines i
 	return result.String()
 }
 
-// getColumnsInSchemaOrder returns column names in schema definition order
-func getColumnsInSchemaOrder(m Model, tableName string, rows []map[string]interface{}) []string {
-	var columns []string
-
-	// Try to get columns from schema DDL first
-	if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
-		if details.Schema.DDL != "" {
-			primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-			cols := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
-
-			// Extract column names in schema order
-			for _, col := range cols {
-				columns = append(columns, col.Name)
-			}
-
-			// If we successfully got columns from schema, return them
-			if len(columns) > 0 {
-				return columns
-			}
-		}
-	}
-
-	// Fallback: extract from first row and sort alphabetically
-	if len(rows) > 0 {
-		for col := range rows[0] {
-			columns = append(columns, col)
-		}
-		sortColumns(columns)
-	}
-
-	return columns
-}
 
 // getColumnTypes extracts column types from schema information
 func getColumnTypes(m Model, tableName string, columns []string) map[string]string {
@@ -760,18 +770,6 @@ func getColumnTypes(m Model, tableName string, columns []string) map[string]stri
 	return types
 }
 
-// sortColumns sorts column names (simple alphabetical for now)
-func sortColumns(columns []string) {
-	// Simple bubble sort
-	n := len(columns)
-	for i := 0; i < n-1; i++ {
-		for j := 0; j < n-i-1; j++ {
-			if columns[j] > columns[j+1] {
-				columns[j], columns[j+1] = columns[j+1], columns[j]
-			}
-		}
-	}
-}
 
 // calculateNaturalColumnWidths calculates natural width for each column without forcing to fit
 func calculateNaturalColumnWidths(columns []string, rows []map[string]interface{}) []int {
@@ -783,7 +781,7 @@ func calculateNaturalColumnWidths(columns []string, rows []map[string]interface{
 
 	// Start with header widths
 	for i, col := range columns {
-		widths[i] = len(col)
+		widths[i] = len([]rune(col))
 		if widths[i] < 3 {
 			widths[i] = 3 // Minimum width
 		}
@@ -798,9 +796,10 @@ func calculateNaturalColumnWidths(columns []string, rows []map[string]interface{
 		row := rows[i]
 		for j, col := range columns {
 			if val, exists := row[col]; exists && val != nil {
-				valStr := fmt.Sprintf("%v", val)
-				if len(valStr) > widths[j] {
-					widths[j] = len(valStr)
+				valStr := ui.FormatValue(val)
+				valLen := len([]rune(valStr))
+				if valLen > widths[j] {
+					widths[j] = valLen
 				}
 			}
 		}
@@ -847,7 +846,7 @@ func calculateColumnWidths(columns []string, rows []map[string]interface{}, tota
 	// Start with header widths
 	widths := make([]int, numCols)
 	for i, col := range columns {
-		widths[i] = len(col)
+		widths[i] = len([]rune(col))
 		if widths[i] < 3 {
 			widths[i] = 3 // Minimum width
 		}
@@ -862,9 +861,10 @@ func calculateColumnWidths(columns []string, rows []map[string]interface{}, tota
 		row := rows[i]
 		for j, col := range columns {
 			if val, exists := row[col]; exists && val != nil {
-				valStr := fmt.Sprintf("%v", val)
-				if len(valStr) > widths[j] {
-					widths[j] = len(valStr)
+				valStr := ui.FormatValue(val)
+				valLen := len([]rune(valStr))
+				if valLen > widths[j] {
+					widths[j] = valLen
 				}
 			}
 		}
@@ -1041,15 +1041,28 @@ func renderSeparator(widths []int, totalWidth int) string {
 	return line
 }
 
+// nullRegion represents a region in the row that contains a null value
+type nullRegion struct {
+	start int
+	end   int
+}
+
 // renderDataRowWithScroll renders a single data row with horizontal scroll
 func renderDataRowWithScroll(columns []string, row map[string]interface{}, widths []int, columnTypes map[string]string, viewWidth int, hOffset int, isSelected bool) string {
-	// Build full row line
+	// Build full row line and track null positions
 	var parts []string
+	var nullRegions []nullRegion
+	currentPos := 0
+
 	for i, col := range columns {
 		w := widths[i]
 		val := ""
+		isNull := false
 		if v, exists := row[col]; exists && v != nil {
-			val = fmt.Sprintf("%v", v)
+			val = ui.FormatValue(v)
+		} else {
+			val = "(null)"
+			isNull = true
 		}
 
 		// Check if this column is numeric type
@@ -1058,7 +1071,14 @@ func renderDataRowWithScroll(columns []string, row map[string]interface{}, width
 
 		valRunes := []rune(val)
 		if len(valRunes) > w {
-			val = string(valRunes[:w-1]) + "…"
+			// Truncate and add ellipsis
+			// Ensure w is at least 1 to avoid negative index
+			if w > 0 {
+				val = string(valRunes[:w-1]) + "…"
+				// val is now exactly w characters (w-1 + 1 for ellipsis)
+			} else {
+				val = "…"
+			}
 		} else {
 			// Right-align numeric columns, left-align others
 			if isNumeric {
@@ -1067,7 +1087,17 @@ func renderDataRowWithScroll(columns []string, row map[string]interface{}, width
 				val = val + strings.Repeat(" ", w-len(valRunes))
 			}
 		}
+
+		// Track null column positions for later styling
+		if isNull {
+			nullRegions = append(nullRegions, nullRegion{
+				start: currentPos,
+				end:   currentPos + len([]rune(val)),
+			})
+		}
+
 		parts = append(parts, val)
+		currentPos += len([]rune(val)) + 1 // +1 for separator space
 	}
 	fullLine := strings.Join(parts, " ")
 
@@ -1093,12 +1123,110 @@ func renderDataRowWithScroll(columns []string, row map[string]interface{}, width
 		}
 	}
 
-	// Apply full-span background color for selected row
+	// Apply styling (background for selected, and gray text for nulls)
 	if isSelected {
-		visiblePart = lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000")).Render(visiblePart)
+		// Apply background color with null regions styled
+		if len(nullRegions) > 0 {
+			visiblePart = applyNullStylingWithBackground(visiblePart, nullRegions, hOffset, true)
+		} else {
+			visiblePart = lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000")).Render(visiblePart)
+		}
+	} else {
+		// Apply gray styling to null regions only (no background)
+		if len(nullRegions) > 0 {
+			visiblePart = applyNullStyling(visiblePart, nullRegions, hOffset)
+		}
 	}
 
 	return visiblePart
+}
+
+// applyNullStyling applies gray styling to null value regions in the visible part
+func applyNullStyling(visiblePart string, nullRegions []nullRegion, hOffset int) string {
+	visibleRunes := []rune(visiblePart)
+	var result strings.Builder
+	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+
+	i := 0
+	for i < len(visibleRunes) {
+		// Calculate absolute position in the full line
+		absPos := hOffset + i
+
+		// Check if current position is in a null region
+		inNullRegion := false
+		var regionEnd int
+		for _, region := range nullRegions {
+			if absPos >= region.start && absPos < region.end {
+				inNullRegion = true
+				regionEnd = region.end
+				break
+			}
+		}
+
+		if inNullRegion {
+			// Find the end of the null region within visible part
+			j := i
+			for j < len(visibleRunes) && (hOffset+j) < regionEnd {
+				j++
+			}
+			// Apply gray style to this segment
+			segment := string(visibleRunes[i:j])
+			result.WriteString(grayStyle.Render(segment))
+			i = j
+		} else {
+			// Normal character
+			result.WriteRune(visibleRunes[i])
+			i++
+		}
+	}
+
+	return result.String()
+}
+
+// applyNullStylingWithBackground applies styling to null value regions with background color for selected rows
+func applyNullStylingWithBackground(visiblePart string, nullRegions []nullRegion, hOffset int, isSelected bool) string {
+	visibleRunes := []rune(visiblePart)
+	var result strings.Builder
+
+	// Styles for selected row with different foreground colors
+	selectedNormalStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
+	selectedNullStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#666666"))
+
+	i := 0
+	for i < len(visibleRunes) {
+		// Calculate absolute position in the full line
+		absPos := hOffset + i
+
+		// Check if current position is in a null region
+		inNullRegion := false
+		var regionEnd int
+		for _, region := range nullRegions {
+			if absPos >= region.start && absPos < region.end {
+				inNullRegion = true
+				regionEnd = region.end
+				break
+			}
+		}
+
+		if inNullRegion {
+			// Find the end of the null region within visible part
+			j := i
+			for j < len(visibleRunes) && (hOffset+j) < regionEnd {
+				j++
+			}
+			// Apply gray foreground with background to this segment
+			segment := string(visibleRunes[i:j])
+			result.WriteString(selectedNullStyle.Render(segment))
+			i = j
+		} else {
+			// Normal character with background
+			segment := string(visibleRunes[i])
+			result.WriteString(selectedNormalStyle.Render(segment))
+			i++
+		}
+	}
+
+	return result.String()
 }
 
 // renderDataRow renders a single data row
@@ -1108,7 +1236,7 @@ func renderDataRow(columns []string, row map[string]interface{}, widths []int, c
 		w := widths[i]
 		val := ""
 		if v, exists := row[col]; exists && v != nil {
-			val = fmt.Sprintf("%v", v)
+			val = ui.FormatValue(v)
 		}
 
 		// Check if this column is numeric type
@@ -1153,4 +1281,123 @@ func isNumericType(colType string) bool {
 		strings.Contains(upperType, "DOUBLE") ||
 		strings.Contains(upperType, "FLOAT") ||
 		strings.Contains(upperType, "NUMBER")
+}
+
+// renderRecordDetailDialog renders a dialog showing the details of the selected record
+func renderRecordDetailDialog(m Model) string {
+	if !m.RecordDetailVisible {
+		return ""
+	}
+
+	// Get the selected row
+	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+		return ""
+	}
+
+	tableName := m.Tables[m.SelectedTable]
+	data, exists := m.TableData[tableName]
+	if !exists || data == nil || len(data.Rows) == 0 {
+		return ""
+	}
+
+	if m.SelectedDataRow < 0 || m.SelectedDataRow >= len(data.Rows) {
+		return ""
+	}
+
+	row := data.Rows[m.SelectedDataRow]
+
+	// Get columns in schema order
+	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
+
+	// Create vertical table
+	vt := ui.VerticalTable{
+		Data: row,
+		Keys: columns,
+	}
+
+	content := vt.Render()
+
+	// Calculate dialog dimensions (80% of screen, centered)
+	dialogWidth := m.Width * 4 / 5
+	dialogHeight := m.Height * 4 / 5
+
+	// Apply scrolling
+	lines := strings.Split(content, "\n")
+	visibleHeight := dialogHeight - 4 // Subtract title + borders
+
+	// Calculate max scroll
+	maxScroll := len(lines) - visibleHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.RecordDetailScroll > maxScroll {
+		m.RecordDetailScroll = maxScroll
+	}
+
+	// Extract visible lines
+	start := m.RecordDetailScroll
+	end := start + visibleHeight
+	if end > len(lines) {
+		end = len(lines)
+	}
+	visibleLines := lines[start:end]
+
+	// Build dialog content
+	var dialogContent strings.Builder
+	for _, line := range visibleLines {
+		dialogContent.WriteString(line)
+		dialogContent.WriteString("\n")
+	}
+
+	// Create title for the border
+	titleText := " Record Details "
+	titleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorPrimary)).
+		Bold(true)
+	title := titleStyle.Render(titleText)
+
+	// Create dialog box with border and title in the top border
+	dialogStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(ColorPrimary)).
+		BorderTop(true).
+		BorderBottom(true).
+		BorderLeft(true).
+		BorderRight(true).
+		Width(dialogWidth - 2).
+		Height(dialogHeight - 2).
+		Padding(1, 2)
+
+	// Render content
+	contentBox := dialogStyle.Render(dialogContent.String())
+
+	// Manually construct the dialog with title in top border
+	contentLines := strings.Split(contentBox, "\n")
+	if len(contentLines) > 0 {
+		// Build new top border: corner + title + dashes + corner
+		// Use dialogWidth - 2 for the content width (excluding corners)
+		titleLen := len([]rune(titleText))
+		availableWidth := dialogWidth - 2 // Total width minus corners
+
+		if titleLen < availableWidth {
+			var newTopBorder strings.Builder
+			newTopBorder.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render("╭"))
+			newTopBorder.WriteString(title)
+			remainingDashes := availableWidth - titleLen
+			newTopBorder.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render(strings.Repeat("─", remainingDashes)))
+			newTopBorder.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render("╮"))
+			contentLines[0] = newTopBorder.String()
+		}
+	}
+
+	dialog := strings.Join(contentLines, "\n")
+
+	// Center the dialog on screen using lipgloss.Place
+	return lipgloss.Place(
+		m.Width,
+		m.Height,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog,
+	)
 }

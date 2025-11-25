@@ -1,7 +1,6 @@
 package new_ui
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -109,6 +108,11 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Record detail dialog takes precedence
+	if m.RecordDetailVisible {
+		return handleRecordDetailKeys(m, msg)
+	}
+
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
@@ -197,13 +201,12 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 			// Get primary keys from schema if available
 			var primaryKeys []string
-			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
-				// We'll parse from DDL in a moment - for now just pass empty slice
-				primaryKeys = []string{}
+			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+				primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
 			}
 
-			// Load table data
-			return m, db.FetchTableData(m.NosqlClient, tableName, 1000, primaryKeys)
+			// Load table data (100 rows with ORDER BY PK)
+			return m, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys)
 		}
 		return m, nil
 	}
@@ -265,13 +268,16 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	}
 
-	// Calculate visible lines (Data pane height - 2 for header and separator)
-	visibleLines := m.Height - m.ConnectionPaneHeight - m.TablesHeight - m.SchemaHeight - m.SQLHeight - 8 // 8 = borders + footer
-	if visibleLines < 1 {
-		visibleLines = 1
+	// Calculate visible lines for data rows
+	// Data pane structure: title(1) + content lines + bottom(1)
+	// Content lines = header(1) + separator(1) + data rows
+	// contentLines = m.Height - 1(footer) - 2(title+bottom) = m.Height - 3
+	contentLines := m.Height - 3
+	if contentLines < 5 {
+		contentLines = 5
 	}
-	// Subtract 2 for header and separator in data pane
-	dataVisibleLines := visibleLines - 2
+	// Data visible lines = content lines - 2 (header + separator)
+	dataVisibleLines := contentLines - 2
 	if dataVisibleLines < 1 {
 		dataVisibleLines = 1
 	}
@@ -287,19 +293,26 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			// Calculate middle position of visible area
 			middlePosition := dataVisibleLines / 2
 
-			// Calculate cursor position relative to viewport
-			cursorPositionInView := m.SelectedDataRow - m.ViewportOffset
+			// Calculate maximum viewport offset
+			maxViewportOffset := totalRows - dataVisibleLines
+			if maxViewportOffset < 0 {
+				maxViewportOffset = 0
+			}
 
-			// Scrolling logic (reverse of down):
-			// 1. Last: cursor moves from bottom to middle (no scroll)
-			// 2. Middle: cursor stays at middle, viewport scrolls up
-			// 3. First: viewport stops at 0, cursor moves to top
-			if cursorPositionInView < middlePosition && m.ViewportOffset > 0 {
-				// Cursor is before middle and we can still scroll up
+			// Scrolling logic (symmetric to down):
+			// When above middle, keep cursor at middle by adjusting viewport
+			// But never exceed maxViewportOffset (when at bottom)
+			// When at or below middle, viewport stays at 0
+			if m.SelectedDataRow > middlePosition {
+				// Still above middle - keep cursor at middle
 				m.ViewportOffset = m.SelectedDataRow - middlePosition
-				if m.ViewportOffset < 0 {
-					m.ViewportOffset = 0
+				// But don't exceed max offset
+				if m.ViewportOffset > maxViewportOffset {
+					m.ViewportOffset = maxViewportOffset
 				}
+			} else {
+				// At or below middle - viewport is 0
+				m.ViewportOffset = 0
 			}
 		}
 		return m, nil
@@ -317,18 +330,32 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				maxViewportOffset = 0
 			}
 
-			// Calculate cursor position relative to viewport
-			cursorPositionInView := m.SelectedDataRow - m.ViewportOffset
-
 			// Scrolling logic:
-			// 1. First: cursor moves to middle of screen (no scroll)
+			// 1. First: cursor moves to middle (no scroll, VP stays 0)
 			// 2. Middle: cursor stays at middle, viewport scrolls
 			// 3. End: viewport stops at max, cursor moves to bottom
-			if cursorPositionInView > middlePosition && m.ViewportOffset < maxViewportOffset {
-				// Cursor is past middle and we can still scroll
+			if m.SelectedDataRow > middlePosition && m.ViewportOffset < maxViewportOffset {
+				// Cursor has passed middle position and we can still scroll
+				// Keep cursor at middle by adjusting viewport
 				m.ViewportOffset = m.SelectedDataRow - middlePosition
 				if m.ViewportOffset > maxViewportOffset {
 					m.ViewportOffset = maxViewportOffset
+				}
+			}
+
+			// Check if we need to fetch more data (90% scroll threshold)
+			// Fetch when remaining rows <= 10
+			tableName := m.Tables[m.SelectedTable]
+			if data, exists := m.TableData[tableName]; exists && data != nil {
+				remainingRows := totalRows - m.SelectedDataRow - 1
+				if remainingRows <= 10 && data.HasMore && !m.LoadingData && data.LastPKValues != nil {
+					m.LoadingData = true
+					// Get PRIMARY KEYs from schema
+					var primaryKeys []string
+					if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+						primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+					}
+					return m, db.FetchMoreTableData(m.NosqlClient, tableName, 100, primaryKeys, data.LastPKValues)
 				}
 			}
 		}
@@ -353,6 +380,14 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+
+	case "enter":
+		// Show record detail dialog
+		if totalRows > 0 {
+			m.RecordDetailVisible = true
+			m.RecordDetailScroll = 0
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -371,45 +406,12 @@ func calculateMaxHorizontalOffset(m Model) int {
 		return 0
 	}
 
-	// Get columns in schema order
-	var columns []string
-	for col := range data.Rows[0] {
-		columns = append(columns, col)
-	}
+	// Get columns in same order as renderGridView
+	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
-	// Calculate natural column widths
-	widths := make([]int, len(columns))
-	for i, col := range columns {
-		widths[i] = len(col)
-		if widths[i] < 3 {
-			widths[i] = 3
-		}
-	}
-
-	// Check data widths (sample first 100 rows)
-	sampleSize := len(data.Rows)
-	if sampleSize > 100 {
-		sampleSize = 100
-	}
-	for i := 0; i < sampleSize; i++ {
-		row := data.Rows[i]
-		for j, col := range columns {
-			if val, exists := row[col]; exists && val != nil {
-				valStr := fmt.Sprintf("%v", val)
-				valLen := len([]rune(valStr))
-				if valLen > widths[j] {
-					widths[j] = valLen
-				}
-			}
-		}
-	}
-
-	// Cap at 50 characters per column
-	for i := range widths {
-		if widths[i] > 50 {
-			widths[i] = 50
-		}
-	}
+	// IMPORTANT: Use the exact same width calculation function as renderGridView
+	// to ensure maxOffset is calculated correctly
+	widths := calculateNaturalColumnWidths(columns, data.Rows)
 
 	// Calculate total width (columns + separators)
 	totalWidth := 0
@@ -425,6 +427,7 @@ func calculateMaxHorizontalOffset(m Model) int {
 	dataWidth := m.Width - 2 // Subtract borders
 
 	// Max offset = total width - visible width
+	// This allows scrolling until the last column is at the right edge
 	maxOffset := totalWidth - dataWidth
 	if maxOffset < 0 {
 		maxOffset = 0
@@ -530,10 +533,74 @@ func handleTableDetailsResult(m Model, msg db.TableDetailsResult) (Model, tea.Cm
 func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 	if msg.Err != nil {
 		// TODO: Show error
+		m.LoadingData = false
 		return m, nil
 	}
 
-	m.TableData[msg.TableName] = &msg
+	// If this is an append operation (additional data fetch), merge with existing data
+	if msg.IsAppend {
+		if existingData, exists := m.TableData[msg.TableName]; exists && existingData != nil {
+			// Append new rows to existing rows
+			existingData.Rows = append(existingData.Rows, msg.Rows...)
+			// Update pagination info
+			existingData.LastPKValues = msg.LastPKValues
+			existingData.HasMore = msg.HasMore
+		}
+	} else {
+		// Initial fetch: replace entire data
+		m.TableData[msg.TableName] = &msg
+	}
+
 	m.LoadingData = false
+	return m, nil
+}
+
+// handleRecordDetailKeys handles keys when record detail dialog is visible
+func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		// Allow quitting even when dialog is open
+		return m, tea.Quit
+
+	case "esc", "q":
+		// Close dialog
+		m.RecordDetailVisible = false
+		m.RecordDetailScroll = 0
+		return m, nil
+
+	case "down", "j":
+		// Move to next record
+		if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+			tableName := m.Tables[m.SelectedTable]
+			if data, exists := m.TableData[tableName]; exists && data != nil {
+				if m.SelectedDataRow < len(data.Rows)-1 {
+					m.SelectedDataRow++
+					m.RecordDetailScroll = 0 // Reset scroll when changing records
+				}
+			}
+		}
+		return m, nil
+
+	case "up", "k":
+		// Move to previous record
+		if m.SelectedDataRow > 0 {
+			m.SelectedDataRow--
+			m.RecordDetailScroll = 0 // Reset scroll when changing records
+		}
+		return m, nil
+
+	case "ctrl+d", "pgdown":
+		// Scroll down within the current record
+		m.RecordDetailScroll++
+		return m, nil
+
+	case "ctrl+u", "pgup":
+		// Scroll up within the current record
+		if m.RecordDetailScroll > 0 {
+			m.RecordDetailScroll--
+		}
+		return m, nil
+	}
+
 	return m, nil
 }

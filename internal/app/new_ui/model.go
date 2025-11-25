@@ -59,6 +59,10 @@ type Model struct {
 	SelectedDataRow int
 	ViewportOffset  int
 	HorizontalOffset int
+
+	// Record Detail Dialog
+	RecordDetailVisible bool
+	RecordDetailScroll  int // Scroll offset for record detail dialog
 }
 
 // InitialModel creates the initial model for new UI
