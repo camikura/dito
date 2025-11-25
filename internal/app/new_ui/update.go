@@ -192,6 +192,9 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.ViewportOffset = 0
 			m.HorizontalOffset = 0
 
+			// Move focus to Data pane for immediate interaction
+			m.CurrentPane = FocusPaneData
+
 			// Get primary keys from schema if available
 			var primaryKeys []string
 			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
