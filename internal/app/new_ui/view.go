@@ -221,16 +221,13 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 
 	content := "No data"
 
-	// Calculate content line count based on total height
-	// Left panes: Connection(3) + Tables(10) + Schema(10) + SQL(3) = 26 lines
-	// Footer: 1 line
-	// Total used: 27 lines
-	// Data pane total should be: totalHeight - 1 (footer)
+	// Data pane should fill entire screen height minus footer
 	// Data pane structure: title(1) + content lines(?) + bottom(1)
+	// Total height: totalHeight - 1 (footer)
 	// So: content lines = totalHeight - 1 - 1 - 1 = totalHeight - 3
 	contentLines := totalHeight - 3
-	if contentLines < 24 {
-		contentLines = 24 // minimum to match left panes
+	if contentLines < 5 {
+		contentLines = 5
 	}
 
 	leftBorder := borderStyle.Render("│")
