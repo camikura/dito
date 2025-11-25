@@ -777,20 +777,62 @@ func calculateColumnWidths(columns []string, rows []map[string]interface{}, tota
 		}
 	}
 
-	// Add 1 space padding between columns
+	// Calculate space needed for column separators
+	separatorSpace := len(columns) - 1 // 1 space between each column
+
+	// If total exceeds available width, proportionally reduce
 	totalNeeded := 0
 	for _, w := range widths {
 		totalNeeded += w
 	}
-	totalNeeded += len(columns) - 1 // Spaces between columns
+	totalNeeded += separatorSpace
 
-	// If total exceeds available width, proportionally reduce
 	if totalNeeded > totalWidth {
-		scale := float64(totalWidth-len(columns)+1) / float64(totalNeeded-len(columns)+1)
-		for i := range widths {
-			widths[i] = int(float64(widths[i]) * scale)
-			if widths[i] < 3 {
-				widths[i] = 3 // Minimum width
+		// Available width for columns (excluding separators)
+		availableForColumns := totalWidth - separatorSpace
+		if availableForColumns < len(columns)*3 {
+			// Not enough space even with minimum widths, use minimum
+			for i := range widths {
+				widths[i] = 3
+			}
+		} else {
+			// Proportionally scale down
+			scale := float64(availableForColumns) / float64(totalNeeded-separatorSpace)
+			for i := range widths {
+				widths[i] = int(float64(widths[i]) * scale)
+				if widths[i] < 3 {
+					widths[i] = 3
+				}
+			}
+
+			// After applying minimum widths, verify total fits
+			actualTotal := separatorSpace
+			for _, w := range widths {
+				actualTotal += w
+			}
+
+			// If still too wide, reduce from largest columns
+			if actualTotal > totalWidth {
+				excess := actualTotal - totalWidth
+				for excess > 0 {
+					// Find largest column
+					maxIdx := 0
+					maxWidth := widths[0]
+					for i, w := range widths {
+						if w > maxWidth {
+							maxWidth = w
+							maxIdx = i
+						}
+					}
+					// Reduce it by 1 if possible
+					if widths[maxIdx] > 3 {
+						widths[maxIdx]--
+						excess--
+					} else {
+						// All columns at minimum, can't reduce further
+						break
+					}
+				}
 			}
 		}
 	}
