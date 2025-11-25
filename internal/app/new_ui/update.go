@@ -1,6 +1,7 @@
 package new_ui
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -272,6 +273,9 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		dataVisibleLines = 1
 	}
 
+	// Calculate max horizontal offset
+	maxHorizontalOffset := calculateMaxHorizontalOffset(m)
+
 	switch msg.String() {
 	case "up", "k":
 		if m.SelectedDataRow > 0 {
@@ -306,12 +310,92 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case "right", "l":
-		// Scroll right
-		m.HorizontalOffset += 5 // Scroll by 5 characters
+		// Scroll right (limited to max offset)
+		if m.HorizontalOffset < maxHorizontalOffset {
+			m.HorizontalOffset += 5 // Scroll by 5 characters
+			if m.HorizontalOffset > maxHorizontalOffset {
+				m.HorizontalOffset = maxHorizontalOffset
+			}
+		}
 		return m, nil
 	}
 
 	return m, nil
+}
+
+// calculateMaxHorizontalOffset calculates the maximum horizontal scroll offset
+// so that the rightmost column is visible at the right edge of the pane
+func calculateMaxHorizontalOffset(m Model) int {
+	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+		return 0
+	}
+
+	tableName := m.Tables[m.SelectedTable]
+	data, exists := m.TableData[tableName]
+	if !exists || data == nil || len(data.Rows) == 0 {
+		return 0
+	}
+
+	// Get columns in schema order
+	var columns []string
+	for col := range data.Rows[0] {
+		columns = append(columns, col)
+	}
+
+	// Calculate natural column widths
+	widths := make([]int, len(columns))
+	for i, col := range columns {
+		widths[i] = len(col)
+		if widths[i] < 3 {
+			widths[i] = 3
+		}
+	}
+
+	// Check data widths (sample first 100 rows)
+	sampleSize := len(data.Rows)
+	if sampleSize > 100 {
+		sampleSize = 100
+	}
+	for i := 0; i < sampleSize; i++ {
+		row := data.Rows[i]
+		for j, col := range columns {
+			if val, exists := row[col]; exists && val != nil {
+				valStr := fmt.Sprintf("%v", val)
+				valLen := len([]rune(valStr))
+				if valLen > widths[j] {
+					widths[j] = valLen
+				}
+			}
+		}
+	}
+
+	// Cap at 50 characters per column
+	for i := range widths {
+		if widths[i] > 50 {
+			widths[i] = 50
+		}
+	}
+
+	// Calculate total width (columns + separators)
+	totalWidth := 0
+	for _, w := range widths {
+		totalWidth += w
+	}
+	// Add separators (1 space between columns)
+	if len(widths) > 0 {
+		totalWidth += len(widths) - 1
+	}
+
+	// Calculate data pane visible width
+	dataWidth := m.Width - 2 // Subtract borders
+
+	// Max offset = total width - visible width
+	maxOffset := totalWidth - dataWidth
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+
+	return maxOffset
 }
 
 func handleConnectionResult(m Model, msg db.ConnectionResult) (Model, tea.Cmd) {
