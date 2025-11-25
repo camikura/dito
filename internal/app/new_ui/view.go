@@ -73,7 +73,8 @@ func renderConnectionPane(m Model, width int) string {
 		borderColor = ColorPrimary
 	}
 
-	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
+	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
 	content := "(not configured)"
 	if m.Endpoint != "" {
@@ -83,7 +84,6 @@ func renderConnectionPane(m Model, width int) string {
 	// Pad content to width
 	contentPadded := " " + content + strings.Repeat(" ", width-len(content)-3)
 
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
@@ -108,7 +108,8 @@ func renderTablesPane(m Model, width int) string {
 		borderColor = ColorPrimary
 	}
 
-	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
+	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
 	// Content lines
 	contentLines := []string{"No tables"}
@@ -122,7 +123,6 @@ func renderTablesPane(m Model, width int) string {
 		}
 	}
 
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
@@ -186,14 +186,14 @@ func renderSQLPane(m Model, width int) string {
 		borderColor = ColorPrimary
 	}
 
-	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
+	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
 	content := ""
 	if m.CurrentSQL != "" {
 		content = m.CurrentSQL
 	}
 
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
@@ -216,7 +216,8 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 		borderColor = ColorPrimary
 	}
 
-	title := "╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮"
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
+	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
 	content := "No data"
 
@@ -226,7 +227,6 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 		paneHeight = 5
 	}
 
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
