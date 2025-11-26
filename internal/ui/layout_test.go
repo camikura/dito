@@ -375,3 +375,68 @@ func TestCenterPosition(t *testing.T) {
 		})
 	}
 }
+
+func TestDistributeSpace(t *testing.T) {
+	tests := []struct {
+		name     string
+		amount   int
+		initial  []int
+		expected []int
+	}{
+		{
+			name:     "distribute 5 to 3 targets",
+			amount:   5,
+			initial:  []int{0, 0, 0},
+			expected: []int{2, 2, 1},
+		},
+		{
+			name:     "distribute 3 to 3 targets",
+			amount:   3,
+			initial:  []int{0, 0, 0},
+			expected: []int{1, 1, 1},
+		},
+		{
+			name:     "distribute 0",
+			amount:   0,
+			initial:  []int{5, 5, 5},
+			expected: []int{5, 5, 5},
+		},
+		{
+			name:     "distribute 1",
+			amount:   1,
+			initial:  []int{0, 0, 0},
+			expected: []int{1, 0, 0},
+		},
+		{
+			name:     "distribute 7 to 3 targets",
+			amount:   7,
+			initial:  []int{10, 10, 5},
+			expected: []int{13, 12, 7},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			values := make([]int, len(tt.initial))
+			copy(values, tt.initial)
+
+			ptrs := make([]*int, len(values))
+			for i := range values {
+				ptrs[i] = &values[i]
+			}
+
+			DistributeSpace(tt.amount, ptrs...)
+
+			for i, v := range values {
+				if v != tt.expected[i] {
+					t.Errorf("DistributeSpace() target[%d] = %d, want %d", i, v, tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestDistributeSpaceEmptyTargets(t *testing.T) {
+	// Should not panic with empty targets
+	DistributeSpace(5)
+}
