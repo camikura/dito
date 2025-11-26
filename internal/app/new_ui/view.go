@@ -9,20 +9,19 @@ import (
 
 	"github.com/camikura/dito/internal/db"
 	"github.com/camikura/dito/internal/ui"
-	"github.com/camikura/dito/internal/views"
 )
 
-// Color definitions
+// Color definitions - using ui package constants
 const (
-	ColorPrimary   = "#00D9FF" // Cyan for active borders
-	ColorInactive  = "#AAAAAA" // Light gray for inactive borders
-	ColorGreen     = "#00FF00" // Green for connection status
-	ColorLabel     = "#00D9FF" // Cyan for section labels
-	ColorSecondary = "#C47D7D" // Muted reddish for schema section labels (Columns:, Indexes:)
-	ColorTertiary  = "#7AA2F7" // Soft blue for data types
-	ColorPK        = "#7FBA7A" // Muted green for primary key marker
-	ColorIndex     = "#E5C07B" // Warm yellow/beige for index field names
-	ColorHelp      = "#888888" // Gray for help text
+	ColorPrimary   = ui.ColorPrimaryHex
+	ColorInactive  = ui.ColorInactiveHex
+	ColorGreen     = ui.ColorGreenHex
+	ColorLabel     = ui.ColorLabelHex
+	ColorSecondary = ui.ColorSecondaryHex
+	ColorTertiary  = ui.ColorTertiaryHex
+	ColorPK        = ui.ColorPKHex
+	ColorIndex     = ui.ColorIndexHex
+	ColorHelp      = ui.ColorHelpHex
 )
 
 // RenderView renders the new UI
@@ -344,8 +343,8 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 			// Render schema information
 			contentLines = append(contentLines, "Columns:")
 			if details.Schema.DDL != "" {
-				primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-				columns := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+				primaryKeys := ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+				columns := ui.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
 
 				// Fixed width for data type column (right-aligned)
 				// Longest type is TIMESTAMP(9) = 12 chars
@@ -772,25 +771,13 @@ func renderGridViewWithScrollInfo(m Model, data *db.TableDataResult, width int, 
 
 // getColumnTypes extracts column types from schema information
 func getColumnTypes(m Model, tableName string, columns []string) map[string]string {
-	types := make(map[string]string)
-
+	// Get DDL from table details
+	var ddl string
 	if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
-		if details.Schema.DDL != "" {
-			// Parse column types from DDL
-			primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-			cols := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
-			for _, col := range cols {
-				// Remove " (Primary Key)" suffix if present
-				colType := col.Type
-				if idx := strings.Index(colType, " (Primary Key)"); idx != -1 {
-					colType = colType[:idx]
-				}
-				types[col.Name] = colType
-			}
-		}
+		ddl = details.Schema.DDL
 	}
 
-	return types
+	return ui.GetColumnTypes(ddl)
 }
 
 // renderRecordDetailDialog renders a dialog showing the details of the selected record
@@ -819,124 +806,19 @@ func renderRecordDetailDialog(m Model) string {
 	// Get columns in schema order
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
-	// Create vertical table
-	vt := ui.VerticalTable{
-		Data: row,
-		Keys: columns,
-	}
-
-	content := vt.Render()
-
-	// Calculate dialog dimensions
-	// Dialog is 80% of screen, centered
-	// Structure: ╭ + content + ╮ (width = 1 + contentWidth + 1)
+	// Calculate dialog dimensions (80% of screen)
 	dialogWidth := m.Width * 4 / 5
 	dialogHeight := m.Height * 4 / 5
 
-	// Content area dimensions (excluding borders)
-	contentWidth := dialogWidth - 2   // Subtract left border (1) + right border (1)
-	contentHeight := dialogHeight - 2 // Subtract top border (1) + bottom border (1)
+	// Create record detail component
+	rd := ui.NewRecordDetail(ui.RecordDetailConfig{
+		Row:          row,
+		Columns:      columns,
+		Width:        dialogWidth,
+		Height:       dialogHeight,
+		ScrollOffset: m.RecordDetailScroll,
+		BorderColor:  ColorPrimary,
+	})
 
-	if contentWidth < 1 {
-		contentWidth = 1
-	}
-	if contentHeight < 1 {
-		contentHeight = 1
-	}
-
-	// Apply scrolling
-	lines := strings.Split(content, "\n")
-
-	// Calculate max scroll
-	maxScroll := len(lines) - contentHeight
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	scrollOffset := m.RecordDetailScroll
-	if scrollOffset > maxScroll {
-		scrollOffset = maxScroll
-	}
-
-	// Create vertical scrollbar
-	vScrollBar := ui.NewVerticalScrollBar(len(lines), contentHeight, scrollOffset, contentHeight)
-
-	// Border style
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
-
-	// Build dialog manually with scrollbar on right border
-	var dialog strings.Builder
-
-	// Title
-	titleText := " Record Details "
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true)
-	title := titleStyle.Render(titleText)
-	titleLen := len([]rune(titleText))
-
-	// Top border: ╭ + title + ─ ... ─ + ╮
-	// Total width = dialogWidth
-	// ╭ = 1, title = titleLen, ╮ = 1
-	// Dashes = dialogWidth - 1 - titleLen - 1 = contentWidth - titleLen
-	dashesLen := contentWidth - titleLen
-	if dashesLen < 0 {
-		dashesLen = 0
-	}
-	dialog.WriteString(borderStyle.Render("╭"))
-	dialog.WriteString(title)
-	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dashesLen)))
-	dialog.WriteString(borderStyle.Render("╮"))
-	dialog.WriteString("\n")
-
-	// Content lines: │ + padding + content + padding + scrollbar (│ or ┃)
-	// Inner content width = contentWidth - 2 (for left and right padding)
-	innerWidth := contentWidth - 2
-	if innerWidth < 1 {
-		innerWidth = 1
-	}
-
-	for i := 0; i < contentHeight; i++ {
-		lineIndex := scrollOffset + i
-		var lineContent string
-		if lineIndex < len(lines) {
-			lineContent = lines[lineIndex]
-		} else {
-			lineContent = ""
-		}
-
-		// Calculate visible width (excluding ANSI escape codes)
-		visibleWidth := lipgloss.Width(lineContent)
-
-		// Pad or truncate to fit inner width
-		if visibleWidth > innerWidth {
-			// Need to truncate - this is tricky with ANSI codes
-			// For now, just use the line as-is (truncation with ANSI is complex)
-			lineContent = lineContent
-		} else {
-			// Pad with spaces to fill inner width
-			lineContent = lineContent + strings.Repeat(" ", innerWidth-visibleWidth)
-		}
-
-		// Get right border character (with scrollbar indicator)
-		rightBorderChar := vScrollBar.GetCharAt(i)
-
-		dialog.WriteString(borderStyle.Render("│"))
-		dialog.WriteString(" ")        // Left padding
-		dialog.WriteString(lineContent)
-		dialog.WriteString(" ")        // Right padding
-		dialog.WriteString(borderStyle.Render(rightBorderChar))
-		dialog.WriteString("\n")
-	}
-
-	// Bottom border: ╰ + ─ ... ─ + ╯
-	dialog.WriteString(borderStyle.Render("╰"))
-	dialog.WriteString(borderStyle.Render(strings.Repeat("─", contentWidth)))
-	dialog.WriteString(borderStyle.Render("╯"))
-
-	// Center the dialog on screen
-	return lipgloss.Place(
-		m.Width,
-		m.Height,
-		lipgloss.Center,
-		lipgloss.Center,
-		dialog.String(),
-	)
+	return rd.RenderCentered(m.Width, m.Height)
 }
