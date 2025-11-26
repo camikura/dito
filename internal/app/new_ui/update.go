@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/camikura/dito/internal/db"
+	"github.com/camikura/dito/internal/ui"
 	"github.com/camikura/dito/internal/views"
 )
 
@@ -408,32 +409,22 @@ func calculateMaxHorizontalOffset(m Model) int {
 
 	// Get columns in same order as renderGridView
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
+	columnTypes := getColumnTypes(m, tableName, columns)
 
-	// IMPORTANT: Use the exact same width calculation function as renderGridView
-	// to ensure maxOffset is calculated correctly
-	widths := calculateNaturalColumnWidths(columns, data.Rows)
+	// Calculate data pane width (must match renderDataPane calculation)
+	// Left pane: 50 (content) + 2 (borders) = 52
+	// Right pane: m.Width - 52 + 1 = m.Width - 51
+	// Content width: right pane - 2 (borders) = m.Width - 53
+	leftPaneContentWidth := 50
+	leftPaneActualWidth := leftPaneContentWidth + 2
+	rightPaneActualWidth := m.Width - leftPaneActualWidth + 1
+	contentWidth := rightPaneActualWidth - 2
 
-	// Calculate total width (columns + separators)
-	totalWidth := 0
-	for _, w := range widths {
-		totalWidth += w
-	}
-	// Add separators (1 space between columns)
-	if len(widths) > 0 {
-		totalWidth += len(widths) - 1
-	}
+	// Use the Grid component to calculate max offset (ensures consistency)
+	grid := ui.NewGrid(columns, columnTypes, data.Rows)
+	grid.Width = contentWidth
 
-	// Calculate data pane visible width
-	dataWidth := m.Width - 2 // Subtract borders
-
-	// Max offset = total width - visible width
-	// This allows scrolling until the last column is at the right edge
-	maxOffset := totalWidth - dataWidth
-	if maxOffset < 0 {
-		maxOffset = 0
-	}
-
-	return maxOffset
+	return grid.MaxHorizontalOffset()
 }
 
 func handleConnectionResult(m Model, msg db.ConnectionResult) (Model, tea.Cmd) {

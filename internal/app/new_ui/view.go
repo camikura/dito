@@ -615,10 +615,12 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
-	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
+
+	// Track scroll info for bottom border
+	var totalContentWidth, viewportWidth int
 
 	// Prepare content
 	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
@@ -668,20 +670,48 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 				result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 			}
 		} else {
-			// Render grid view
-			result.WriteString(renderGridView(m, data, width, contentLines, leftBorder, rightBorder))
+			// Render grid view and get scroll info
+			gridContent, scrollInfo := renderGridViewWithScrollInfo(m, data, width, contentLines, leftBorder, borderStyle)
+			result.WriteString(gridContent)
+			totalContentWidth = scrollInfo.totalWidth
+			viewportWidth = scrollInfo.viewportWidth
 		}
 	}
 
+	// Render bottom border with scrollbar
+	bottomBorder := renderBottomBorderWithScrollbar(borderStyle, width, totalContentWidth, viewportWidth, m.HorizontalOffset)
 	result.WriteString(bottomBorder)
 
 	return result.String()
 }
 
-// renderGridView renders the data grid with headers, separator, and rows
-func renderGridView(m Model, data *db.TableDataResult, width int, contentLines int, leftBorder, rightBorder string) string {
-	var result strings.Builder
+// scrollInfo holds scroll-related information for the grid
+type scrollInfo struct {
+	totalWidth     int
+	viewportWidth  int
+	totalRows      int
+	viewportRows   int
+	verticalOffset int
+}
 
+// renderBottomBorderWithScrollbar renders the bottom border with an integrated scrollbar
+func renderBottomBorderWithScrollbar(borderStyle lipgloss.Style, width int, totalContentWidth int, viewportWidth int, offset int) string {
+	// Border structure: ╰ + content + ╯
+	// Content width = width - 2 (for ╰ and ╯)
+	contentWidth := width - 2
+	if contentWidth < 1 {
+		return borderStyle.Render("╰╯")
+	}
+
+	// Create scrollbar
+	scrollbar := ui.NewScrollBar(totalContentWidth, viewportWidth, offset, contentWidth)
+	scrollbarLine := scrollbar.Render()
+
+	return borderStyle.Render("╰") + borderStyle.Render(scrollbarLine) + borderStyle.Render("╯")
+}
+
+// renderGridViewWithScrollInfo renders the data grid and returns scroll information
+func renderGridViewWithScrollInfo(m Model, data *db.TableDataResult, width int, contentLines int, leftBorder string, borderStyle lipgloss.Style) (string, scrollInfo) {
 	// Get column names in schema definition order
 	tableName := m.Tables[m.SelectedTable]
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
@@ -689,61 +719,54 @@ func renderGridView(m Model, data *db.TableDataResult, width int, contentLines i
 	// Get column types from schema
 	columnTypes := getColumnTypes(m, tableName, columns)
 
-	// Calculate column widths based on content (no forced shrinking)
+	// Create Grid component
 	contentWidth := width - 2 // Subtract borders
-	columnWidths := calculateNaturalColumnWidths(columns, data.Rows)
+	grid := ui.NewGrid(columns, columnTypes, data.Rows)
+	grid.Width = contentWidth
+	grid.Height = contentLines
+	grid.HorizontalOffset = m.HorizontalOffset
+	grid.VerticalOffset = m.ViewportOffset
+	grid.SelectedRow = m.SelectedDataRow
 
-	// Ensure the last column is visible when HorizontalOffset=0
-	// Calculate total width
-	totalWidth := 0
-	for _, w := range columnWidths {
-		totalWidth += w
-	}
-	if len(columnWidths) > 0 {
-		totalWidth += len(columnWidths) - 1 // Add separators
-	}
-
-	// If total width exceeds screen and we're not scrolled, shrink last column to fit
-	if totalWidth > contentWidth && m.HorizontalOffset == 0 && len(columnWidths) > 0 {
-		// Calculate width used by all columns except the last
-		widthExceptLast := 0
-		for i := 0; i < len(columnWidths)-1; i++ {
-			widthExceptLast += columnWidths[i]
-		}
-		widthExceptLast += len(columnWidths) - 1 // Add separators
-
-		// Adjust last column to fit
-		availableForLast := contentWidth - widthExceptLast
-		if availableForLast >= 5 {
-			// At least 5 chars for meaningful content + ellipsis
-			columnWidths[len(columnWidths)-1] = availableForLast
-		}
+	// Calculate viewport rows (contentLines minus header and separator)
+	viewportRows := contentLines - 2
+	if viewportRows < 1 {
+		viewportRows = 1
 	}
 
-	// Line 1: Header row (with horizontal scroll)
-	headerLine := renderHeaderRowWithScroll(columns, columnWidths, contentWidth, m.HorizontalOffset)
-	result.WriteString(leftBorder + headerLine + rightBorder + "\n")
+	// Get scroll info before rendering
+	info := scrollInfo{
+		totalWidth:     grid.TotalContentWidth(),
+		viewportWidth:  contentWidth,
+		totalRows:      len(data.Rows),
+		viewportRows:   viewportRows,
+		verticalOffset: m.ViewportOffset,
+	}
 
-	// Line 2: Separator (── ───── ────) (with horizontal scroll)
-	separatorLine := renderSeparatorWithScroll(columnWidths, contentWidth, m.HorizontalOffset)
-	result.WriteString(leftBorder + separatorLine + rightBorder + "\n")
+	// Create vertical scrollbar
+	vScrollBar := ui.NewVerticalScrollBar(info.totalRows, info.viewportRows, info.verticalOffset, contentLines)
 
-	// Lines 3+: Data rows (with horizontal scroll)
-	dataLinesAvailable := contentLines - 2 // Subtract header and separator
-	for i := 0; i < dataLinesAvailable; i++ {
-		rowIndex := i + m.ViewportOffset
-		if rowIndex < len(data.Rows) {
-			isSelected := rowIndex == m.SelectedDataRow
-			rowLine := renderDataRowWithScroll(columns, data.Rows[rowIndex], columnWidths, columnTypes, contentWidth, m.HorizontalOffset, isSelected)
-			result.WriteString(leftBorder + rowLine + rightBorder + "\n")
+	// Render grid content
+	gridContent := grid.Render()
+
+	// Add borders to each line with vertical scrollbar on right
+	var result strings.Builder
+	lines := strings.Split(gridContent, "\n")
+	for i := 0; i < contentLines; i++ {
+		// Get right border character (with scrollbar indicator)
+		rightBorderChar := vScrollBar.GetCharAt(i)
+		rightBorder := borderStyle.Render(rightBorderChar)
+
+		if i < len(lines) {
+			result.WriteString(leftBorder + lines[i] + rightBorder + "\n")
 		} else {
-			// Empty line
+			// Empty line to fill height
 			emptyLine := strings.Repeat(" ", contentWidth)
 			result.WriteString(leftBorder + emptyLine + rightBorder + "\n")
 		}
 	}
 
-	return result.String()
+	return result.String(), info
 }
 
 
@@ -768,519 +791,6 @@ func getColumnTypes(m Model, tableName string, columns []string) map[string]stri
 	}
 
 	return types
-}
-
-
-// calculateNaturalColumnWidths calculates natural width for each column without forcing to fit
-func calculateNaturalColumnWidths(columns []string, rows []map[string]interface{}) []int {
-	if len(columns) == 0 {
-		return []int{}
-	}
-
-	widths := make([]int, len(columns))
-
-	// Start with header widths
-	for i, col := range columns {
-		widths[i] = len([]rune(col))
-		if widths[i] < 3 {
-			widths[i] = 3 // Minimum width
-		}
-	}
-
-	// Check data widths (sample first 100 rows for performance)
-	sampleSize := len(rows)
-	if sampleSize > 100 {
-		sampleSize = 100
-	}
-	for i := 0; i < sampleSize; i++ {
-		row := rows[i]
-		for j, col := range columns {
-			if val, exists := row[col]; exists && val != nil {
-				valStr := ui.FormatValue(val)
-				valLen := len([]rune(valStr))
-				if valLen > widths[j] {
-					widths[j] = valLen
-				}
-			}
-		}
-	}
-
-	// Cap maximum width at 50 characters per column for readability
-	for i := range widths {
-		if widths[i] > 50 {
-			widths[i] = 50
-		}
-	}
-
-	return widths
-}
-
-// calculateColumnWidths calculates optimal width for each column
-func calculateColumnWidths(columns []string, rows []map[string]interface{}, totalWidth int) []int {
-	if len(columns) == 0 {
-		return []int{}
-	}
-
-	numCols := len(columns)
-	separatorSpace := numCols - 1 // 1 space between each column
-	availableForColumns := totalWidth - separatorSpace
-
-	// If we can't even fit all columns with minimum width, give equal minimal space
-	if availableForColumns < numCols*3 {
-		minWidth := availableForColumns / numCols
-		if minWidth < 1 {
-			minWidth = 1
-		}
-		widths := make([]int, numCols)
-		for i := range widths {
-			widths[i] = minWidth
-		}
-		// Distribute any remainder
-		remainder := availableForColumns - (minWidth * numCols)
-		for i := 0; i < remainder; i++ {
-			widths[i]++
-		}
-		return widths
-	}
-
-	// Start with header widths
-	widths := make([]int, numCols)
-	for i, col := range columns {
-		widths[i] = len([]rune(col))
-		if widths[i] < 3 {
-			widths[i] = 3 // Minimum width
-		}
-	}
-
-	// Check data widths (sample first 100 rows for performance)
-	sampleSize := len(rows)
-	if sampleSize > 100 {
-		sampleSize = 100
-	}
-	for i := 0; i < sampleSize; i++ {
-		row := rows[i]
-		for j, col := range columns {
-			if val, exists := row[col]; exists && val != nil {
-				valStr := ui.FormatValue(val)
-				valLen := len([]rune(valStr))
-				if valLen > widths[j] {
-					widths[j] = valLen
-				}
-			}
-		}
-	}
-
-	// Calculate total needed
-	totalNeeded := 0
-	for _, w := range widths {
-		totalNeeded += w
-	}
-
-	// If total exceeds available width, proportionally reduce
-	if totalNeeded > availableForColumns {
-		// Proportionally scale down
-		scale := float64(availableForColumns) / float64(totalNeeded)
-		for i := range widths {
-			widths[i] = int(float64(widths[i]) * scale)
-			if widths[i] < 3 {
-				widths[i] = 3
-			}
-		}
-
-		// After applying minimum widths, verify total fits
-		actualTotal := 0
-		for _, w := range widths {
-			actualTotal += w
-		}
-
-		// If still too wide, reduce from largest columns iteratively
-		for actualTotal > availableForColumns {
-			// Find largest column
-			maxIdx := 0
-			maxWidth := widths[0]
-			for i, w := range widths {
-				if w > maxWidth {
-					maxWidth = w
-					maxIdx = i
-				}
-			}
-			// Reduce it by 1 if possible
-			if widths[maxIdx] > 3 {
-				widths[maxIdx]--
-				actualTotal--
-			} else {
-				// All columns at minimum, forcefully reduce
-				widths[maxIdx]--
-				actualTotal--
-				if widths[maxIdx] < 1 {
-					widths[maxIdx] = 1
-				}
-			}
-		}
-	}
-
-	return widths
-}
-
-// renderHeaderRowWithScroll renders the column headers with horizontal scroll
-func renderHeaderRowWithScroll(columns []string, widths []int, viewWidth int, hOffset int) string {
-	// Build full header line
-	var parts []string
-	for i, col := range columns {
-		w := widths[i]
-		colRunes := []rune(col)
-		if len(colRunes) > w {
-			col = string(colRunes[:w-1]) + "…"
-		} else {
-			col = col + strings.Repeat(" ", w-len(colRunes))
-		}
-		parts = append(parts, col)
-	}
-	fullLine := strings.Join(parts, " ")
-
-	// Convert to runes for proper character counting
-	runes := []rune(fullLine)
-	runeLen := len(runes)
-
-	// Apply horizontal offset
-	if hOffset >= runeLen {
-		return strings.Repeat(" ", viewWidth)
-	}
-
-	visibleRunes := runes[hOffset:]
-	if len(visibleRunes) > viewWidth {
-		visibleRunes = visibleRunes[:viewWidth]
-	}
-
-	visiblePart := string(visibleRunes)
-
-	// Pad to exact width if needed
-	currentLen := len([]rune(visiblePart))
-	if currentLen < viewWidth {
-		visiblePart += strings.Repeat(" ", viewWidth-currentLen)
-	}
-
-	return visiblePart
-}
-
-// renderHeaderRow renders the column headers
-func renderHeaderRow(columns []string, widths []int, totalWidth int) string {
-	var parts []string
-	for i, col := range columns {
-		w := widths[i]
-		if len(col) > w {
-			col = col[:w-1] + "…"
-		} else {
-			col = col + strings.Repeat(" ", w-len(col))
-		}
-		parts = append(parts, col)
-	}
-	line := strings.Join(parts, " ")
-
-	// Ensure exact width
-	currentLen := len(line)
-	if currentLen < totalWidth {
-		line += strings.Repeat(" ", totalWidth-currentLen)
-	} else if currentLen > totalWidth {
-		line = line[:totalWidth]
-	}
-
-	return line
-}
-
-// renderSeparatorWithScroll renders the separator line with horizontal scroll
-func renderSeparatorWithScroll(widths []int, viewWidth int, hOffset int) string {
-	// Build full separator line using runes for proper length calculation
-	var parts []string
-	for _, w := range widths {
-		parts = append(parts, strings.Repeat("─", w))
-	}
-	fullLine := strings.Join(parts, " ")
-
-	// Convert to runes for proper character counting
-	runes := []rune(fullLine)
-	runeLen := len(runes)
-
-	// Apply horizontal offset
-	if hOffset >= runeLen {
-		return strings.Repeat(" ", viewWidth)
-	}
-
-	visibleRunes := runes[hOffset:]
-	if len(visibleRunes) > viewWidth {
-		visibleRunes = visibleRunes[:viewWidth]
-	}
-
-	visiblePart := string(visibleRunes)
-
-	// Pad to exact width if needed
-	currentLen := len([]rune(visiblePart))
-	if currentLen < viewWidth {
-		visiblePart += strings.Repeat(" ", viewWidth-currentLen)
-	}
-
-	return visiblePart
-}
-
-// renderSeparator renders the separator line (── ───── ────)
-func renderSeparator(widths []int, totalWidth int) string {
-	var parts []string
-	for _, w := range widths {
-		parts = append(parts, strings.Repeat("─", w))
-	}
-	line := strings.Join(parts, " ")
-
-	// Ensure exact width
-	currentLen := len(line)
-	if currentLen < totalWidth {
-		line += strings.Repeat(" ", totalWidth-currentLen)
-	} else if currentLen > totalWidth {
-		line = line[:totalWidth]
-	}
-
-	return line
-}
-
-// nullRegion represents a region in the row that contains a null value
-type nullRegion struct {
-	start int
-	end   int
-}
-
-// renderDataRowWithScroll renders a single data row with horizontal scroll
-func renderDataRowWithScroll(columns []string, row map[string]interface{}, widths []int, columnTypes map[string]string, viewWidth int, hOffset int, isSelected bool) string {
-	// Build full row line and track null positions
-	var parts []string
-	var nullRegions []nullRegion
-	currentPos := 0
-
-	for i, col := range columns {
-		w := widths[i]
-		val := ""
-		isNull := false
-		if v, exists := row[col]; exists && v != nil {
-			val = ui.FormatValue(v)
-		} else {
-			val = "(null)"
-			isNull = true
-		}
-
-		// Check if this column is numeric type
-		colType := columnTypes[col]
-		isNumeric := isNumericType(colType)
-
-		valRunes := []rune(val)
-		if len(valRunes) > w {
-			// Truncate and add ellipsis
-			// Ensure w is at least 1 to avoid negative index
-			if w > 0 {
-				val = string(valRunes[:w-1]) + "…"
-				// val is now exactly w characters (w-1 + 1 for ellipsis)
-			} else {
-				val = "…"
-			}
-		} else {
-			// Right-align numeric columns, left-align others
-			if isNumeric {
-				val = strings.Repeat(" ", w-len(valRunes)) + val
-			} else {
-				val = val + strings.Repeat(" ", w-len(valRunes))
-			}
-		}
-
-		// Track null column positions for later styling
-		if isNull {
-			nullRegions = append(nullRegions, nullRegion{
-				start: currentPos,
-				end:   currentPos + len([]rune(val)),
-			})
-		}
-
-		parts = append(parts, val)
-		currentPos += len([]rune(val)) + 1 // +1 for separator space
-	}
-	fullLine := strings.Join(parts, " ")
-
-	// Convert to runes for proper character counting
-	runes := []rune(fullLine)
-	runeLen := len(runes)
-
-	// Apply horizontal offset
-	var visiblePart string
-	if hOffset >= runeLen {
-		visiblePart = strings.Repeat(" ", viewWidth)
-	} else {
-		visibleRunes := runes[hOffset:]
-		if len(visibleRunes) > viewWidth {
-			visibleRunes = visibleRunes[:viewWidth]
-		}
-		visiblePart = string(visibleRunes)
-
-		// Pad to exact width if needed
-		currentLen := len([]rune(visiblePart))
-		if currentLen < viewWidth {
-			visiblePart += strings.Repeat(" ", viewWidth-currentLen)
-		}
-	}
-
-	// Apply styling (background for selected, and gray text for nulls)
-	if isSelected {
-		// Apply background color with null regions styled
-		if len(nullRegions) > 0 {
-			visiblePart = applyNullStylingWithBackground(visiblePart, nullRegions, hOffset, true)
-		} else {
-			visiblePart = lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000")).Render(visiblePart)
-		}
-	} else {
-		// Apply gray styling to null regions only (no background)
-		if len(nullRegions) > 0 {
-			visiblePart = applyNullStyling(visiblePart, nullRegions, hOffset)
-		}
-	}
-
-	return visiblePart
-}
-
-// applyNullStyling applies gray styling to null value regions in the visible part
-func applyNullStyling(visiblePart string, nullRegions []nullRegion, hOffset int) string {
-	visibleRunes := []rune(visiblePart)
-	var result strings.Builder
-	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
-
-	i := 0
-	for i < len(visibleRunes) {
-		// Calculate absolute position in the full line
-		absPos := hOffset + i
-
-		// Check if current position is in a null region
-		inNullRegion := false
-		var regionEnd int
-		for _, region := range nullRegions {
-			if absPos >= region.start && absPos < region.end {
-				inNullRegion = true
-				regionEnd = region.end
-				break
-			}
-		}
-
-		if inNullRegion {
-			// Find the end of the null region within visible part
-			j := i
-			for j < len(visibleRunes) && (hOffset+j) < regionEnd {
-				j++
-			}
-			// Apply gray style to this segment
-			segment := string(visibleRunes[i:j])
-			result.WriteString(grayStyle.Render(segment))
-			i = j
-		} else {
-			// Normal character
-			result.WriteRune(visibleRunes[i])
-			i++
-		}
-	}
-
-	return result.String()
-}
-
-// applyNullStylingWithBackground applies styling to null value regions with background color for selected rows
-func applyNullStylingWithBackground(visiblePart string, nullRegions []nullRegion, hOffset int, isSelected bool) string {
-	visibleRunes := []rune(visiblePart)
-	var result strings.Builder
-
-	// Styles for selected row with different foreground colors
-	selectedNormalStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
-	selectedNullStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#666666"))
-
-	i := 0
-	for i < len(visibleRunes) {
-		// Calculate absolute position in the full line
-		absPos := hOffset + i
-
-		// Check if current position is in a null region
-		inNullRegion := false
-		var regionEnd int
-		for _, region := range nullRegions {
-			if absPos >= region.start && absPos < region.end {
-				inNullRegion = true
-				regionEnd = region.end
-				break
-			}
-		}
-
-		if inNullRegion {
-			// Find the end of the null region within visible part
-			j := i
-			for j < len(visibleRunes) && (hOffset+j) < regionEnd {
-				j++
-			}
-			// Apply gray foreground with background to this segment
-			segment := string(visibleRunes[i:j])
-			result.WriteString(selectedNullStyle.Render(segment))
-			i = j
-		} else {
-			// Normal character with background
-			segment := string(visibleRunes[i])
-			result.WriteString(selectedNormalStyle.Render(segment))
-			i++
-		}
-	}
-
-	return result.String()
-}
-
-// renderDataRow renders a single data row
-func renderDataRow(columns []string, row map[string]interface{}, widths []int, columnTypes map[string]string, totalWidth int, isSelected bool) string {
-	var parts []string
-	for i, col := range columns {
-		w := widths[i]
-		val := ""
-		if v, exists := row[col]; exists && v != nil {
-			val = ui.FormatValue(v)
-		}
-
-		// Check if this column is numeric type
-		colType := columnTypes[col]
-		isNumeric := isNumericType(colType)
-
-		if len(val) > w {
-			val = val[:w-1] + "…"
-		} else {
-			// Right-align numeric columns, left-align others
-			if isNumeric {
-				val = strings.Repeat(" ", w-len(val)) + val
-			} else {
-				val = val + strings.Repeat(" ", w-len(val))
-			}
-		}
-		parts = append(parts, val)
-	}
-	line := strings.Join(parts, " ")
-
-	// Ensure exact width BEFORE applying styles
-	currentLen := len(line)
-	if currentLen < totalWidth {
-		line += strings.Repeat(" ", totalWidth-currentLen)
-	} else if currentLen > totalWidth {
-		line = line[:totalWidth]
-	}
-
-	// Apply full-span background color for selected row
-	if isSelected {
-		line = lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000")).Render(line)
-	}
-
-	return line
-}
-
-// isNumericType checks if a column type is numeric
-func isNumericType(colType string) bool {
-	upperType := strings.ToUpper(colType)
-	return strings.Contains(upperType, "INTEGER") ||
-		strings.Contains(upperType, "LONG") ||
-		strings.Contains(upperType, "DOUBLE") ||
-		strings.Contains(upperType, "FLOAT") ||
-		strings.Contains(upperType, "NUMBER")
 }
 
 // renderRecordDetailDialog renders a dialog showing the details of the selected record
