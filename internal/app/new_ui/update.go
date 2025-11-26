@@ -641,11 +641,12 @@ func calculateRecordDetailMaxScroll(m Model) int {
 	content := vt.Render()
 	lines := strings.Split(content, "\n")
 
-	// Calculate visible height (dialog is 80% of screen, minus borders and padding)
+	// Calculate visible height (dialog is 80% of screen, minus borders)
+	// Must match view.go: contentHeight = dialogHeight - 2
 	dialogHeight := m.Height * 4 / 5
-	visibleHeight := dialogHeight - 4 // Subtract title + borders
+	contentHeight := dialogHeight - 2 // Subtract top border (1) + bottom border (1)
 
-	maxScroll := len(lines) - visibleHeight
+	maxScroll := len(lines) - contentHeight
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
