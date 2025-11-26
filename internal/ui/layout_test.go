@@ -153,3 +153,225 @@ func TestBorderedBoxBorderCharacters(t *testing.T) {
 		}
 	}
 }
+
+func TestCalculatePaneLayout(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      LayoutConfig
+		checkLayout func(t *testing.T, layout PaneLayout)
+	}{
+		{
+			name: "default values applied",
+			config: LayoutConfig{
+				TotalWidth:  100,
+				TotalHeight: 50,
+			},
+			checkLayout: func(t *testing.T, layout PaneLayout) {
+				if layout.LeftPaneContentWidth != 50 {
+					t.Errorf("LeftPaneContentWidth = %d, want 50", layout.LeftPaneContentWidth)
+				}
+				if layout.LeftPaneActualWidth != 52 {
+					t.Errorf("LeftPaneActualWidth = %d, want 52", layout.LeftPaneActualWidth)
+				}
+			},
+		},
+		{
+			name: "heights in 2:2:1 ratio",
+			config: LayoutConfig{
+				TotalWidth:           100,
+				TotalHeight:          50,
+				ConnectionPaneHeight: 3,
+				LeftPaneContentWidth: 50,
+			},
+			checkLayout: func(t *testing.T, layout PaneLayout) {
+				// Tables and Schema should be roughly equal
+				diff := layout.TablesHeight - layout.SchemaHeight
+				if diff < -1 || diff > 1 {
+					t.Errorf("Tables (%d) and Schema (%d) heights differ too much", layout.TablesHeight, layout.SchemaHeight)
+				}
+				// SQL should be roughly half of Tables
+				expectedSQLRatio := float64(layout.SQLHeight) / float64(layout.TablesHeight)
+				if expectedSQLRatio < 0.3 || expectedSQLRatio > 0.7 {
+					t.Errorf("SQL height ratio = %.2f, want ~0.5", expectedSQLRatio)
+				}
+			},
+		},
+		{
+			name: "minimum heights enforced",
+			config: LayoutConfig{
+				TotalWidth:           100,
+				TotalHeight:          15, // Very small
+				ConnectionPaneHeight: 3,
+				MinTablesHeight:      3,
+				MinSchemaHeight:      3,
+				MinSQLHeight:         2,
+			},
+			checkLayout: func(t *testing.T, layout PaneLayout) {
+				if layout.TablesHeight < 3 {
+					t.Errorf("TablesHeight = %d, want >= 3", layout.TablesHeight)
+				}
+				if layout.SchemaHeight < 3 {
+					t.Errorf("SchemaHeight = %d, want >= 3", layout.SchemaHeight)
+				}
+				if layout.SQLHeight < 2 {
+					t.Errorf("SQLHeight = %d, want >= 2", layout.SQLHeight)
+				}
+			},
+		},
+		{
+			name: "right pane width calculation",
+			config: LayoutConfig{
+				TotalWidth:           100,
+				TotalHeight:          50,
+				LeftPaneContentWidth: 40,
+			},
+			checkLayout: func(t *testing.T, layout PaneLayout) {
+				// LeftPaneActualWidth = 40 + 2 = 42
+				// RightPaneActualWidth = 100 - 42 + 1 = 59
+				if layout.RightPaneActualWidth != 59 {
+					t.Errorf("RightPaneActualWidth = %d, want 59", layout.RightPaneActualWidth)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			layout := CalculatePaneLayout(tt.config)
+			tt.checkLayout(t, layout)
+		})
+	}
+}
+
+func TestCalculateSplitLayout(t *testing.T) {
+	tests := []struct {
+		name          string
+		totalWidth    int
+		totalHeight   int
+		ratio         float64
+		expectedLeft  int
+		expectedRight int
+	}{
+		{
+			name:          "50-50 split",
+			totalWidth:    100,
+			totalHeight:   50,
+			ratio:         0.5,
+			expectedLeft:  50,
+			expectedRight: 50,
+		},
+		{
+			name:          "30-70 split",
+			totalWidth:    100,
+			totalHeight:   50,
+			ratio:         0.3,
+			expectedLeft:  30,
+			expectedRight: 70,
+		},
+		{
+			name:          "clamp negative ratio",
+			totalWidth:    100,
+			totalHeight:   50,
+			ratio:         -0.5,
+			expectedLeft:  0,
+			expectedRight: 100,
+		},
+		{
+			name:          "clamp ratio over 1",
+			totalWidth:    100,
+			totalHeight:   50,
+			ratio:         1.5,
+			expectedLeft:  100,
+			expectedRight: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CalculateSplitLayout(tt.totalWidth, tt.totalHeight, tt.ratio)
+			if result.LeftWidth != tt.expectedLeft {
+				t.Errorf("LeftWidth = %d, want %d", result.LeftWidth, tt.expectedLeft)
+			}
+			if result.RightWidth != tt.expectedRight {
+				t.Errorf("RightWidth = %d, want %d", result.RightWidth, tt.expectedRight)
+			}
+			if result.Height != tt.totalHeight {
+				t.Errorf("Height = %d, want %d", result.Height, tt.totalHeight)
+			}
+		})
+	}
+}
+
+func TestContentDimensions(t *testing.T) {
+	tests := []struct {
+		name           string
+		totalWidth     int
+		totalHeight    int
+		borderWidth    int
+		padding        int
+		expectedWidth  int
+		expectedHeight int
+	}{
+		{
+			name:           "standard box",
+			totalWidth:     50,
+			totalHeight:    20,
+			borderWidth:    1,
+			padding:        1,
+			expectedWidth:  46, // 50 - 2*1 - 2*1
+			expectedHeight: 16, // 20 - 2*1 - 2*1
+		},
+		{
+			name:           "no padding",
+			totalWidth:     50,
+			totalHeight:    20,
+			borderWidth:    1,
+			padding:        0,
+			expectedWidth:  48, // 50 - 2*1
+			expectedHeight: 18, // 20 - 2*1
+		},
+		{
+			name:           "clamp to zero",
+			totalWidth:     4,
+			totalHeight:    4,
+			borderWidth:    2,
+			padding:        1,
+			expectedWidth:  0,
+			expectedHeight: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w, h := ContentDimensions(tt.totalWidth, tt.totalHeight, tt.borderWidth, tt.padding)
+			if w != tt.expectedWidth {
+				t.Errorf("ContentDimensions() width = %d, want %d", w, tt.expectedWidth)
+			}
+			if h != tt.expectedHeight {
+				t.Errorf("ContentDimensions() height = %d, want %d", h, tt.expectedHeight)
+			}
+		})
+	}
+}
+
+func TestCenterPosition(t *testing.T) {
+	tests := []struct {
+		name          string
+		containerSize int
+		itemSize      int
+		expected      int
+	}{
+		{"centered", 100, 20, 40},
+		{"item larger", 20, 100, 0},
+		{"exact fit", 50, 50, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CenterPosition(tt.containerSize, tt.itemSize)
+			if result != tt.expected {
+				t.Errorf("CenterPosition(%d, %d) = %d, want %d", tt.containerSize, tt.itemSize, result, tt.expected)
+			}
+		})
+	}
+}

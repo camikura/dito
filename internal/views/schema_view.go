@@ -4,15 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/camikura/dito/internal/ui"
 	"github.com/oracle/nosql-go-sdk/nosqldb"
 )
 
-// ColumnInfo represents a column with its name and type.
-type ColumnInfo struct {
-	Name         string
-	Type         string
-	IsPrimaryKey bool
-}
+// ColumnInfo is an alias for ui.ColumnInfo for backward compatibility.
+type ColumnInfo = ui.ColumnInfo
 
 // SchemaViewModel represents the data needed to render the schema view.
 type SchemaViewModel struct {
@@ -103,94 +100,23 @@ func RenderSchemaView(m SchemaViewModel) string {
 }
 
 // ParsePrimaryKeysFromDDL extracts primary key column names from DDL string.
+// Deprecated: Use ui.ParsePrimaryKeysFromDDL instead.
 func ParsePrimaryKeysFromDDL(ddl string) []string {
-	var primaryKeys []string
-
-	// Find PRIMARY KEY(col1, col2, ...) part
-	upperDDL := strings.ToUpper(ddl)
-	pkIndex := strings.Index(upperDDL, "PRIMARY KEY")
-	if pkIndex == -1 {
-		return primaryKeys
-	}
-
-	// Get content inside parentheses after PRIMARY KEY
-	pkPart := ddl[pkIndex:]
-	start := strings.Index(pkPart, "(")
-	end := strings.LastIndex(pkPart, ")") // Get last parenthesis
-	if start == -1 || end == -1 || start >= end {
-		return primaryKeys
-	}
-
-	// Extract column name list
-	keysPart := pkPart[start+1 : end]
-
-	// Handle SHARD() syntax
-	// Support format like PRIMARY KEY(SHARD(id), name)
-	keysPart = strings.ReplaceAll(keysPart, "SHARD(", "")
-	keysPart = strings.ReplaceAll(keysPart, "shard(", "")
-	keysPart = strings.ReplaceAll(keysPart, ")", "")
-
-	keys := strings.Split(keysPart, ",")
-	for _, key := range keys {
-		key = strings.TrimSpace(key)
-		if key != "" {
-			primaryKeys = append(primaryKeys, key)
-		}
-	}
-
-	return primaryKeys
+	return ui.ParsePrimaryKeysFromDDL(ddl)
 }
 
 // ParseColumnsFromDDL extracts column information from DDL string.
+// Deprecated: Use ui.ParseColumnsFromDDL instead.
+// Note: This function adds " (Primary Key)" suffix to type for backward compatibility.
 func ParseColumnsFromDDL(ddl string, primaryKeys []string) []ColumnInfo {
-	var columns []ColumnInfo
+	cols := ui.ParseColumnsFromDDL(ddl, primaryKeys)
 
-	// Create PRIMARY KEY map for fast lookup
-	pkMap := make(map[string]bool)
-	for _, pk := range primaryKeys {
-		pkMap[pk] = true
-	}
-
-	// Extract column definition part from CREATE TABLE ... ( ... )
-	start := strings.Index(ddl, "(")
-	end := strings.LastIndex(ddl, ")")
-	if start == -1 || end == -1 || start >= end {
-		return columns
-	}
-
-	columnDefs := ddl[start+1 : end]
-
-	// Exclude PRIMARY KEY definition
-	lines := strings.Split(columnDefs, ",")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		// Skip PRIMARY KEY line
-		if strings.HasPrefix(strings.ToUpper(line), "PRIMARY KEY") {
-			continue
-		}
-
-		// Extract column name and type
-		parts := strings.Fields(line)
-		if len(parts) >= 2 {
-			name := parts[0]
-			typ := parts[1]
-
-			// Check if it's a PRIMARY KEY
-			isPK := pkMap[name]
-
-			// Add (Primary Key) suffix to type if it's a primary key
-			if isPK {
-				typ = typ + " (Primary Key)"
-			}
-
-			columns = append(columns, ColumnInfo{
-				Name:         name,
-				Type:         typ,
-				IsPrimaryKey: isPK,
-			})
+	// Add " (Primary Key)" suffix to type for backward compatibility
+	for i := range cols {
+		if cols[i].IsPrimaryKey {
+			cols[i].Type = cols[i].Type + " (Primary Key)"
 		}
 	}
 
-	return columns
+	return cols
 }

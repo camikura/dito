@@ -2,21 +2,41 @@ package ui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Color palette
+// Color hex values as strings (for use in new_ui and other packages that need string colors)
+const (
+	ColorPrimaryHex   = "#00D9FF" // Cyan for active borders
+	ColorInactiveHex  = "#AAAAAA" // Light gray for inactive borders
+	ColorGreenHex     = "#00FF00" // Green for connection status
+	ColorLabelHex     = "#00D9FF" // Cyan for section labels
+	ColorSecondaryHex = "#C47D7D" // Muted reddish for schema section labels
+	ColorTertiaryHex  = "#7AA2F7" // Soft blue for data types
+	ColorPKHex        = "#7FBA7A" // Muted green for primary key marker
+	ColorIndexHex     = "#E5C07B" // Warm yellow/beige for index field names
+	ColorHelpHex      = "#888888" // Gray for help text
+	ColorErrorHex     = "#FF0000" // Red for error messages
+	ColorSuccessHex   = "#00FF00" // Green for success messages
+)
+
+// Color palette as lipgloss.Color (for use in styles)
 var (
-	ColorPrimary     = lipgloss.Color("#00D9FF") // Cyan - used for selected items, borders
-	ColorPrimaryBg   = lipgloss.Color("#004466") // Dark Cyan - background for selected items
-	ColorWhite       = lipgloss.Color("#FFFFFF") // White - normal text
-	ColorBlack       = lipgloss.Color("#000000") // Black - text on light backgrounds
-	ColorGray        = lipgloss.Color("#888888") // Gray - labels, footer
-	ColorGrayMid     = lipgloss.Color("#666666") // Mid Gray - grayed out items
-	ColorGrayDark    = lipgloss.Color("#555555") // Dark Gray - separators
-	ColorGrayLight   = lipgloss.Color("#CCCCCC") // Light Gray - SQL display
-	ColorGrayLightBg = lipgloss.Color("#333333") // Light Gray Bg - background for unfocused selected items
-	ColorHeaderBg    = lipgloss.Color("#AAAAAA") // Medium Gray - table header background
-	ColorHeaderText  = lipgloss.Color("#00AA00") // Dark Green - table header text
-	ColorSuccess     = lipgloss.Color("#00FF00") // Green - success messages
-	ColorError       = lipgloss.Color("#FF0000") // Red - error messages
+	ColorPrimary     = lipgloss.Color(ColorPrimaryHex)   // Cyan - used for selected items, borders
+	ColorPrimaryBg   = lipgloss.Color("#004466")         // Dark Cyan - background for selected items
+	ColorWhite       = lipgloss.Color("#FFFFFF")         // White - normal text
+	ColorBlack       = lipgloss.Color("#000000")         // Black - text on light backgrounds
+	ColorGray        = lipgloss.Color(ColorHelpHex)      // Gray - labels, footer
+	ColorGrayMid     = lipgloss.Color("#666666")         // Mid Gray - grayed out items
+	ColorGrayDark    = lipgloss.Color("#555555")         // Dark Gray - separators
+	ColorGrayLight   = lipgloss.Color("#CCCCCC")         // Light Gray - SQL display
+	ColorGrayLightBg = lipgloss.Color("#333333")         // Light Gray Bg - background for unfocused selected items
+	ColorHeaderBg    = lipgloss.Color(ColorInactiveHex)  // Medium Gray - table header background
+	ColorHeaderText  = lipgloss.Color("#00AA00")         // Dark Green - table header text
+	ColorSuccess     = lipgloss.Color(ColorSuccessHex)   // Green - success messages
+	ColorError       = lipgloss.Color(ColorErrorHex)     // Red - error messages
+	ColorInactive    = lipgloss.Color(ColorInactiveHex)  // Light gray for inactive borders
+	ColorSecondary   = lipgloss.Color(ColorSecondaryHex) // Muted reddish for schema labels
+	ColorTertiary    = lipgloss.Color(ColorTertiaryHex)  // Soft blue for data types
+	ColorPK          = lipgloss.Color(ColorPKHex)        // Muted green for primary key marker
+	ColorIndex       = lipgloss.Color(ColorIndexHex)     // Warm yellow/beige for index field names
 )
 
 // Common text styles
