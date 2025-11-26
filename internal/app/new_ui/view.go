@@ -31,8 +31,8 @@ func RenderView(m Model) string {
 	}
 
 	// Layout configuration
-	leftPaneContentWidth := 50 // Content width for left panes
-	leftPaneActualWidth := leftPaneContentWidth + 2 // +2 for borders
+	leftPaneContentWidth := ui.LeftPaneContentWidth
+	leftPaneActualWidth := leftPaneContentWidth + ui.LeftPaneBorderWidth
 	rightPaneActualWidth := m.Width - leftPaneActualWidth + 1 // +1 to use full width
 
 	// Render connection pane first to get its actual height
@@ -42,29 +42,15 @@ func RenderView(m Model) string {
 	// Calculate pane heights based on actual connection pane height
 	// This ensures heights are always correct even if connection pane height changes
 	availableHeight := m.Height - 1 - connectionPaneHeight - 6
-	totalParts := 5
-	partHeight := availableHeight / totalParts
-	remainder := availableHeight % totalParts
+	partHeight := availableHeight / ui.PaneHeightTotalParts
+	remainder := availableHeight % ui.PaneHeightTotalParts
 
-	tablesHeight := partHeight * 2
-	schemaHeight := partHeight * 2
-	sqlHeight := partHeight
+	tablesHeight := partHeight * ui.PaneHeightTablesParts
+	schemaHeight := partHeight * ui.PaneHeightSchemaParts
+	sqlHeight := partHeight * ui.PaneHeightSQLParts
 
-	// Distribute remainder (may be up to 4)
-	for remainder > 0 {
-		if remainder >= 1 {
-			tablesHeight++
-			remainder--
-		}
-		if remainder >= 1 {
-			schemaHeight++
-			remainder--
-		}
-		if remainder >= 1 {
-			sqlHeight++
-			remainder--
-		}
-	}
+	// Distribute remainder
+	ui.DistributeSpace(remainder, &tablesHeight, &schemaHeight, &sqlHeight)
 
 	// Ensure minimum heights
 	if tablesHeight < 3 {
@@ -77,25 +63,10 @@ func RenderView(m Model) string {
 		sqlHeight = 2
 	}
 
-	// After applying minimum heights, check if we have unused space
+	// After applying minimum heights, redistribute unused space
 	usedHeight := tablesHeight + schemaHeight + sqlHeight
 	if usedHeight < availableHeight {
-		// Distribute unused space in 2:2:1 ratio again
-		extraSpace := availableHeight - usedHeight
-		for extraSpace > 0 {
-			if extraSpace >= 1 {
-				tablesHeight++
-				extraSpace--
-			}
-			if extraSpace >= 1 {
-				schemaHeight++
-				extraSpace--
-			}
-			if extraSpace >= 1 {
-				sqlHeight++
-				extraSpace--
-			}
-		}
+		ui.DistributeSpace(availableHeight-usedHeight, &tablesHeight, &schemaHeight, &sqlHeight)
 	}
 
 	// Render remaining panes with calculated heights
@@ -345,10 +316,6 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 			if details.Schema.DDL != "" {
 				primaryKeys := ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
 				columns := ui.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
-
-				// Fixed width for data type column (right-aligned)
-				// Longest type is TIMESTAMP(9) = 12 chars
-				const typeColumnWidth = 12
 
 				// First pass: find the longest column name
 				maxColNameLen := 0

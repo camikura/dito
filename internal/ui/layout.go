@@ -83,29 +83,15 @@ func CalculatePaneLayout(config LayoutConfig) PaneLayout {
 	availableHeight := config.TotalHeight - config.FooterHeight - config.ConnectionPaneHeight - 6
 
 	// Distribute in 2:2:1 ratio
-	totalParts := 5
-	partHeight := availableHeight / totalParts
-	remainder := availableHeight % totalParts
+	partHeight := availableHeight / PaneHeightTotalParts
+	remainder := availableHeight % PaneHeightTotalParts
 
-	tablesHeight := partHeight * 2
-	schemaHeight := partHeight * 2
-	sqlHeight := partHeight
+	tablesHeight := partHeight * PaneHeightTablesParts
+	schemaHeight := partHeight * PaneHeightSchemaParts
+	sqlHeight := partHeight * PaneHeightSQLParts
 
 	// Distribute remainder
-	for remainder > 0 {
-		if remainder >= 1 {
-			tablesHeight++
-			remainder--
-		}
-		if remainder >= 1 {
-			schemaHeight++
-			remainder--
-		}
-		if remainder >= 1 {
-			sqlHeight++
-			remainder--
-		}
-	}
+	DistributeSpace(remainder, &tablesHeight, &schemaHeight, &sqlHeight)
 
 	// Ensure minimum heights
 	if tablesHeight < config.MinTablesHeight {
@@ -121,21 +107,7 @@ func CalculatePaneLayout(config LayoutConfig) PaneLayout {
 	// If we're under the available height after minimums, redistribute
 	usedHeight := tablesHeight + schemaHeight + sqlHeight
 	if usedHeight < availableHeight {
-		extraSpace := availableHeight - usedHeight
-		for extraSpace > 0 {
-			if extraSpace >= 1 {
-				tablesHeight++
-				extraSpace--
-			}
-			if extraSpace >= 1 {
-				schemaHeight++
-				extraSpace--
-			}
-			if extraSpace >= 1 {
-				sqlHeight++
-				extraSpace--
-			}
-		}
+		DistributeSpace(availableHeight-usedHeight, &tablesHeight, &schemaHeight, &sqlHeight)
 	}
 
 	layout.TablesHeight = tablesHeight
@@ -195,6 +167,24 @@ func CenterPosition(containerSize, itemSize int) int {
 		return 0
 	}
 	return pos
+}
+
+// DistributeSpace distributes a given amount of space across multiple targets
+// in a round-robin fashion. Each target gets incremented by 1 until all space
+// is distributed.
+func DistributeSpace(amount int, targets ...*int) {
+	if len(targets) == 0 {
+		return
+	}
+	for amount > 0 {
+		for _, target := range targets {
+			if amount <= 0 {
+				return
+			}
+			*target++
+			amount--
+		}
+	}
 }
 
 // Separator renders a horizontal separator line with the specified width.

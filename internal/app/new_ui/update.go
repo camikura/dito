@@ -31,29 +31,15 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 		availableHeight := m.Height - 1 - connectionPaneHeight - 6
 
 		// Split available height in 2:2:1 ratio (Tables:Schema:SQL)
-		totalParts := 5 // 2+2+1
-		partHeight := availableHeight / totalParts
-		remainder := availableHeight % totalParts
+		partHeight := availableHeight / ui.PaneHeightTotalParts
+		remainder := availableHeight % ui.PaneHeightTotalParts
 
-		m.TablesHeight = partHeight * 2
-		m.SchemaHeight = partHeight * 2
-		m.SQLHeight = partHeight
+		m.TablesHeight = partHeight * ui.PaneHeightTablesParts
+		m.SchemaHeight = partHeight * ui.PaneHeightSchemaParts
+		m.SQLHeight = partHeight * ui.PaneHeightSQLParts
 
-		// Distribute remainder to maximize space usage (may be up to 4)
-		for remainder > 0 {
-			if remainder >= 1 {
-				m.TablesHeight++
-				remainder--
-			}
-			if remainder >= 1 {
-				m.SchemaHeight++
-				remainder--
-			}
-			if remainder >= 1 {
-				m.SQLHeight++
-				remainder--
-			}
-		}
+		// Distribute remainder
+		ui.DistributeSpace(remainder, &m.TablesHeight, &m.SchemaHeight, &m.SQLHeight)
 
 		// Ensure minimum heights
 		if m.TablesHeight < 3 {
@@ -66,25 +52,10 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 			m.SQLHeight = 2
 		}
 
-		// After applying minimum heights, check if we have unused space
+		// After applying minimum heights, redistribute unused space
 		usedHeight := m.TablesHeight + m.SchemaHeight + m.SQLHeight
 		if usedHeight < availableHeight {
-			// Distribute unused space in 2:2:1 ratio again
-			extraSpace := availableHeight - usedHeight
-			for extraSpace > 0 {
-				if extraSpace >= 1 {
-					m.TablesHeight++
-					extraSpace--
-				}
-				if extraSpace >= 1 {
-					m.SchemaHeight++
-					extraSpace--
-				}
-				if extraSpace >= 1 {
-					m.SQLHeight++
-					extraSpace--
-				}
-			}
+			ui.DistributeSpace(availableHeight-usedHeight, &m.TablesHeight, &m.SchemaHeight, &m.SQLHeight)
 		}
 
 		return m, nil
@@ -344,12 +315,11 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				}
 			}
 
-			// Check if we need to fetch more data (90% scroll threshold)
-			// Fetch when remaining rows <= 10
+			// Check if we need to fetch more data
 			tableName := m.Tables[m.SelectedTable]
 			if data, exists := m.TableData[tableName]; exists && data != nil {
 				remainingRows := totalRows - m.SelectedDataRow - 1
-				if remainingRows <= 10 && data.HasMore && !m.LoadingData && data.LastPKValues != nil {
+				if remainingRows <= ui.FetchMoreThreshold && data.HasMore && !m.LoadingData && data.LastPKValues != nil {
 					m.LoadingData = true
 					// Get PRIMARY KEYs from schema
 					var primaryKeys []string
@@ -412,11 +382,7 @@ func calculateMaxHorizontalOffset(m Model) int {
 	columnTypes := getColumnTypes(m, tableName, columns)
 
 	// Calculate data pane width (must match renderDataPane calculation)
-	// Left pane: 50 (content) + 2 (borders) = 52
-	// Right pane: m.Width - 52 + 1 = m.Width - 51
-	// Content width: right pane - 2 (borders) = m.Width - 53
-	leftPaneContentWidth := 50
-	leftPaneActualWidth := leftPaneContentWidth + 2
+	leftPaneActualWidth := ui.LeftPaneContentWidth + ui.LeftPaneBorderWidth
 	rightPaneActualWidth := m.Width - leftPaneActualWidth + 1
 	contentWidth := rightPaneActualWidth - 2
 

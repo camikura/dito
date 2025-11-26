@@ -5,6 +5,7 @@ import (
 
 	"github.com/camikura/dito/internal/app"
 	"github.com/camikura/dito/internal/db"
+	"github.com/camikura/dito/internal/ui"
 )
 
 // HandleCloudConfig handles the cloud connection configuration screen input
@@ -167,16 +168,11 @@ func handleTextInputDialog(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyBackspace:
-		if m.TextInputCursorPos > 0 {
-			m.TextInputValue = m.TextInputValue[:m.TextInputCursorPos-1] + m.TextInputValue[m.TextInputCursorPos:]
-			m.TextInputCursorPos--
-		}
+		m.TextInputValue, m.TextInputCursorPos = ui.Backspace(m.TextInputValue, m.TextInputCursorPos)
 		return m, nil
 
 	case tea.KeyDelete:
-		if m.TextInputCursorPos < len(m.TextInputValue) {
-			m.TextInputValue = m.TextInputValue[:m.TextInputCursorPos] + m.TextInputValue[m.TextInputCursorPos+1:]
-		}
+		m.TextInputValue = ui.DeleteAt(m.TextInputValue, m.TextInputCursorPos)
 		return m, nil
 
 	case tea.KeyLeft:
@@ -200,17 +196,12 @@ func handleTextInputDialog(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeySpace:
-		// スペース入力
-		m.TextInputValue = m.TextInputValue[:m.TextInputCursorPos] + " " + m.TextInputValue[m.TextInputCursorPos:]
-		m.TextInputCursorPos++
+		m.TextInputValue, m.TextInputCursorPos = ui.InsertWithCursor(m.TextInputValue, m.TextInputCursorPos, " ")
 		return m, nil
 
 	case tea.KeyRunes:
-		// 通常の文字入力
-		runes := msg.Runes
-		for _, r := range runes {
-			m.TextInputValue = m.TextInputValue[:m.TextInputCursorPos] + string(r) + m.TextInputValue[m.TextInputCursorPos:]
-			m.TextInputCursorPos++
+		for _, r := range msg.Runes {
+			m.TextInputValue, m.TextInputCursorPos = ui.InsertWithCursor(m.TextInputValue, m.TextInputCursorPos, string(r))
 		}
 		return m, nil
 	}

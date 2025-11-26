@@ -8,6 +8,7 @@ import (
 
 	"github.com/camikura/dito/internal/app"
 	"github.com/camikura/dito/internal/db"
+	"github.com/camikura/dito/internal/ui"
 	"github.com/camikura/dito/internal/views"
 )
 
@@ -56,10 +57,10 @@ func HandleTableList(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 						m.ViewportOffset = m.SelectedDataRow - m.ViewportSize + 1
 					}
 
-					// 残り10行以内まで来たら、さらにデータがある場合は追加取得
+					// 残り行が閾値以下になったら、さらにデータがある場合は追加取得
 					// ただし、カスタムSQLの場合（LastPKValues == nil）は追加取得不可
 					remainingRows := totalRows - m.SelectedDataRow - 1
-					if remainingRows <= 10 && data.HasMore && !m.LoadingData && data.LastPKValues != nil {
+					if remainingRows <= ui.FetchMoreThreshold && data.HasMore && !m.LoadingData && data.LastPKValues != nil {
 						m.LoadingData = true
 						// PRIMARY KEYを取得
 						var primaryKeys []string
@@ -264,22 +265,15 @@ func handleSQLEditor(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		return executeCustomSQL(m)
 
 	case tea.KeyEnter:
-		// 通常のEnterは改行として扱う
-		m.EditSQL = m.EditSQL[:m.SQLCursorPos] + "\n" + m.EditSQL[m.SQLCursorPos:]
-		m.SQLCursorPos++
+		m.EditSQL, m.SQLCursorPos = ui.InsertWithCursor(m.EditSQL, m.SQLCursorPos, "\n")
 		return m, nil
 
 	case tea.KeyBackspace:
-		if m.SQLCursorPos > 0 {
-			m.EditSQL = m.EditSQL[:m.SQLCursorPos-1] + m.EditSQL[m.SQLCursorPos:]
-			m.SQLCursorPos--
-		}
+		m.EditSQL, m.SQLCursorPos = ui.Backspace(m.EditSQL, m.SQLCursorPos)
 		return m, nil
 
 	case tea.KeyDelete:
-		if m.SQLCursorPos < len(m.EditSQL) {
-			m.EditSQL = m.EditSQL[:m.SQLCursorPos] + m.EditSQL[m.SQLCursorPos+1:]
-		}
+		m.EditSQL = ui.DeleteAt(m.EditSQL, m.SQLCursorPos)
 		return m, nil
 
 	case tea.KeyLeft:
@@ -303,17 +297,12 @@ func handleSQLEditor(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeySpace:
-		// スペース入力
-		m.EditSQL = m.EditSQL[:m.SQLCursorPos] + " " + m.EditSQL[m.SQLCursorPos:]
-		m.SQLCursorPos++
+		m.EditSQL, m.SQLCursorPos = ui.InsertWithCursor(m.EditSQL, m.SQLCursorPos, " ")
 		return m, nil
 
 	case tea.KeyRunes:
-		// 通常の文字入力
-		runes := msg.Runes
-		for _, r := range runes {
-			m.EditSQL = m.EditSQL[:m.SQLCursorPos] + string(r) + m.EditSQL[m.SQLCursorPos:]
-			m.SQLCursorPos++
+		for _, r := range msg.Runes {
+			m.EditSQL, m.SQLCursorPos = ui.InsertWithCursor(m.EditSQL, m.SQLCursorPos, string(r))
 		}
 		return m, nil
 	}

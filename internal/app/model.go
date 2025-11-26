@@ -4,6 +4,7 @@ import (
 	"github.com/oracle/nosql-go-sdk/nosqldb"
 
 	"github.com/camikura/dito/internal/db"
+	"github.com/camikura/dito/internal/ui"
 )
 
 // Screen represents the current screen type
@@ -134,7 +135,7 @@ func InitialModel() Model {
 		RightPaneMode: RightPaneModeSchema,
 		TableData:     make(map[string]*db.TableDataResult),
 		DataOffset:    0,
-		FetchSize:     100, // Fetch 100 rows at once (infinite scroll)
+		FetchSize:     ui.DefaultFetchSize,
 		ViewportSize:  10,
 	}
 }
