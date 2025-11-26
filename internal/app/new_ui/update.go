@@ -548,6 +548,9 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 
 // handleRecordDetailKeys handles keys when record detail dialog is visible
 func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Calculate max scroll for validation
+	maxScroll := calculateRecordDetailMaxScroll(m)
+
 	switch msg.String() {
 	case "ctrl+c":
 		// Allow quitting even when dialog is open
@@ -560,38 +563,92 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case "down", "j":
-		// Move to next record
-		if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-			tableName := m.Tables[m.SelectedTable]
-			if data, exists := m.TableData[tableName]; exists && data != nil {
-				if m.SelectedDataRow < len(data.Rows)-1 {
-					m.SelectedDataRow++
-					m.RecordDetailScroll = 0 // Reset scroll when changing records
-				}
-			}
+		// Scroll down within dialog (only if content overflows)
+		if maxScroll > 0 && m.RecordDetailScroll < maxScroll {
+			m.RecordDetailScroll++
 		}
 		return m, nil
 
 	case "up", "k":
-		// Move to previous record
-		if m.SelectedDataRow > 0 {
-			m.SelectedDataRow--
-			m.RecordDetailScroll = 0 // Reset scroll when changing records
-		}
-		return m, nil
-
-	case "ctrl+d", "pgdown":
-		// Scroll down within the current record
-		m.RecordDetailScroll++
-		return m, nil
-
-	case "ctrl+u", "pgup":
-		// Scroll up within the current record
+		// Scroll up within dialog
 		if m.RecordDetailScroll > 0 {
 			m.RecordDetailScroll--
 		}
 		return m, nil
+
+	case "ctrl+d", "pgdown":
+		// Page down within the current record
+		pageSize := m.Height * 4 / 5 / 2 // Half of dialog height
+		if pageSize < 1 {
+			pageSize = 1
+		}
+		m.RecordDetailScroll += pageSize
+		if m.RecordDetailScroll > maxScroll {
+			m.RecordDetailScroll = maxScroll
+		}
+		return m, nil
+
+	case "ctrl+u", "pgup":
+		// Page up within the current record
+		pageSize := m.Height * 4 / 5 / 2 // Half of dialog height
+		if pageSize < 1 {
+			pageSize = 1
+		}
+		m.RecordDetailScroll -= pageSize
+		if m.RecordDetailScroll < 0 {
+			m.RecordDetailScroll = 0
+		}
+		return m, nil
+
+	case "g", "home":
+		// Go to top
+		m.RecordDetailScroll = 0
+		return m, nil
+
+	case "G", "end":
+		// Go to bottom
+		m.RecordDetailScroll = maxScroll
+		return m, nil
 	}
 
 	return m, nil
+}
+
+// calculateRecordDetailMaxScroll calculates the maximum scroll offset for record detail dialog
+func calculateRecordDetailMaxScroll(m Model) int {
+	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+		return 0
+	}
+
+	tableName := m.Tables[m.SelectedTable]
+	data, exists := m.TableData[tableName]
+	if !exists || data == nil || len(data.Rows) == 0 {
+		return 0
+	}
+
+	if m.SelectedDataRow < 0 || m.SelectedDataRow >= len(data.Rows) {
+		return 0
+	}
+
+	row := data.Rows[m.SelectedDataRow]
+	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
+
+	// Create vertical table to get content
+	vt := ui.VerticalTable{
+		Data: row,
+		Keys: columns,
+	}
+	content := vt.Render()
+	lines := strings.Split(content, "\n")
+
+	// Calculate visible height (dialog is 80% of screen, minus borders and padding)
+	dialogHeight := m.Height * 4 / 5
+	visibleHeight := dialogHeight - 4 // Subtract title + borders
+
+	maxScroll := len(lines) - visibleHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+
+	return maxScroll
 }

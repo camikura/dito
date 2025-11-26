@@ -827,87 +827,116 @@ func renderRecordDetailDialog(m Model) string {
 
 	content := vt.Render()
 
-	// Calculate dialog dimensions (80% of screen, centered)
+	// Calculate dialog dimensions
+	// Dialog is 80% of screen, centered
+	// Structure: ╭ + content + ╮ (width = 1 + contentWidth + 1)
 	dialogWidth := m.Width * 4 / 5
 	dialogHeight := m.Height * 4 / 5
 
+	// Content area dimensions (excluding borders)
+	contentWidth := dialogWidth - 2   // Subtract left border (1) + right border (1)
+	contentHeight := dialogHeight - 2 // Subtract top border (1) + bottom border (1)
+
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
 	// Apply scrolling
 	lines := strings.Split(content, "\n")
-	visibleHeight := dialogHeight - 4 // Subtract title + borders
 
 	// Calculate max scroll
-	maxScroll := len(lines) - visibleHeight
+	maxScroll := len(lines) - contentHeight
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
-	if m.RecordDetailScroll > maxScroll {
-		m.RecordDetailScroll = maxScroll
+	scrollOffset := m.RecordDetailScroll
+	if scrollOffset > maxScroll {
+		scrollOffset = maxScroll
 	}
 
-	// Extract visible lines
-	start := m.RecordDetailScroll
-	end := start + visibleHeight
-	if end > len(lines) {
-		end = len(lines)
-	}
-	visibleLines := lines[start:end]
+	// Create vertical scrollbar
+	vScrollBar := ui.NewVerticalScrollBar(len(lines), contentHeight, scrollOffset, contentHeight)
 
-	// Build dialog content
-	var dialogContent strings.Builder
-	for _, line := range visibleLines {
-		dialogContent.WriteString(line)
-		dialogContent.WriteString("\n")
-	}
+	// Border style
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
 
-	// Create title for the border
+	// Build dialog manually with scrollbar on right border
+	var dialog strings.Builder
+
+	// Title
 	titleText := " Record Details "
-	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorPrimary)).
-		Bold(true)
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true)
 	title := titleStyle.Render(titleText)
+	titleLen := len([]rune(titleText))
 
-	// Create dialog box with border and title in the top border
-	dialogStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(ColorPrimary)).
-		BorderTop(true).
-		BorderBottom(true).
-		BorderLeft(true).
-		BorderRight(true).
-		Width(dialogWidth - 2).
-		Height(dialogHeight - 2).
-		Padding(1, 2)
+	// Top border: ╭ + title + ─ ... ─ + ╮
+	// Total width = dialogWidth
+	// ╭ = 1, title = titleLen, ╮ = 1
+	// Dashes = dialogWidth - 1 - titleLen - 1 = contentWidth - titleLen
+	dashesLen := contentWidth - titleLen
+	if dashesLen < 0 {
+		dashesLen = 0
+	}
+	dialog.WriteString(borderStyle.Render("╭"))
+	dialog.WriteString(title)
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dashesLen)))
+	dialog.WriteString(borderStyle.Render("╮"))
+	dialog.WriteString("\n")
 
-	// Render content
-	contentBox := dialogStyle.Render(dialogContent.String())
-
-	// Manually construct the dialog with title in top border
-	contentLines := strings.Split(contentBox, "\n")
-	if len(contentLines) > 0 {
-		// Build new top border: corner + title + dashes + corner
-		// Use dialogWidth - 2 for the content width (excluding corners)
-		titleLen := len([]rune(titleText))
-		availableWidth := dialogWidth - 2 // Total width minus corners
-
-		if titleLen < availableWidth {
-			var newTopBorder strings.Builder
-			newTopBorder.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render("╭"))
-			newTopBorder.WriteString(title)
-			remainingDashes := availableWidth - titleLen
-			newTopBorder.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render(strings.Repeat("─", remainingDashes)))
-			newTopBorder.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render("╮"))
-			contentLines[0] = newTopBorder.String()
-		}
+	// Content lines: │ + padding + content + padding + scrollbar (│ or ┃)
+	// Inner content width = contentWidth - 2 (for left and right padding)
+	innerWidth := contentWidth - 2
+	if innerWidth < 1 {
+		innerWidth = 1
 	}
 
-	dialog := strings.Join(contentLines, "\n")
+	for i := 0; i < contentHeight; i++ {
+		lineIndex := scrollOffset + i
+		var lineContent string
+		if lineIndex < len(lines) {
+			lineContent = lines[lineIndex]
+		} else {
+			lineContent = ""
+		}
 
-	// Center the dialog on screen using lipgloss.Place
+		// Calculate visible width (excluding ANSI escape codes)
+		visibleWidth := lipgloss.Width(lineContent)
+
+		// Pad or truncate to fit inner width
+		if visibleWidth > innerWidth {
+			// Need to truncate - this is tricky with ANSI codes
+			// For now, just use the line as-is (truncation with ANSI is complex)
+			lineContent = lineContent
+		} else {
+			// Pad with spaces to fill inner width
+			lineContent = lineContent + strings.Repeat(" ", innerWidth-visibleWidth)
+		}
+
+		// Get right border character (with scrollbar indicator)
+		rightBorderChar := vScrollBar.GetCharAt(i)
+
+		dialog.WriteString(borderStyle.Render("│"))
+		dialog.WriteString(" ")        // Left padding
+		dialog.WriteString(lineContent)
+		dialog.WriteString(" ")        // Right padding
+		dialog.WriteString(borderStyle.Render(rightBorderChar))
+		dialog.WriteString("\n")
+	}
+
+	// Bottom border: ╰ + ─ ... ─ + ╯
+	dialog.WriteString(borderStyle.Render("╰"))
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", contentWidth)))
+	dialog.WriteString(borderStyle.Render("╯"))
+
+	// Center the dialog on screen
 	return lipgloss.Place(
 		m.Width,
 		m.Height,
 		lipgloss.Center,
 		lipgloss.Center,
-		dialog,
+		dialog.String(),
 	)
 }
