@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/camikura/dito/internal/db"
+	"github.com/camikura/dito/internal/ui"
 	"github.com/camikura/dito/internal/views"
 )
 
@@ -139,7 +141,14 @@ func RenderView(m Model) string {
 	result.WriteString(panes + "\n")
 	result.WriteString(footerContent)
 
-	return result.String()
+	baseView := result.String()
+
+	// Overlay record detail dialog if visible
+	if m.RecordDetailVisible {
+		return renderRecordDetailDialog(m)
+	}
+
+	return baseView
 }
 
 func renderConnectionPane(m Model, width int) string {
@@ -583,7 +592,14 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
-	titleText := " Data "
+	// Build title with table name if available
+	var titleText string
+	if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		tableName := m.Tables[m.SelectedTable]
+		titleText = fmt.Sprintf(" Data (%s) ", tableName)
+	} else {
+		titleText = " Data "
+	}
 	styledTitle := titleStyle.Render(titleText)
 	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", width-len(titleText)-3) + "╮")
 
@@ -597,60 +613,330 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 		contentLines = 5
 	}
 
-	// Prepare content
-	var displayLines []string
-	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
-		displayLines = []string{"No data"}
-	} else {
-		tableName := m.Tables[m.SelectedTable]
-		data, exists := m.TableData[tableName]
-		if !exists || data == nil {
-			if m.LoadingData {
-				displayLines = []string{"Loading..."}
-			} else {
-				displayLines = []string{"No data"}
-			}
-		} else {
-			// Render data rows
-			if len(data.Rows) == 0 {
-				displayLines = []string{"No rows"}
-			} else {
-				// Simple data rendering - just show row count for now
-				displayLines = append(displayLines, "Rows: "+string(rune(len(data.Rows)+48)))
-				displayLines = append(displayLines, "")
-				// TODO: Implement proper grid rendering in Phase 3
-				displayLines = append(displayLines, "(Grid view coming in Phase 3)")
-			}
-		}
-	}
-
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
-	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
-	// Render content lines
-	for i := 0; i < contentLines; i++ {
-		var line string
-		if i < len(displayLines) {
-			content := displayLines[i]
-			if len(content) > width-2 {
-				content = content[:width-5] + "..."
+	// Track scroll info for bottom border
+	var totalContentWidth, viewportWidth int
+
+	// Prepare content
+	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+		// No table selected
+		for i := 0; i < contentLines; i++ {
+			line := "No data"
+			if i > 0 {
+				line = ""
 			}
-			paddingLen := width - len(content) - 2
+			paddingLen := width - len(line) - 2
 			if paddingLen < 0 {
 				paddingLen = 0
 			}
-			line = content + strings.Repeat(" ", paddingLen)
-		} else {
-			line = strings.Repeat(" ", width-2)
+			result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 		}
-		result.WriteString(leftBorder + line + rightBorder + "\n")
+	} else {
+		tableName := m.Tables[m.SelectedTable]
+		data, exists := m.TableData[tableName]
+		if !exists || data == nil {
+			// No data loaded yet
+			message := "No data"
+			if m.LoadingData {
+				message = "Loading..."
+			}
+			for i := 0; i < contentLines; i++ {
+				line := ""
+				if i == 0 {
+					line = message
+				}
+				paddingLen := width - len(line) - 2
+				if paddingLen < 0 {
+					paddingLen = 0
+				}
+				result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+			}
+		} else if len(data.Rows) == 0 {
+			// No rows in result
+			for i := 0; i < contentLines; i++ {
+				line := "No rows"
+				if i > 0 {
+					line = ""
+				}
+				paddingLen := width - len(line) - 2
+				if paddingLen < 0 {
+					paddingLen = 0
+				}
+				result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+			}
+		} else {
+			// Render grid view and get scroll info
+			gridContent, scrollInfo := renderGridViewWithScrollInfo(m, data, width, contentLines, leftBorder, borderStyle)
+			result.WriteString(gridContent)
+			totalContentWidth = scrollInfo.totalWidth
+			viewportWidth = scrollInfo.viewportWidth
+		}
 	}
 
+	// Render bottom border with scrollbar
+	bottomBorder := renderBottomBorderWithScrollbar(borderStyle, width, totalContentWidth, viewportWidth, m.HorizontalOffset)
 	result.WriteString(bottomBorder)
 
 	return result.String()
+}
+
+// scrollInfo holds scroll-related information for the grid
+type scrollInfo struct {
+	totalWidth     int
+	viewportWidth  int
+	totalRows      int
+	viewportRows   int
+	verticalOffset int
+}
+
+// renderBottomBorderWithScrollbar renders the bottom border with an integrated scrollbar
+func renderBottomBorderWithScrollbar(borderStyle lipgloss.Style, width int, totalContentWidth int, viewportWidth int, offset int) string {
+	// Border structure: ╰ + content + ╯
+	// Content width = width - 2 (for ╰ and ╯)
+	contentWidth := width - 2
+	if contentWidth < 1 {
+		return borderStyle.Render("╰╯")
+	}
+
+	// Create scrollbar
+	scrollbar := ui.NewScrollBar(totalContentWidth, viewportWidth, offset, contentWidth)
+	scrollbarLine := scrollbar.Render()
+
+	return borderStyle.Render("╰") + borderStyle.Render(scrollbarLine) + borderStyle.Render("╯")
+}
+
+// renderGridViewWithScrollInfo renders the data grid and returns scroll information
+func renderGridViewWithScrollInfo(m Model, data *db.TableDataResult, width int, contentLines int, leftBorder string, borderStyle lipgloss.Style) (string, scrollInfo) {
+	// Get column names in schema definition order
+	tableName := m.Tables[m.SelectedTable]
+	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
+
+	// Get column types from schema
+	columnTypes := getColumnTypes(m, tableName, columns)
+
+	// Create Grid component
+	contentWidth := width - 2 // Subtract borders
+	grid := ui.NewGrid(columns, columnTypes, data.Rows)
+	grid.Width = contentWidth
+	grid.Height = contentLines
+	grid.HorizontalOffset = m.HorizontalOffset
+	grid.VerticalOffset = m.ViewportOffset
+	grid.SelectedRow = m.SelectedDataRow
+
+	// Calculate viewport rows (contentLines minus header and separator)
+	viewportRows := contentLines - 2
+	if viewportRows < 1 {
+		viewportRows = 1
+	}
+
+	// Get scroll info before rendering
+	info := scrollInfo{
+		totalWidth:     grid.TotalContentWidth(),
+		viewportWidth:  contentWidth,
+		totalRows:      len(data.Rows),
+		viewportRows:   viewportRows,
+		verticalOffset: m.ViewportOffset,
+	}
+
+	// Create vertical scrollbar
+	vScrollBar := ui.NewVerticalScrollBar(info.totalRows, info.viewportRows, info.verticalOffset, contentLines)
+
+	// Render grid content
+	gridContent := grid.Render()
+
+	// Add borders to each line with vertical scrollbar on right
+	var result strings.Builder
+	lines := strings.Split(gridContent, "\n")
+	for i := 0; i < contentLines; i++ {
+		// Get right border character (with scrollbar indicator)
+		rightBorderChar := vScrollBar.GetCharAt(i)
+		rightBorder := borderStyle.Render(rightBorderChar)
+
+		if i < len(lines) {
+			result.WriteString(leftBorder + lines[i] + rightBorder + "\n")
+		} else {
+			// Empty line to fill height
+			emptyLine := strings.Repeat(" ", contentWidth)
+			result.WriteString(leftBorder + emptyLine + rightBorder + "\n")
+		}
+	}
+
+	return result.String(), info
+}
+
+
+// getColumnTypes extracts column types from schema information
+func getColumnTypes(m Model, tableName string, columns []string) map[string]string {
+	types := make(map[string]string)
+
+	if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+		if details.Schema.DDL != "" {
+			// Parse column types from DDL
+			primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+			cols := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+			for _, col := range cols {
+				// Remove " (Primary Key)" suffix if present
+				colType := col.Type
+				if idx := strings.Index(colType, " (Primary Key)"); idx != -1 {
+					colType = colType[:idx]
+				}
+				types[col.Name] = colType
+			}
+		}
+	}
+
+	return types
+}
+
+// renderRecordDetailDialog renders a dialog showing the details of the selected record
+func renderRecordDetailDialog(m Model) string {
+	if !m.RecordDetailVisible {
+		return ""
+	}
+
+	// Get the selected row
+	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+		return ""
+	}
+
+	tableName := m.Tables[m.SelectedTable]
+	data, exists := m.TableData[tableName]
+	if !exists || data == nil || len(data.Rows) == 0 {
+		return ""
+	}
+
+	if m.SelectedDataRow < 0 || m.SelectedDataRow >= len(data.Rows) {
+		return ""
+	}
+
+	row := data.Rows[m.SelectedDataRow]
+
+	// Get columns in schema order
+	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
+
+	// Create vertical table
+	vt := ui.VerticalTable{
+		Data: row,
+		Keys: columns,
+	}
+
+	content := vt.Render()
+
+	// Calculate dialog dimensions
+	// Dialog is 80% of screen, centered
+	// Structure: ╭ + content + ╮ (width = 1 + contentWidth + 1)
+	dialogWidth := m.Width * 4 / 5
+	dialogHeight := m.Height * 4 / 5
+
+	// Content area dimensions (excluding borders)
+	contentWidth := dialogWidth - 2   // Subtract left border (1) + right border (1)
+	contentHeight := dialogHeight - 2 // Subtract top border (1) + bottom border (1)
+
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
+	// Apply scrolling
+	lines := strings.Split(content, "\n")
+
+	// Calculate max scroll
+	maxScroll := len(lines) - contentHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	scrollOffset := m.RecordDetailScroll
+	if scrollOffset > maxScroll {
+		scrollOffset = maxScroll
+	}
+
+	// Create vertical scrollbar
+	vScrollBar := ui.NewVerticalScrollBar(len(lines), contentHeight, scrollOffset, contentHeight)
+
+	// Border style
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
+
+	// Build dialog manually with scrollbar on right border
+	var dialog strings.Builder
+
+	// Title
+	titleText := " Record Details "
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true)
+	title := titleStyle.Render(titleText)
+	titleLen := len([]rune(titleText))
+
+	// Top border: ╭ + title + ─ ... ─ + ╮
+	// Total width = dialogWidth
+	// ╭ = 1, title = titleLen, ╮ = 1
+	// Dashes = dialogWidth - 1 - titleLen - 1 = contentWidth - titleLen
+	dashesLen := contentWidth - titleLen
+	if dashesLen < 0 {
+		dashesLen = 0
+	}
+	dialog.WriteString(borderStyle.Render("╭"))
+	dialog.WriteString(title)
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dashesLen)))
+	dialog.WriteString(borderStyle.Render("╮"))
+	dialog.WriteString("\n")
+
+	// Content lines: │ + padding + content + padding + scrollbar (│ or ┃)
+	// Inner content width = contentWidth - 2 (for left and right padding)
+	innerWidth := contentWidth - 2
+	if innerWidth < 1 {
+		innerWidth = 1
+	}
+
+	for i := 0; i < contentHeight; i++ {
+		lineIndex := scrollOffset + i
+		var lineContent string
+		if lineIndex < len(lines) {
+			lineContent = lines[lineIndex]
+		} else {
+			lineContent = ""
+		}
+
+		// Calculate visible width (excluding ANSI escape codes)
+		visibleWidth := lipgloss.Width(lineContent)
+
+		// Pad or truncate to fit inner width
+		if visibleWidth > innerWidth {
+			// Need to truncate - this is tricky with ANSI codes
+			// For now, just use the line as-is (truncation with ANSI is complex)
+			lineContent = lineContent
+		} else {
+			// Pad with spaces to fill inner width
+			lineContent = lineContent + strings.Repeat(" ", innerWidth-visibleWidth)
+		}
+
+		// Get right border character (with scrollbar indicator)
+		rightBorderChar := vScrollBar.GetCharAt(i)
+
+		dialog.WriteString(borderStyle.Render("│"))
+		dialog.WriteString(" ")        // Left padding
+		dialog.WriteString(lineContent)
+		dialog.WriteString(" ")        // Right padding
+		dialog.WriteString(borderStyle.Render(rightBorderChar))
+		dialog.WriteString("\n")
+	}
+
+	// Bottom border: ╰ + ─ ... ─ + ╯
+	dialog.WriteString(borderStyle.Render("╰"))
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", contentWidth)))
+	dialog.WriteString(borderStyle.Render("╯"))
+
+	// Center the dialog on screen
+	return lipgloss.Place(
+		m.Width,
+		m.Height,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog.String(),
+	)
 }
