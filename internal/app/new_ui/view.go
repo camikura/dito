@@ -97,7 +97,7 @@ func RenderView(m Model) string {
 	case FocusPaneSQL:
 		footerContent = "Switch Pane: tab | Edit SQL: e"
 	case FocusPaneData:
-		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
+		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e"
 	}
 
 	footerPadding := m.Width - len(footerContent) - len("Dito") - 1
@@ -112,6 +112,11 @@ func RenderView(m Model) string {
 	result.WriteString(footerContent)
 
 	baseView := result.String()
+
+	// Overlay SQL editor dialog if visible
+	if m.SQLEditorVisible {
+		return renderSQLEditorDialog(m)
+	}
 
 	// Overlay record detail dialog if visible
 	if m.RecordDetailVisible {
@@ -506,7 +511,11 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
+	// Add [Custom] label if custom SQL is active
 	titleText := " SQL "
+	if m.CustomSQL {
+		titleText = " SQL [Custom] "
+	}
 	styledTitle := titleStyle.Render(titleText)
 	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", width-len(titleText)-3) + "╮")
 
@@ -788,4 +797,135 @@ func renderRecordDetailDialog(m Model) string {
 	})
 
 	return rd.RenderCentered(m.Width, m.Height)
+}
+
+// renderSQLEditorDialog renders the SQL editor dialog
+func renderSQLEditorDialog(m Model) string {
+	// Calculate dialog size
+	dialogWidth := m.Width - 10
+	if dialogWidth < 60 {
+		dialogWidth = 60
+	}
+	if dialogWidth > 100 {
+		dialogWidth = 100
+	}
+
+	dialogHeight := m.Height - 10
+	if dialogHeight < 10 {
+		dialogHeight = 10
+	}
+	if dialogHeight > 20 {
+		dialogHeight = 20
+	}
+
+	// Calculate content dimensions
+	contentWidth := dialogWidth - 4  // borders + padding
+	contentHeight := dialogHeight - 6 // title, help, borders, padding
+
+	// Border style
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
+
+	// Build dialog
+	var dialog strings.Builder
+
+	// Title
+	titleText := " SQL Editor "
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true)
+	title := titleStyle.Render(titleText)
+	titleLen := len([]rune(titleText))
+
+	// Top border: ╭ + title + ─...─ + ╮
+	dashesLen := dialogWidth - 2 - titleLen
+	if dashesLen < 0 {
+		dashesLen = 0
+	}
+	dialog.WriteString(borderStyle.Render("╭"))
+	dialog.WriteString(title)
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dashesLen)))
+	dialog.WriteString(borderStyle.Render("╮"))
+	dialog.WriteString("\n")
+
+	// Parse SQL into lines and calculate cursor position
+	sqlLines := strings.Split(m.EditSQL, "\n")
+	cursorLine := 0
+	cursorCol := m.SQLCursorPos
+	currentPos := 0
+	for i, line := range sqlLines {
+		lineLen := len(line) + 1 // +1 for newline
+		if currentPos+lineLen > m.SQLCursorPos {
+			cursorLine = i
+			cursorCol = m.SQLCursorPos - currentPos
+			break
+		}
+		currentPos += lineLen
+	}
+
+	// Render SQL content with cursor
+	for i := 0; i < contentHeight; i++ {
+		dialog.WriteString(borderStyle.Render("│"))
+		dialog.WriteString(" ")
+
+		var lineContent string
+		if i < len(sqlLines) {
+			line := sqlLines[i]
+			if i == cursorLine {
+				// Insert cursor indicator
+				if cursorCol <= len(line) {
+					lineContent = line[:cursorCol] + "_" + line[cursorCol:]
+				} else {
+					lineContent = line + "_"
+				}
+			} else {
+				lineContent = line
+			}
+		}
+
+		// Pad or truncate to fit content width
+		visibleLen := len([]rune(lineContent))
+		if visibleLen < contentWidth {
+			lineContent += strings.Repeat(" ", contentWidth-visibleLen)
+		} else if visibleLen > contentWidth {
+			lineContent = string([]rune(lineContent)[:contentWidth])
+		}
+
+		dialog.WriteString(lineContent)
+		dialog.WriteString(" ")
+		dialog.WriteString(borderStyle.Render("│"))
+		dialog.WriteString("\n")
+	}
+
+	// Empty line before help
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(strings.Repeat(" ", dialogWidth-2))
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Help text
+	helpText := "Execute: ctrl+r | Cancel: esc"
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
+	helpPadding := dialogWidth - 4 - len(helpText)
+	if helpPadding < 0 {
+		helpPadding = 0
+	}
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(" ")
+	dialog.WriteString(helpStyle.Render(helpText))
+	dialog.WriteString(strings.Repeat(" ", helpPadding))
+	dialog.WriteString(" ")
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Bottom border
+	dialog.WriteString(borderStyle.Render("╰"))
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dialogWidth-2)))
+	dialog.WriteString(borderStyle.Render("╯"))
+
+	// Center the dialog
+	return lipgloss.Place(
+		m.Width,
+		m.Height,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog.String(),
+	)
 }

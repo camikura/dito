@@ -63,6 +63,11 @@ type Model struct {
 	// Record Detail Dialog
 	RecordDetailVisible bool
 	RecordDetailScroll  int // Scroll offset for record detail dialog
+
+	// SQL Editor Dialog
+	SQLEditorVisible bool
+	EditSQL          string
+	SQLCursorPos     int
 }
 
 // InitialModel creates the initial model for new UI
