@@ -604,10 +604,17 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
 	// Build title with table name if available
+	// Use same logic as schema pane: extract from custom SQL or use SelectedTable
+	var dataTableName string
+	if m.CustomSQL && m.CurrentSQL != "" {
+		dataTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
+	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		dataTableName = m.Tables[m.SelectedTable]
+	}
+
 	var titleText string
-	if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-		tableName := m.Tables[m.SelectedTable]
-		titleText = fmt.Sprintf(" Data (%s) ", tableName)
+	if dataTableName != "" {
+		titleText = fmt.Sprintf(" Data (%s) ", dataTableName)
 	} else {
 		titleText = " Data "
 	}
