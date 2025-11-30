@@ -97,14 +97,14 @@ func RenderView(m Model) string {
 			footerHelp = "Switch Pane: tab | Connect: <enter>"
 		}
 	case FocusPaneTables:
-		footerHelp = "Navigate: j/k | Switch Pane: tab | Select: <enter>"
+		footerHelp = "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
 	case FocusPaneSQL:
 		footerHelp = "Switch Pane: tab | Edit: <enter>"
 	case FocusPaneData:
 		if m.CustomSQL {
-			footerHelp = "Navigate: j/k | Switch Pane: tab | Detail: <enter> | Reset: esc"
+			footerHelp = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc"
 		} else {
-			footerHelp = "Navigate: j/k | Switch Pane: tab | Detail: <enter>"
+			footerHelp = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
 		}
 	}
 
