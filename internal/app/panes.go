@@ -12,27 +12,21 @@ import (
 )
 
 func renderConnectionPane(m Model, width int) string {
-	borderColor := ColorInactive
-	titleColor := ColorInactive
+	borderStyle := ui.StyleBorderInactive
+	titleStyle := ui.StyleTitleInactive
 	if m.CurrentPane == FocusPaneConnection {
-		borderColor = ColorPrimary
-		titleColor = ColorPrimary
+		borderStyle = ui.StyleBorderActive
+		titleStyle = ui.StyleTitleActive
 	}
-
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
 	var titleText string
 	var titleDisplayWidth int
 	if m.Connected {
-		// Apply green color to checkmark
-		checkmark := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGreen)).Render("✓")
+		checkmark := ui.StyleCheckmark.Render("✓")
 		titleText = titleStyle.Render(" Connection ") + checkmark + " "
-		// " Connection " + "✓" + " " = 12 + 1 + 1 = 14 display chars
 		titleDisplayWidth = 14
 	} else {
 		titleText = titleStyle.Render(" Connection ")
-		// " Connection " = 12 display chars
 		titleDisplayWidth = 12
 	}
 
@@ -79,15 +73,12 @@ func renderTablesPane(m Model, width int) string {
 }
 
 func renderTablesPaneWithHeight(m Model, width int, height int) string {
-	borderColor := ColorInactive
-	titleColor := ColorInactive
+	borderStyle := ui.StyleBorderInactive
+	titleStyle := ui.StyleTitleInactive
 	if m.CurrentPane == FocusPaneTables {
-		borderColor = ColorPrimary
-		titleColor = ColorPrimary
+		borderStyle = ui.StyleBorderActive
+		titleStyle = ui.StyleTitleActive
 	}
-
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
 	titleText := " Tables"
 	if len(m.Tables) > 0 {
@@ -152,11 +143,6 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
-	// Styles for text color
-	selectedTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))       // White for selected (*)
-	cursorTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))      // Blue for cursor (focused)
-	normalTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))         // Gray for normal
-
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
@@ -169,14 +155,11 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 			// Apply color based on state
 			var styledText string
 			if isFocused && lineInfo.isCursor {
-				// Cursor position when focused: blue text
-				styledText = cursorTextStyle.Render(lineInfo.text)
+				styledText = ui.StyleTableCursor.Render(lineInfo.text)
 			} else if lineInfo.isSelected {
-				// Selected table (*): white text
-				styledText = selectedTextStyle.Render(lineInfo.text)
+				styledText = ui.StyleTableSelected.Render(lineInfo.text)
 			} else {
-				// Normal: gray text
-				styledText = normalTextStyle.Render(lineInfo.text)
+				styledText = ui.StyleTableNormal.Render(lineInfo.text)
 			}
 			// Calculate padding (based on original text length, not styled)
 			paddingLen := width - len(lineInfo.text) - 2
@@ -224,11 +207,9 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 	}
 
 	// Schema pane can be focused for scrolling
-	var borderStyle lipgloss.Style
+	borderStyle := ui.StyleBorderInactive
 	if m.CurrentPane == FocusPaneSchema {
-		borderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
-	} else {
-		borderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorInactive))
+		borderStyle = ui.StyleBorderActive
 	}
 	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
 
@@ -296,12 +277,6 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
-	// Styles for rendering
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSecondary))
-	typeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorTertiary))
-	pkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPK))
-	indexStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorIndex))
-
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
@@ -312,13 +287,13 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 		if contentIndex < len(contentLines) {
 			content := contentLines[contentIndex]
 
-			// Apply yellow color to label lines (Columns:, Indexes:)
+			// Apply color to label lines (Columns:, Indexes:)
 			if content == "Columns:" || content == "Indexes:" {
 				paddingLen := width - len(content) - 2
 				if paddingLen < 0 {
 					paddingLen = 0
 				}
-				line = labelStyle.Render(content) + strings.Repeat(" ", paddingLen)
+				line = ui.StyleSchemaLabel.Render(content) + strings.Repeat(" ", paddingLen)
 			} else if strings.HasPrefix(content, "IDX|||") {
 			// Index line: IDX|||IndexName|||Fields
 			parts := strings.Split(content, "|||")
@@ -335,11 +310,11 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 						if i > 0 {
 							fieldsDisplay += ", " // White comma
 						}
-						fieldsDisplay += indexStyle.Render(field)
+						fieldsDisplay += ui.StyleSchemaIndex.Render(field)
 					}
 				} else {
 					// Single field
-					fieldsDisplay = indexStyle.Render(fields)
+					fieldsDisplay = ui.StyleSchemaIndex.Render(fields)
 				}
 
 				displayText := "  " + indexName + " " + fieldsDisplay
@@ -375,7 +350,7 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 				// PK marker with fixed width
 				var pkField string
 				if pkMarker == "P" {
-					pkField = pkStyle.Render(pkMarker) + " "
+					pkField = ui.StyleSchemaPK.Render(pkMarker) + " "
 				} else {
 					pkField = strings.Repeat(" ", pkColWidth)
 				}
@@ -388,7 +363,7 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 				nameField := colName + strings.Repeat(" ", namePadding)
 
 				// Type field (no fixed width, left-aligned)
-				typeField := typeStyle.Render(colType)
+				typeField := ui.StyleSchemaType.Render(colType)
 
 				// Build line with fixed-width columns: PK + Name + Type
 				alignedLine := pkField + nameField + typeField
@@ -420,11 +395,9 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 			}
 			// Use red for errors, gray for other messages
 			if schemaError != "" && content == schemaError {
-				errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6666"))
-				line = errorStyle.Render(content) + strings.Repeat(" ", paddingLen)
+				line = ui.StyleErrorLight.Render(content) + strings.Repeat(" ", paddingLen)
 			} else {
-				grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
-				line = grayStyle.Render(content) + strings.Repeat(" ", paddingLen)
+				line = ui.StyleGrayText.Render(content) + strings.Repeat(" ", paddingLen)
 			}
 			}
 			result.WriteString(leftBorder + line + rightBorder + "\n")
@@ -445,16 +418,13 @@ func renderSQLPane(m Model, width int) string {
 }
 
 func renderSQLPaneWithHeight(m Model, width int, height int) string {
-	borderColor := ColorInactive
-	titleColor := ColorInactive
 	isFocused := m.CurrentPane == FocusPaneSQL
+	borderStyle := ui.StyleBorderInactive
+	titleStyle := ui.StyleTitleInactive
 	if isFocused {
-		borderColor = ColorPrimary
-		titleColor = ColorPrimary
+		borderStyle = ui.StyleBorderActive
+		titleStyle = ui.StyleTitleActive
 	}
-
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
 	// Add [Custom] label if custom SQL is active
 	titleText := " SQL "
@@ -588,15 +558,12 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 }
 
 func renderDataPane(m Model, width int, totalHeight int) string {
-	borderColor := ColorInactive
-	titleColor := ColorInactive
+	borderStyle := ui.StyleBorderInactive
+	titleStyle := ui.StyleTitleInactive
 	if m.CurrentPane == FocusPaneData {
-		borderColor = ColorPrimary
-		titleColor = ColorPrimary
+		borderStyle = ui.StyleBorderActive
+		titleStyle = ui.StyleTitleActive
 	}
-
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
 	// Build title with table name if available
 	// For custom SQL, show extracted table name even if not in tables list
@@ -648,7 +615,6 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	// Prepare content
 	if dataLookupTableName == "" {
 		// No table selected
-		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 		for i := 0; i < contentLines; i++ {
 			line := "Select a table"
 			if i > 0 {
@@ -660,14 +626,12 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 			}
 			styledLine := line
 			if line != "" {
-				styledLine = grayStyle.Render(line)
+				styledLine = ui.StyleGrayText.Render(line)
 			}
 			result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 		}
 	} else {
 		data, exists := m.TableData[dataLookupTableName]
-		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
-		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6666"))
 		if m.DataErrorMsg != "" {
 			// Show error message
 			errMsg := m.DataErrorMsg
@@ -680,7 +644,7 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 				styledLine := ""
 				if i == 0 {
 					line = errMsg
-					styledLine = errorStyle.Render(line)
+					styledLine = ui.StyleErrorLight.Render(line)
 				}
 				paddingLen := width - len(line) - 2
 				if paddingLen < 0 {
@@ -699,7 +663,7 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 				styledLine := ""
 				if i == 0 {
 					line = message
-					styledLine = grayStyle.Render(line)
+					styledLine = ui.StyleGrayText.Render(line)
 				}
 				paddingLen := width - len(line) - 2
 				if paddingLen < 0 {
@@ -714,7 +678,7 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 				styledLine := ""
 				if i == 0 {
 					line = "No rows"
-					styledLine = grayStyle.Render(line)
+					styledLine = ui.StyleGrayText.Render(line)
 				}
 				paddingLen := width - len(line) - 2
 				if paddingLen < 0 {
