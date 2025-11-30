@@ -998,33 +998,34 @@ func renderConnectionDialog(m Model) string {
 
 		// Build value display
 		var valueDisplay string
-		if m.ConnectionDialogField == fieldIndex && isEditing {
-			// Editing mode: show cursor
-			if cursorPos < len(value) {
-				beforeCursor := value[:cursorPos]
-				cursorChar := cursorStyle.Render(string(value[cursorPos]))
-				afterCursor := value[cursorPos+1:]
-				// Pad to fixed width
-				displayedLen := len(value)
-				padding := valueAreaWidth - displayedLen
-				if padding < 0 {
-					padding = 0
+		if m.ConnectionDialogField == fieldIndex {
+			// Focused field: always show background color
+			if isEditing {
+				// Editing mode: background + cursor
+				if cursorPos < len(value) {
+					beforeCursor := selectedBgStyle.Render(value[:cursorPos])
+					cursorChar := cursorStyle.Render(string(value[cursorPos]))
+					afterCursor := value[cursorPos+1:]
+					padding := valueAreaWidth - len(value)
+					if padding < 0 {
+						padding = 0
+					}
+					valueDisplay = beforeCursor + cursorChar + selectedBgStyle.Render(afterCursor+strings.Repeat(" ", padding))
+				} else {
+					// Cursor at end
+					padding := valueAreaWidth - len(value) - 1
+					if padding < 0 {
+						padding = 0
+					}
+					valueDisplay = selectedBgStyle.Render(value) + cursorStyle.Render(" ") + selectedBgStyle.Render(strings.Repeat(" ", padding))
 				}
-				valueDisplay = beforeCursor + cursorChar + afterCursor + strings.Repeat(" ", padding)
 			} else {
-				// Cursor at end
-				padding := valueAreaWidth - len(value) - 1
-				if padding < 0 {
-					padding = 0
-				}
-				valueDisplay = value + cursorStyle.Render(" ") + strings.Repeat(" ", padding)
+				// Focused but not editing: just background, no cursor
+				paddedValue := value + strings.Repeat(" ", valueAreaWidth-len(value))
+				valueDisplay = selectedBgStyle.Render(paddedValue)
 			}
-		} else if m.ConnectionDialogField == fieldIndex {
-			// Selected but not editing: highlight entire value area
-			paddedValue := value + strings.Repeat(" ", valueAreaWidth-len(value))
-			valueDisplay = selectedBgStyle.Render(paddedValue)
 		} else {
-			// Not selected: plain value with padding
+			// Not focused: plain value with padding
 			padding := valueAreaWidth - len(value)
 			if padding < 0 {
 				padding = 0
