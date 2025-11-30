@@ -971,11 +971,11 @@ func renderConnectionDialog(m Model) string {
 	dialog.WriteString(borderStyle.Render("╮"))
 	dialog.WriteString("\n")
 
-	// Content width
+	// Content width (between left border+space and space+right border)
 	contentWidth := dialogWidth - 4
 
-	// Helper function to render a field
-	renderField := func(label string, value string, fieldIndex int, isEditing bool, cursorPos int) string {
+	// Helper function to render a field line with fixed width
+	renderFieldLine := func(label string, value string, fieldIndex int, isEditing bool, cursorPos int) string {
 		var line strings.Builder
 		line.WriteString(borderStyle.Render("│"))
 		line.WriteString(" ")
@@ -986,44 +986,54 @@ func renderConnectionDialog(m Model) string {
 			marker = "* "
 		}
 
-		labelText := labelStyle.Render(marker + label + ": ")
-		labelLen := len(marker) + len(label) + 2
+		// Calculate label part: "* Label: " or "  Label: "
+		labelPart := marker + label + ": "
+		labelLen := len(labelPart)
 
-		valueWidth := contentWidth - labelLen
-		if valueWidth < 10 {
-			valueWidth = 10
+		// Value area width
+		valueAreaWidth := contentWidth - labelLen
+		if valueAreaWidth < 1 {
+			valueAreaWidth = 1
 		}
 
-		var valueText string
+		// Build value display
+		var valueDisplay string
 		if m.ConnectionDialogField == fieldIndex && isEditing {
-			// Show cursor in editing mode
+			// Editing mode: show cursor
 			if cursorPos < len(value) {
-				valueText = value[:cursorPos] + cursorStyle.Render(string(value[cursorPos])) + value[cursorPos+1:]
+				beforeCursor := value[:cursorPos]
+				cursorChar := cursorStyle.Render(string(value[cursorPos]))
+				afterCursor := value[cursorPos+1:]
+				// Pad to fixed width
+				displayedLen := len(value)
+				padding := valueAreaWidth - displayedLen
+				if padding < 0 {
+					padding = 0
+				}
+				valueDisplay = beforeCursor + cursorChar + afterCursor + strings.Repeat(" ", padding)
 			} else {
-				valueText = value + cursorStyle.Render(" ")
+				// Cursor at end
+				padding := valueAreaWidth - len(value) - 1
+				if padding < 0 {
+					padding = 0
+				}
+				valueDisplay = value + cursorStyle.Render(" ") + strings.Repeat(" ", padding)
 			}
 		} else if m.ConnectionDialogField == fieldIndex {
-			// Highlight selected field
-			valueText = selectedBgStyle.Render(value + strings.Repeat(" ", valueWidth-len(value)))
+			// Selected but not editing: highlight entire value area
+			paddedValue := value + strings.Repeat(" ", valueAreaWidth-len(value))
+			valueDisplay = selectedBgStyle.Render(paddedValue)
 		} else {
-			valueText = value
+			// Not selected: plain value with padding
+			padding := valueAreaWidth - len(value)
+			if padding < 0 {
+				padding = 0
+			}
+			valueDisplay = value + strings.Repeat(" ", padding)
 		}
 
-		// Pad to width
-		displayLen := len(value)
-		if m.ConnectionDialogField == fieldIndex && !isEditing {
-			displayLen = valueWidth
-		}
-		padding := contentWidth - labelLen - displayLen
-		if padding < 0 {
-			padding = 0
-		}
-
-		line.WriteString(labelText)
-		line.WriteString(valueText)
-		if m.ConnectionDialogField != fieldIndex || isEditing {
-			line.WriteString(strings.Repeat(" ", padding))
-		}
+		line.WriteString(labelStyle.Render(labelPart))
+		line.WriteString(valueDisplay)
 		line.WriteString(" ")
 		line.WriteString(borderStyle.Render("│"))
 		return line.String()
@@ -1036,11 +1046,11 @@ func renderConnectionDialog(m Model) string {
 	dialog.WriteString("\n")
 
 	// Endpoint field
-	dialog.WriteString(renderField("Endpoint", m.EditEndpoint, 0, m.ConnectionDialogEditing, m.EditCursorPos))
+	dialog.WriteString(renderFieldLine("Endpoint", m.EditEndpoint, 0, m.ConnectionDialogEditing, m.EditCursorPos))
 	dialog.WriteString("\n")
 
 	// Port field
-	dialog.WriteString(renderField("Port", m.EditPort, 1, m.ConnectionDialogEditing, m.EditCursorPos))
+	dialog.WriteString(renderFieldLine("Port", m.EditPort, 1, m.ConnectionDialogEditing, m.EditCursorPos))
 	dialog.WriteString("\n")
 
 	// Empty line
