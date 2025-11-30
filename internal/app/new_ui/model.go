@@ -70,10 +70,8 @@ type Model struct {
 	RecordDetailVisible bool
 	RecordDetailScroll  int // Scroll offset for record detail dialog
 
-	// SQL Editor Dialog
-	SQLEditorVisible bool
-	EditSQL          string
-	SQLCursorPos     int
+	// SQL cursor position (for inline editing)
+	SQLCursorPos int
 
 	// Connection Setup Dialog
 	ConnectionDialogVisible bool
