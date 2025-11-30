@@ -220,6 +220,15 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			// Move focus to Data pane for immediate interaction
 			m.CurrentPane = FocusPaneData
 
+			// Fetch ancestor table schemas if not already loaded (for inherited columns display)
+			var ancestorCmds []tea.Cmd
+			ancestors := ui.GetAncestorTableNames(tableName)
+			for _, ancestor := range ancestors {
+				if _, exists := m.TableDetails[ancestor]; !exists {
+					ancestorCmds = append(ancestorCmds, db.FetchTableDetails(m.NosqlClient, ancestor))
+				}
+			}
+
 			// Check if schema is already loaded
 			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
 				// Schema available - fetch data with ORDER BY
@@ -227,14 +236,20 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				primaryKeys := ui.ParsePrimaryKeysFromDDL(ddl)
 				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
 				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
-				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+				dataCmd := db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+				if len(ancestorCmds) > 0 {
+					ancestorCmds = append(ancestorCmds, dataCmd)
+					return m, tea.Batch(ancestorCmds...)
+				}
+				return m, dataCmd
 			}
 
 			// Schema not loaded - fetch schema first, data will be fetched when schema arrives
 			m.CurrentSQL = "SELECT * FROM " + tableName
 			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 			m.LoadingData = true
-			return m, db.FetchTableDetails(m.NosqlClient, tableName)
+			ancestorCmds = append(ancestorCmds, db.FetchTableDetails(m.NosqlClient, tableName))
+			return m, tea.Batch(ancestorCmds...)
 		}
 		return m, nil
 	}
