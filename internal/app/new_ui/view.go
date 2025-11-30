@@ -229,11 +229,12 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	// Prepare content lines with tree structure
 	type tableLineInfo struct {
 		text       string
-		isSelected bool
+		isSelected bool // * marker (Enter pressed)
+		isCursor   bool // cursor position (up/down navigation)
 	}
 	var contentLines []tableLineInfo
 	if len(m.Tables) == 0 {
-		contentLines = []tableLineInfo{{text: "No tables", isSelected: false}}
+		contentLines = []tableLineInfo{{text: "No tables", isSelected: false, isCursor: false}}
 	} else {
 		// Render each table with tree structure
 		for i, tableName := range m.Tables {
@@ -246,7 +247,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 				displayName = tableName[dotIndex+1:]
 			}
 
-			// Add selection marker (* for selected table, always visible)
+			// Add selection marker (* for selected table via Enter)
 			var prefix string
 			isSelected := i == m.SelectedTable
 			if isSelected {
@@ -258,6 +259,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 			contentLines = append(contentLines, tableLineInfo{
 				text:       prefix + indent + displayName,
 				isSelected: isSelected,
+				isCursor:   i == m.CursorTable,
 			})
 		}
 	}
@@ -267,23 +269,30 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
 	// Styles for text color
-	selectedTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")) // White for selected
-	unselectedTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")) // Gray for unselected
+	selectedTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))       // White for selected (*)
+	cursorTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))      // Blue for cursor (focused)
+	normalTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))         // Gray for normal
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
 	// Render content lines (fill allocated height with content or empty lines)
+	isFocused := m.CurrentPane == FocusPaneTables
 	for i := 0; i < height; i++ {
 		contentIndex := i + m.TablesScrollOffset
 		if contentIndex < len(contentLines) {
 			lineInfo := contentLines[contentIndex]
-			// Apply color based on selection
+			// Apply color based on state
 			var styledText string
-			if lineInfo.isSelected {
+			if isFocused && lineInfo.isCursor {
+				// Cursor position when focused: blue text
+				styledText = cursorTextStyle.Render(lineInfo.text)
+			} else if lineInfo.isSelected {
+				// Selected table (*): white text
 				styledText = selectedTextStyle.Render(lineInfo.text)
 			} else {
-				styledText = unselectedTextStyle.Render(lineInfo.text)
+				// Normal: gray text
+				styledText = normalTextStyle.Render(lineInfo.text)
 			}
 			// Calculate padding (based on original text length, not styled)
 			paddingLen := width - len(lineInfo.text) - 2

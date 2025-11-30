@@ -286,7 +286,6 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "up", "k":
 		if m.CursorTable > 0 {
 			m.CursorTable--
-			m.SelectedTable = m.CursorTable // Move selection with cursor
 			m.SchemaScrollOffset = 0 // Reset scroll when changing tables
 
 			// Adjust scroll offset to keep cursor visible
@@ -305,7 +304,6 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "down", "j":
 		if m.CursorTable < len(m.Tables)-1 {
 			m.CursorTable++
-			m.SelectedTable = m.CursorTable // Move selection with cursor
 			m.SchemaScrollOffset = 0 // Reset scroll when changing tables
 
 			// Adjust scroll offset to keep cursor visible
@@ -322,7 +320,7 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case "enter":
-		// Select table and load data
+		// Select table and load data (only on Enter)
 		if m.CursorTable < len(m.Tables) {
 			m.SelectedTable = m.CursorTable
 			tableName := m.Tables[m.SelectedTable]
