@@ -578,17 +578,19 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	cursorLine, cursorCol := 0, 0
 	if isFocused {
 		currentPos := 0
+		found := false
 		for i, line := range sqlLines {
 			lineRuneLen := len([]rune(line)) + 1 // +1 for newline
 			if currentPos+lineRuneLen > m.SQLCursorPos {
 				cursorLine = i
 				cursorCol = m.SQLCursorPos - currentPos
+				found = true
 				break
 			}
 			currentPos += lineRuneLen
 		}
-		// Handle cursor at very end
-		if m.SQLCursorPos >= currentPos {
+		// Handle cursor at very end (after all content)
+		if !found {
 			cursorLine = len(sqlLines) - 1
 			cursorCol = len([]rune(sqlLines[cursorLine]))
 		}
