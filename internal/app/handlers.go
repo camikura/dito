@@ -1,8 +1,6 @@
 package app
 
 import (
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/camikura/dito/internal/db"
@@ -316,9 +314,13 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		// Check if this is a custom SQL (not the default SELECT * FROM table)
 		tableIndex := m.FindTableIndex(tableName)
 		if tableIndex >= 0 {
-			defaultSQL := buildDefaultSQL(tableName, "")
-			// Check both with and without ORDER BY
-			if m.CurrentSQL != defaultSQL && !strings.HasPrefix(m.CurrentSQL, defaultSQL+" ORDER BY") {
+			// Get DDL to generate proper default SQL with ORDER BY
+			var ddl string
+			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+				ddl = details.Schema.DDL
+			}
+			defaultSQL := buildDefaultSQL(tableName, ddl)
+			if m.CurrentSQL != defaultSQL {
 				// This is custom SQL
 				m.CustomSQL = true
 				// Parse column order from SQL
