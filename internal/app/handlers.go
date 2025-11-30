@@ -1,0 +1,608 @@
+package app
+
+import (
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/camikura/dito/internal/db"
+	"github.com/camikura/dito/internal/ui"
+)
+
+func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Connection dialog takes precedence
+	if m.ConnectionDialogVisible {
+		return handleConnectionDialogKeys(m, msg)
+	}
+
+	// Record detail dialog takes precedence
+	if m.RecordDetailVisible {
+		return handleRecordDetailKeys(m, msg)
+	}
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "tab":
+		// Only allow pane switching when connected
+		if m.Connected {
+			m = m.NextPane()
+		}
+		return m, nil
+
+	case "shift+tab":
+		// Only allow pane switching when connected
+		if m.Connected {
+			m = m.PrevPane()
+		}
+		return m, nil
+	}
+
+	// Pane-specific keys
+	switch m.CurrentPane {
+	case FocusPaneConnection:
+		return handleConnectionKeys(m, msg)
+	case FocusPaneTables:
+		return handleTablesKeys(m, msg)
+	case FocusPaneSchema:
+		return handleSchemaKeys(m, msg)
+	case FocusPaneSQL:
+		return handleSQLKeys(m, msg)
+	case FocusPaneData:
+		return handleDataKeys(m, msg)
+	}
+
+	return m, nil
+}
+
+func handleConnectionKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		// Open connection setup dialog
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 0
+		// Initialize with current values or defaults
+		if m.EditEndpoint == "" {
+			m.EditEndpoint = "localhost"
+		}
+		if m.EditPort == "" {
+			m.EditPort = "8080"
+		}
+		m.EditCursorPos = ui.RuneLen(m.EditEndpoint)
+		return m, nil
+
+	case "ctrl+d":
+		// Disconnect
+		if m.Connected {
+			m.Connected = false
+			m.NosqlClient = nil
+			m.Tables = []string{}
+			m.SelectedTable = -1
+			m.CursorTable = 0
+			m.CurrentSQL = ""
+			m.SQLCursorPos = 0
+			// Clear all cached data
+			m.TableDetails = make(map[string]*db.TableDetailsResult)
+			m.TableData = make(map[string]*db.TableDataResult)
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Helper to move to field and set cursor position
+	moveToField := func(field int) {
+		m.ConnectionDialogField = field
+		if field == 0 {
+			m.EditCursorPos = ui.RuneLen(m.EditEndpoint)
+		} else if field == 1 {
+			m.EditCursorPos = ui.RuneLen(m.EditPort)
+		}
+	}
+
+	switch msg.Type {
+	case tea.KeyEsc:
+		// Close dialog
+		m.ConnectionDialogVisible = false
+		return m, nil
+
+	case tea.KeyEnter:
+		// Connect from any field
+		m.ConnectionDialogVisible = false
+		m.Endpoint = m.EditEndpoint + ":" + m.EditPort
+		return m, db.Connect(m.EditEndpoint, m.EditPort, false)
+
+	case tea.KeyTab, tea.KeyDown:
+		moveToField((m.ConnectionDialogField + 1) % 2)
+		return m, nil
+
+	case tea.KeyShiftTab, tea.KeyUp:
+		moveToField((m.ConnectionDialogField + 1) % 2)
+		return m, nil
+
+	case tea.KeyBackspace:
+		if m.ConnectionDialogField == 0 {
+			m.EditEndpoint, m.EditCursorPos = ui.Backspace(m.EditEndpoint, m.EditCursorPos)
+		} else {
+			m.EditPort, m.EditCursorPos = ui.Backspace(m.EditPort, m.EditCursorPos)
+		}
+		return m, nil
+
+	case tea.KeyDelete:
+		if m.ConnectionDialogField == 0 {
+			m.EditEndpoint = ui.DeleteAt(m.EditEndpoint, m.EditCursorPos)
+		} else {
+			m.EditPort = ui.DeleteAt(m.EditPort, m.EditCursorPos)
+		}
+		return m, nil
+
+	case tea.KeyLeft:
+		if m.EditCursorPos > 0 {
+			m.EditCursorPos--
+		}
+		return m, nil
+
+	case tea.KeyRight:
+		maxPos := ui.RuneLen(m.EditEndpoint)
+		if m.ConnectionDialogField == 1 {
+			maxPos = ui.RuneLen(m.EditPort)
+		}
+		if m.EditCursorPos < maxPos {
+			m.EditCursorPos++
+		}
+		return m, nil
+
+	case tea.KeyHome:
+		m.EditCursorPos = 0
+		return m, nil
+
+	case tea.KeyEnd:
+		if m.ConnectionDialogField == 0 {
+			m.EditCursorPos = ui.RuneLen(m.EditEndpoint)
+		} else {
+			m.EditCursorPos = ui.RuneLen(m.EditPort)
+		}
+		return m, nil
+
+	case tea.KeyRunes:
+		char := string(msg.Runes)
+		if m.ConnectionDialogField == 0 {
+			m.EditEndpoint, m.EditCursorPos = ui.InsertWithCursor(m.EditEndpoint, m.EditCursorPos, char)
+		} else {
+			m.EditPort, m.EditCursorPos = ui.InsertWithCursor(m.EditPort, m.EditCursorPos, char)
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	visibleLines := m.TablesHeight // Tables pane visible height (dynamic)
+
+	switch msg.String() {
+	case "up", "k":
+		if m.CursorTable > 0 {
+			m.CursorTable--
+
+			// Adjust scroll offset to keep cursor visible
+			if m.CursorTable < m.TablesScrollOffset {
+				m.TablesScrollOffset = m.CursorTable
+			}
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.CursorTable < len(m.Tables)-1 {
+			m.CursorTable++
+
+			// Adjust scroll offset to keep cursor visible
+			if m.CursorTable >= m.TablesScrollOffset+visibleLines {
+				m.TablesScrollOffset = m.CursorTable - visibleLines + 1
+			}
+		}
+		return m, nil
+
+	case "enter":
+		// Select table and load data (only on Enter)
+		if m.CursorTable < len(m.Tables) {
+			m.SelectedTable = m.CursorTable
+			tableName := m.Tables[m.SelectedTable]
+
+			// Reset state
+			m.CustomSQL = false
+			m.SelectedDataRow = 0
+			m.ViewportOffset = 0
+			m.HorizontalOffset = 0
+			m.SchemaScrollOffset = 0
+
+			// Move focus to Data pane for immediate interaction
+			m.CurrentPane = FocusPaneData
+
+			// Check if schema is already loaded
+			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+				// Schema available - fetch data with ORDER BY
+				ddl := details.Schema.DDL
+				primaryKeys := ui.ParsePrimaryKeysFromDDL(ddl)
+				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
+				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+				return m, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys)
+			}
+
+			// Schema not loaded - fetch schema first, data will be fetched when schema arrives
+			m.CurrentSQL = "SELECT * FROM " + tableName
+			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+			m.LoadingData = true
+			return m, db.FetchTableDetails(m.NosqlClient, tableName)
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Determine which table schema is displayed (same logic as view)
+	var schemaTableName string
+	if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		schemaTableName = m.Tables[m.SelectedTable]
+	} else if m.CursorTable < len(m.Tables) {
+		schemaTableName = m.Tables[m.CursorTable]
+	}
+
+	if schemaTableName == "" {
+		return m, nil
+	}
+
+	// Calculate max scroll (dynamic based on content)
+	maxScroll := 0
+	if details, exists := m.TableDetails[schemaTableName]; exists && details != nil {
+		// Count content lines
+		lineCount := 1 // "Columns:"
+		if details.Schema.DDL != "" {
+			primaryKeys := ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+			columns := ui.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+			lineCount += len(columns)
+		}
+		lineCount += 2 // Empty line + "Indexes:"
+		lineCount += len(details.Indexes)
+		if len(details.Indexes) == 0 {
+			lineCount++ // "(none)" line
+		}
+
+		// Max scroll = total lines - visible lines (dynamic)
+		maxScroll = lineCount - m.SchemaHeight
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+	}
+
+	switch msg.String() {
+	case "up", "k":
+		if m.SchemaScrollOffset > 0 {
+			m.SchemaScrollOffset--
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.SchemaScrollOffset < maxScroll {
+			m.SchemaScrollOffset++
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlR:
+		// Execute SQL
+		if !m.Connected || m.CurrentSQL == "" {
+			return m, nil
+		}
+
+		// Parse table name from SQL
+		tableName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		// Use case-insensitive table name matching
+		actualTableName := m.FindTableName(tableName)
+		if actualTableName != "" {
+			tableName = actualTableName
+		}
+
+		// Check if this is a custom SQL (not the default SELECT * FROM table)
+		tableIndex := m.FindTableIndex(tableName)
+		if tableIndex >= 0 {
+			defaultSQL := buildDefaultSQL(tableName, "")
+			// Check both with and without ORDER BY
+			if m.CurrentSQL != defaultSQL && !strings.HasPrefix(m.CurrentSQL, defaultSQL+" ORDER BY") {
+				// This is custom SQL
+				m.CustomSQL = true
+				// Parse column order from SQL
+				m.ColumnOrder = db.ParseSelectColumns(m.CurrentSQL)
+				// Save current SelectedTable for later restoration
+				if !m.CustomSQL || m.PreviousSelectedTable == -1 {
+					m.PreviousSelectedTable = m.SelectedTable
+				}
+				// Update SelectedTable to match the table in SQL
+				m.SelectedTable = tableIndex
+			} else {
+				// This is standard SQL
+				m.CustomSQL = false
+				m.ColumnOrder = nil
+			}
+		}
+
+		// Fall back to selected table if no table name in SQL
+		if tableName == "" && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+			tableName = m.Tables[m.SelectedTable]
+		}
+
+		if tableName != "" {
+			var cmds []tea.Cmd
+
+			// Fetch schema (always try, even for unknown tables to get error)
+			if _, exists := m.TableDetails[tableName]; !exists {
+				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
+			}
+
+			// Execute custom SQL
+			cmds = append(cmds, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.CurrentSQL, ui.DefaultFetchSize))
+
+			// Move focus to Data pane
+			m.CurrentPane = FocusPaneData
+
+			return m, tea.Batch(cmds...)
+		}
+		return m, nil
+
+	case tea.KeyEnter:
+		// Insert newline
+		m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, "\n")
+		return m, nil
+
+	case tea.KeyBackspace:
+		m.CurrentSQL, m.SQLCursorPos = ui.Backspace(m.CurrentSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyDelete:
+		m.CurrentSQL = ui.DeleteAt(m.CurrentSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyLeft:
+		if m.SQLCursorPos > 0 {
+			m.SQLCursorPos--
+		}
+		return m, nil
+
+	case tea.KeyRight:
+		if m.SQLCursorPos < ui.RuneLen(m.CurrentSQL) {
+			m.SQLCursorPos++
+		}
+		return m, nil
+
+	case tea.KeyUp:
+		// Move cursor up one line
+		m.SQLCursorPos = moveCursorUpInText(m.CurrentSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyDown:
+		// Move cursor down one line
+		m.SQLCursorPos = moveCursorDownInText(m.CurrentSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyHome, tea.KeyCtrlA:
+		m.SQLCursorPos = 0
+		return m, nil
+
+	case tea.KeyEnd, tea.KeyCtrlE:
+		m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+		return m, nil
+
+	case tea.KeySpace:
+		m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, " ")
+		return m, nil
+
+	case tea.KeyRunes:
+		for _, r := range msg.Runes {
+			m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, string(r))
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Get total row count for current table
+	var totalRows int
+	if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		tableName := m.Tables[m.SelectedTable]
+		if data, exists := m.TableData[tableName]; exists && data != nil {
+			totalRows = len(data.Rows)
+		}
+	}
+
+	// Calculate viewport rows (Data pane visible height - borders)
+	// For Data pane: Height is specified by totalHeight parameter
+	dataPaneHeight := m.Height - 1 - m.ConnectionPaneHeight - m.TablesHeight - m.SchemaHeight - m.SQLHeight - 6
+	if dataPaneHeight < 3 {
+		dataPaneHeight = 3
+	}
+	contentLines := dataPaneHeight - 2 // Subtract top and bottom borders
+	viewportRows := contentLines - 2   // Subtract header and separator
+	if viewportRows < 1 {
+		viewportRows = 1
+	}
+
+	switch msg.String() {
+	case "up", "k":
+		if m.SelectedDataRow > 0 {
+			m.SelectedDataRow--
+
+			// Adjust viewport to keep selected row visible
+			// Always keep selected row in the center when possible
+			centerOffset := m.SelectedDataRow - viewportRows/2
+			if centerOffset < 0 {
+				centerOffset = 0
+			}
+			// Ensure we don't scroll past the end
+			maxOffset := totalRows - viewportRows
+			if maxOffset < 0 {
+				maxOffset = 0
+			}
+			if centerOffset > maxOffset {
+				centerOffset = maxOffset
+			}
+			m.ViewportOffset = centerOffset
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.SelectedDataRow < totalRows-1 {
+			m.SelectedDataRow++
+
+			// Adjust viewport to keep selected row visible
+			// Always keep selected row in the center when possible
+			centerOffset := m.SelectedDataRow - viewportRows/2
+			if centerOffset < 0 {
+				centerOffset = 0
+			}
+			// Ensure we don't scroll past the end
+			maxOffset := totalRows - viewportRows
+			if maxOffset < 0 {
+				maxOffset = 0
+			}
+			if centerOffset > maxOffset {
+				centerOffset = maxOffset
+			}
+			m.ViewportOffset = centerOffset
+
+			// Trigger additional data loading when near the end
+			remainingRows := totalRows - m.SelectedDataRow - 1
+			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+				tableName := m.Tables[m.SelectedTable]
+				if data, exists := m.TableData[tableName]; exists && data != nil {
+					if remainingRows <= ui.FetchMoreThreshold && data.HasMore && !m.LoadingData && data.LastPKValues != nil {
+						m.LoadingData = true
+						// Get primary keys from schema
+						var primaryKeys []string
+						if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+							primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+						}
+						return m, db.FetchMoreTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
+					}
+				}
+			}
+		}
+		return m, nil
+
+	case "left", "h":
+		if m.HorizontalOffset > 0 {
+			m.HorizontalOffset--
+		}
+		return m, nil
+
+	case "right", "l":
+		// Calculate max horizontal offset dynamically
+		maxHorizontalOffset := calculateMaxHorizontalOffset(m)
+		if m.HorizontalOffset < maxHorizontalOffset {
+			m.HorizontalOffset++
+		}
+		return m, nil
+
+	case "enter":
+		// Show record detail dialog
+		if totalRows > 0 && m.SelectedDataRow < totalRows {
+			m.RecordDetailVisible = true
+			m.RecordDetailScroll = 0
+		}
+		return m, nil
+
+	case "esc":
+		// Reset to default SQL (only if custom SQL is active)
+		if m.CustomSQL {
+			m.CustomSQL = false
+			m.ColumnOrder = nil
+			m.SelectedDataRow = 0
+			m.ViewportOffset = 0
+			m.HorizontalOffset = 0
+			m.SchemaErrorMsg = ""
+			m.DataErrorMsg = ""
+
+			// Reload data with default SQL if a table is selected
+			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+				tableName := m.Tables[m.SelectedTable]
+
+				var ddl string
+				var primaryKeys []string
+				if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+					ddl = details.Schema.DDL
+					primaryKeys = ui.ParsePrimaryKeysFromDDL(ddl)
+				}
+
+				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
+				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+			}
+			m.CurrentSQL = ""
+			m.SQLCursorPos = 0
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Calculate max scroll for record detail
+	maxScroll := calculateRecordDetailMaxScroll(m)
+
+	switch msg.String() {
+	case "esc", "enter", "q":
+		m.RecordDetailVisible = false
+		m.RecordDetailScroll = 0
+		return m, nil
+
+	case "up", "k":
+		if m.RecordDetailScroll > 0 {
+			m.RecordDetailScroll--
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.RecordDetailScroll < maxScroll {
+			m.RecordDetailScroll++
+		}
+		return m, nil
+
+	case "home":
+		m.RecordDetailScroll = 0
+		return m, nil
+
+	case "end":
+		m.RecordDetailScroll = maxScroll
+		return m, nil
+
+	case "pgup":
+		// Scroll up by page
+		m.RecordDetailScroll -= 10
+		if m.RecordDetailScroll < 0 {
+			m.RecordDetailScroll = 0
+		}
+		return m, nil
+
+	case "pgdown":
+		// Scroll down by page
+		m.RecordDetailScroll += 10
+		if m.RecordDetailScroll > maxScroll {
+			m.RecordDetailScroll = maxScroll
+		}
+		return m, nil
+	}
+
+	return m, nil
+}

@@ -403,9 +403,9 @@ func TestParseSelectColumns(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parseSelectColumns(tt.sql)
+			result := ParseSelectColumns(tt.sql)
 			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("parseSelectColumns(%q) = %v, want %v", tt.sql, result, tt.expected)
+				t.Errorf("ParseSelectColumns(%q) = %v, want %v", tt.sql, result, tt.expected)
 			}
 		})
 	}

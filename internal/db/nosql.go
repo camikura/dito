@@ -160,9 +160,9 @@ func FetchMoreTableData(client *nosqldb.Client, tableName string, limit int, pri
 	return fetchTableDataWithCursor(client, tableName, limit, primaryKeys, lastPKValues, true)
 }
 
-// parseSelectColumns extracts column names/aliases from SELECT clause in order.
+// ParseSelectColumns extracts column names/aliases from SELECT clause in order.
 // Handles: SELECT col1, col2 as alias, t.col3 FROM ...
-func parseSelectColumns(sql string) []string {
+func ParseSelectColumns(sql string) []string {
 	upperSQL := strings.ToUpper(sql)
 
 	// Find SELECT and FROM positions
@@ -233,7 +233,7 @@ func parseSelectColumns(sql string) []string {
 func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limit int) tea.Cmd {
 	return func() tea.Msg {
 		// Parse column order from SELECT clause
-		columnOrder := parseSelectColumns(sql)
+		columnOrder := ParseSelectColumns(sql)
 
 		// Add LIMIT clause to SQL if not present
 		statement := sql
