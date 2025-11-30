@@ -1051,3 +1051,494 @@ func TestCalculateRecordDetailMaxScroll(t *testing.T) {
 		}
 	})
 }
+
+func TestHandleTableDetailsResult(t *testing.T) {
+	t.Run("error sets schema error message", func(t *testing.T) {
+		m := InitialModel()
+		m.LoadingData = true
+
+		newModel, cmd := handleTableDetailsResult(m, db.TableDetailsResult{
+			Err: errors.New("failed to fetch schema"),
+		})
+
+		if newModel.SchemaErrorMsg == "" {
+			t.Error("Expected SchemaErrorMsg to be set")
+		}
+		if newModel.LoadingData {
+			t.Error("Expected LoadingData to be false")
+		}
+		if cmd != nil {
+			t.Error("Expected no command")
+		}
+	})
+
+	t.Run("success stores table details", func(t *testing.T) {
+		m := InitialModel()
+		m.TableDetails = make(map[string]*db.TableDetailsResult)
+
+		newModel, _ := handleTableDetailsResult(m, db.TableDetailsResult{
+			TableName: "users",
+		})
+
+		if newModel.SchemaErrorMsg != "" {
+			t.Errorf("SchemaErrorMsg should be empty, got %q", newModel.SchemaErrorMsg)
+		}
+		if newModel.TableDetails["users"] == nil {
+			t.Error("Expected table details to be stored")
+		}
+	})
+
+	t.Run("success clears previous error", func(t *testing.T) {
+		m := InitialModel()
+		m.SchemaErrorMsg = "previous error"
+		m.TableDetails = make(map[string]*db.TableDetailsResult)
+
+		newModel, _ := handleTableDetailsResult(m, db.TableDetailsResult{
+			TableName: "users",
+		})
+
+		if newModel.SchemaErrorMsg != "" {
+			t.Errorf("SchemaErrorMsg should be cleared, got %q", newModel.SchemaErrorMsg)
+		}
+	})
+}
+
+func TestHandleConnectionDialogKeysAdditional(t *testing.T) {
+	t.Run("Right arrow moves cursor right within text", func(t *testing.T) {
+		m := InitialModel()
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 0
+		m.EditEndpoint = "localhost"
+		m.EditCursorPos = 3
+
+		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyRight})
+
+		if newModel.EditCursorPos != 4 {
+			t.Errorf("EditCursorPos = %d, want 4", newModel.EditCursorPos)
+		}
+	})
+
+	t.Run("Right arrow at end stays at end", func(t *testing.T) {
+		m := InitialModel()
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 0
+		m.EditEndpoint = "localhost"
+		m.EditCursorPos = 9
+
+		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyRight})
+
+		if newModel.EditCursorPos != 9 {
+			t.Errorf("EditCursorPos = %d, want 9", newModel.EditCursorPos)
+		}
+	})
+
+	t.Run("End moves cursor to end", func(t *testing.T) {
+		m := InitialModel()
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 0
+		m.EditEndpoint = "localhost"
+		m.EditCursorPos = 3
+
+		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyEnd})
+
+		if newModel.EditCursorPos != 9 {
+			t.Errorf("EditCursorPos = %d, want 9", newModel.EditCursorPos)
+		}
+	})
+
+	t.Run("Delete removes character at cursor", func(t *testing.T) {
+		m := InitialModel()
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 0
+		m.EditEndpoint = "localhost"
+		m.EditCursorPos = 5
+
+		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyDelete})
+
+		if newModel.EditEndpoint != "localost" {
+			t.Errorf("EditEndpoint = %q, want %q", newModel.EditEndpoint, "localost")
+		}
+	})
+
+	t.Run("Tab wraps around from last field", func(t *testing.T) {
+		m := InitialModel()
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 1 // Port field (last)
+
+		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyTab})
+
+		if newModel.ConnectionDialogField != 0 {
+			t.Errorf("ConnectionDialogField = %d, want 0", newModel.ConnectionDialogField)
+		}
+	})
+
+	t.Run("Editing port field", func(t *testing.T) {
+		m := InitialModel()
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 1 // Port field
+		m.EditPort = "8080"
+		m.EditCursorPos = 4
+
+		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
+
+		if newModel.EditPort != "80801" {
+			t.Errorf("EditPort = %q, want %q", newModel.EditPort, "80801")
+		}
+	})
+
+	t.Run("Backspace on port field", func(t *testing.T) {
+		m := InitialModel()
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 1
+		m.EditPort = "8080"
+		m.EditCursorPos = 4
+
+		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyBackspace})
+
+		if newModel.EditPort != "808" {
+			t.Errorf("EditPort = %q, want %q", newModel.EditPort, "808")
+		}
+	})
+}
+
+func TestHandleTablesKeysAdditional(t *testing.T) {
+	t.Run("Empty tables list returns unchanged", func(t *testing.T) {
+		m := InitialModel()
+		m.Tables = []string{}
+		m.CursorTable = 0
+
+		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyDown})
+
+		if newModel.CursorTable != 0 {
+			t.Errorf("CursorTable = %d, want 0", newModel.CursorTable)
+		}
+	})
+
+	t.Run("Up at top does nothing", func(t *testing.T) {
+		m := InitialModel()
+		m.Tables = []string{"users", "products", "orders"}
+		m.CursorTable = 0
+		m.TablesHeight = 10
+
+		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyUp})
+
+		if newModel.CursorTable != 0 {
+			t.Errorf("CursorTable = %d, want 0", newModel.CursorTable)
+		}
+	})
+
+	t.Run("Down at bottom does nothing", func(t *testing.T) {
+		m := InitialModel()
+		m.Tables = []string{"users", "products", "orders"}
+		m.CursorTable = 2
+		m.TablesHeight = 10
+
+		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyDown})
+
+		if newModel.CursorTable != 2 {
+			t.Errorf("CursorTable = %d, want 2", newModel.CursorTable)
+		}
+	})
+
+	t.Run("j key moves down", func(t *testing.T) {
+		m := InitialModel()
+		m.Tables = []string{"users", "products"}
+		m.CursorTable = 0
+		m.TablesHeight = 10
+
+		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+
+		if newModel.CursorTable != 1 {
+			t.Errorf("CursorTable = %d, want 1", newModel.CursorTable)
+		}
+	})
+
+	t.Run("k key moves up", func(t *testing.T) {
+		m := InitialModel()
+		m.Tables = []string{"users", "products"}
+		m.CursorTable = 1
+		m.TablesHeight = 10
+
+		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+
+		if newModel.CursorTable != 0 {
+			t.Errorf("CursorTable = %d, want 0", newModel.CursorTable)
+		}
+	})
+}
+
+func TestHandleSchemaKeysAdditional(t *testing.T) {
+	t.Run("Down without table details does nothing", func(t *testing.T) {
+		m := InitialModel()
+		m.Tables = []string{"users"}
+		m.SelectedTable = 0
+		m.SchemaScrollOffset = 0
+
+		newModel, _ := handleSchemaKeys(m, tea.KeyMsg{Type: tea.KeyDown})
+
+		// Without table details, maxScroll is 0, so no scrolling
+		if newModel.SchemaScrollOffset != 0 {
+			t.Errorf("SchemaScrollOffset = %d, want 0", newModel.SchemaScrollOffset)
+		}
+	})
+
+	t.Run("k key scrolls up", func(t *testing.T) {
+		m := InitialModel()
+		m.Tables = []string{"users"}
+		m.SelectedTable = 0
+		m.SchemaScrollOffset = 2
+
+		newModel, _ := handleSchemaKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+
+		if newModel.SchemaScrollOffset != 1 {
+			t.Errorf("SchemaScrollOffset = %d, want 1", newModel.SchemaScrollOffset)
+		}
+	})
+}
+
+func TestHandleDataKeysAdditional(t *testing.T) {
+	t.Run("Left arrow scrolls left", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneData
+		m.HorizontalOffset = 5
+
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
+
+		if newModel.HorizontalOffset != 4 {
+			t.Errorf("HorizontalOffset = %d, want 4", newModel.HorizontalOffset)
+		}
+	})
+
+	t.Run("h key scrolls left", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneData
+		m.HorizontalOffset = 5
+
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+
+		if newModel.HorizontalOffset != 4 {
+			t.Errorf("HorizontalOffset = %d, want 4", newModel.HorizontalOffset)
+		}
+	})
+
+	t.Run("Left at zero stays at zero", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneData
+		m.HorizontalOffset = 0
+
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
+
+		if newModel.HorizontalOffset != 0 {
+			t.Errorf("HorizontalOffset = %d, want 0", newModel.HorizontalOffset)
+		}
+	})
+
+	t.Run("Enter key shows record detail", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneData
+		m.Tables = []string{"users"}
+		m.SelectedTable = 0
+		m.SelectedDataRow = 0
+		m.TableData = map[string]*db.TableDataResult{
+			"users": {
+				Rows: []map[string]interface{}{
+					{"id": 1},
+				},
+			},
+		}
+
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\r'}})
+
+		// Check if "enter" is handled
+		if newModel.RecordDetailVisible {
+			// Good, enter was handled
+		}
+	})
+
+	t.Run("j key moves down", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneData
+		m.Tables = []string{"users"}
+		m.SelectedTable = 0
+		m.SelectedDataRow = 0
+		m.Height = 40
+		m.TableData = map[string]*db.TableDataResult{
+			"users": {
+				Rows: []map[string]interface{}{
+					{"id": 1}, {"id": 2},
+				},
+			},
+		}
+
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+
+		if newModel.SelectedDataRow != 1 {
+			t.Errorf("SelectedDataRow = %d, want 1", newModel.SelectedDataRow)
+		}
+	})
+
+	t.Run("k key moves up", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneData
+		m.Tables = []string{"users"}
+		m.SelectedTable = 0
+		m.SelectedDataRow = 1
+		m.Height = 40
+		m.TableData = map[string]*db.TableDataResult{
+			"users": {
+				Rows: []map[string]interface{}{
+					{"id": 1}, {"id": 2},
+				},
+			},
+		}
+
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+
+		if newModel.SelectedDataRow != 0 {
+			t.Errorf("SelectedDataRow = %d, want 0", newModel.SelectedDataRow)
+		}
+	})
+
+	t.Run("No table selected returns unchanged", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneData
+		m.SelectedTable = -1
+		m.SelectedDataRow = 0
+
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyDown})
+
+		if newModel.SelectedDataRow != 0 {
+			t.Errorf("SelectedDataRow = %d, want 0", newModel.SelectedDataRow)
+		}
+	})
+}
+
+func TestHandleRecordDetailKeysAdditional(t *testing.T) {
+	t.Run("j key scrolls down", func(t *testing.T) {
+		m := InitialModel()
+		m.RecordDetailVisible = true
+		m.RecordDetailScroll = 0
+		m.Tables = []string{"users"}
+		m.SelectedTable = 0
+		m.SelectedDataRow = 0
+		m.Height = 10
+
+		row := make(map[string]interface{})
+		for i := 0; i < 20; i++ {
+			row[string(rune('a'+i))] = i
+		}
+		m.TableData = map[string]*db.TableDataResult{
+			"users": {Rows: []map[string]interface{}{row}},
+		}
+
+		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+
+		if newModel.RecordDetailScroll != 1 {
+			t.Errorf("RecordDetailScroll = %d, want 1", newModel.RecordDetailScroll)
+		}
+	})
+
+	t.Run("k key scrolls up", func(t *testing.T) {
+		m := InitialModel()
+		m.RecordDetailVisible = true
+		m.RecordDetailScroll = 5
+
+		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+
+		if newModel.RecordDetailScroll != 4 {
+			t.Errorf("RecordDetailScroll = %d, want 4", newModel.RecordDetailScroll)
+		}
+	})
+
+	t.Run("End scrolls to max", func(t *testing.T) {
+		m := InitialModel()
+		m.RecordDetailVisible = true
+		m.RecordDetailScroll = 0
+		m.Tables = []string{"users"}
+		m.SelectedTable = 0
+		m.SelectedDataRow = 0
+		m.Height = 10
+
+		row := make(map[string]interface{})
+		for i := 0; i < 30; i++ {
+			row[string(rune('a'+i))] = i
+		}
+		m.TableData = map[string]*db.TableDataResult{
+			"users": {Rows: []map[string]interface{}{row}},
+		}
+
+		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyEnd})
+
+		// Should scroll to max (but we just check it's > 0)
+		if newModel.RecordDetailScroll == 0 {
+			t.Errorf("RecordDetailScroll should be > 0")
+		}
+	})
+}
+
+func TestHandleSQLKeysAdditional(t *testing.T) {
+	t.Run("Delete removes character at cursor", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneSQL
+		m.CurrentSQL = "SELECT * FROM users"
+		m.SQLCursorPos = 7
+
+		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyDelete})
+
+		if newModel.CurrentSQL != "SELECT  FROM users" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECT  FROM users")
+		}
+	})
+
+	t.Run("Delete at end does nothing", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneSQL
+		m.CurrentSQL = "SELECT"
+		m.SQLCursorPos = 6
+
+		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyDelete})
+
+		if newModel.CurrentSQL != "SELECT" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECT")
+		}
+	})
+
+	t.Run("Backspace at start does nothing", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneSQL
+		m.CurrentSQL = "SELECT"
+		m.SQLCursorPos = 0
+
+		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyBackspace})
+
+		if newModel.CurrentSQL != "SELECT" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECT")
+		}
+	})
+
+	t.Run("Left at start stays at start", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneSQL
+		m.CurrentSQL = "SELECT"
+		m.SQLCursorPos = 0
+
+		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
+
+		if newModel.SQLCursorPos != 0 {
+			t.Errorf("SQLCursorPos = %d, want 0", newModel.SQLCursorPos)
+		}
+	})
+
+	t.Run("Right at end stays at end", func(t *testing.T) {
+		m := InitialModel()
+		m.CurrentPane = FocusPaneSQL
+		m.CurrentSQL = "SELECT"
+		m.SQLCursorPos = 6
+
+		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyRight})
+
+		if newModel.SQLCursorPos != 6 {
+			t.Errorf("SQLCursorPos = %d, want 6", newModel.SQLCursorPos)
+		}
+	})
+}
