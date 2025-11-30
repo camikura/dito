@@ -712,9 +712,7 @@ func handleTableListResult(m Model, msg db.TableListResult) (Model, tea.Cmd) {
 	m.Tables = sortTablesForTree(msg.Tables)
 	if len(m.Tables) > 0 {
 		m.CursorTable = 0
-		m.SelectedTable = 0 // Initialize selection to first table
-		// Fetch details for first table
-		return m, db.FetchTableDetails(m.NosqlClient, m.Tables[0])
+		// SelectedTable stays at -1 until user presses Enter
 	}
 
 	return m, nil
