@@ -235,7 +235,7 @@ func (g *Grid) renderRow(row map[string]interface{}, isSelected bool) string {
 		} else {
 			scrolledLine = lipgloss.NewStyle().
 				Background(ColorPrimaryBg).
-				Foreground(lipgloss.Color("#000000")).
+				Foreground(ColorWhite).
 				Render(scrolledLine)
 		}
 	}
@@ -295,7 +295,7 @@ func (g *Grid) applyNullStylingWithSelection(line string, nullRegions []nullRegi
 	runes := []rune(line)
 	var result strings.Builder
 
-	selectedStyle := lipgloss.NewStyle().Background(ColorPrimaryBg).Foreground(lipgloss.Color("#000000"))
+	selectedStyle := lipgloss.NewStyle().Background(ColorPrimaryBg).Foreground(ColorWhite)
 	selectedNullStyle := lipgloss.NewStyle().Background(ColorPrimaryBg).Foreground(ColorGrayMid)
 
 	i := 0
