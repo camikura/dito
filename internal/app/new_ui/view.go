@@ -967,11 +967,13 @@ func renderConnectionDialog(m Model) string {
 	title := titleStyle.Render(titleText)
 	titleLen := len([]rune(titleText))
 
-	dashesLen := dialogWidth - 2 - titleLen
+	// Title line: ╭─ + title + ─...─ + ╮
+	// dialogWidth = 1(╭) + 1(─) + titleLen + dashesLen + 1(╮)
+	dashesLen := dialogWidth - 3 - titleLen
 	if dashesLen < 0 {
 		dashesLen = 0
 	}
-	dialog.WriteString(borderStyle.Render("╭"))
+	dialog.WriteString(borderStyle.Render("╭─"))
 	dialog.WriteString(title)
 	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dashesLen)))
 	dialog.WriteString(borderStyle.Render("╮"))
