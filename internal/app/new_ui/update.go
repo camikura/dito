@@ -80,6 +80,11 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Connection dialog takes precedence
+	if m.ConnectionDialogVisible {
+		return handleConnectionDialogKeys(m, msg)
+	}
+
 	// SQL Editor dialog takes precedence
 	if m.SQLEditorVisible {
 		return handleSQLEditorKeys(m, msg)
@@ -105,6 +110,8 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	// Pane-specific keys
 	switch m.CurrentPane {
+	case FocusPaneConnection:
+		return handleConnectionKeys(m, msg)
 	case FocusPaneTables:
 		return handleTablesKeys(m, msg)
 	case FocusPaneSchema:
@@ -113,6 +120,158 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return handleSQLKeys(m, msg)
 	case FocusPaneData:
 		return handleDataKeys(m, msg)
+	}
+
+	return m, nil
+}
+
+func handleConnectionKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		// Open connection setup dialog
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 0
+		m.ConnectionDialogEditing = false
+		// Initialize with current values or defaults
+		if m.EditEndpoint == "" {
+			m.EditEndpoint = "localhost"
+		}
+		if m.EditPort == "" {
+			m.EditPort = "8080"
+		}
+		return m, nil
+
+	case "ctrl+d":
+		// Disconnect
+		if m.Connected {
+			m.Connected = false
+			m.NosqlClient = nil
+			m.Tables = []string{}
+			m.SelectedTable = -1
+			m.CursorTable = 0
+			m.TableDetails = make(map[string]*db.TableDetailsResult)
+			m.TableData = make(map[string]*db.TableDataResult)
+			m.ConnectionMsg = ""
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.ConnectionDialogEditing {
+		// Editing mode
+		switch msg.Type {
+		case tea.KeyEsc:
+			// Cancel editing
+			m.ConnectionDialogEditing = false
+			return m, nil
+
+		case tea.KeyEnter:
+			// Confirm editing
+			m.ConnectionDialogEditing = false
+			return m, nil
+
+		case tea.KeyBackspace:
+			if m.ConnectionDialogField == 0 {
+				m.EditEndpoint, m.EditCursorPos = ui.Backspace(m.EditEndpoint, m.EditCursorPos)
+			} else if m.ConnectionDialogField == 1 {
+				m.EditPort, m.EditCursorPos = ui.Backspace(m.EditPort, m.EditCursorPos)
+			}
+			return m, nil
+
+		case tea.KeyDelete:
+			if m.ConnectionDialogField == 0 {
+				m.EditEndpoint = ui.DeleteAt(m.EditEndpoint, m.EditCursorPos)
+			} else if m.ConnectionDialogField == 1 {
+				m.EditPort = ui.DeleteAt(m.EditPort, m.EditCursorPos)
+			}
+			return m, nil
+
+		case tea.KeyLeft:
+			if m.EditCursorPos > 0 {
+				m.EditCursorPos--
+			}
+			return m, nil
+
+		case tea.KeyRight:
+			maxPos := len(m.EditEndpoint)
+			if m.ConnectionDialogField == 1 {
+				maxPos = len(m.EditPort)
+			}
+			if m.EditCursorPos < maxPos {
+				m.EditCursorPos++
+			}
+			return m, nil
+
+		case tea.KeyHome:
+			m.EditCursorPos = 0
+			return m, nil
+
+		case tea.KeyEnd:
+			if m.ConnectionDialogField == 0 {
+				m.EditCursorPos = len(m.EditEndpoint)
+			} else if m.ConnectionDialogField == 1 {
+				m.EditCursorPos = len(m.EditPort)
+			}
+			return m, nil
+
+		case tea.KeyRunes:
+			char := string(msg.Runes)
+			if m.ConnectionDialogField == 0 {
+				m.EditEndpoint, m.EditCursorPos = ui.InsertWithCursor(m.EditEndpoint, m.EditCursorPos, char)
+			} else if m.ConnectionDialogField == 1 {
+				m.EditPort, m.EditCursorPos = ui.InsertWithCursor(m.EditPort, m.EditCursorPos, char)
+			}
+			return m, nil
+		}
+		return m, nil
+	}
+
+	// Navigation mode
+	switch msg.String() {
+	case "esc":
+		// Close dialog
+		m.ConnectionDialogVisible = false
+		return m, nil
+
+	case "up", "k":
+		if m.ConnectionDialogField > 0 {
+			m.ConnectionDialogField--
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.ConnectionDialogField < 2 {
+			m.ConnectionDialogField++
+		}
+		return m, nil
+
+	case "tab":
+		m.ConnectionDialogField = (m.ConnectionDialogField + 1) % 3
+		return m, nil
+
+	case "shift+tab":
+		m.ConnectionDialogField = (m.ConnectionDialogField + 2) % 3
+		return m, nil
+
+	case "enter":
+		if m.ConnectionDialogField == 2 {
+			// Connect button - attempt connection
+			m.ConnectionDialogVisible = false
+			m.Endpoint = m.EditEndpoint + ":" + m.EditPort
+			return m, db.Connect(m.EditEndpoint, m.EditPort, false)
+		} else {
+			// Start editing the current field
+			m.ConnectionDialogEditing = true
+			if m.ConnectionDialogField == 0 {
+				m.EditCursorPos = len(m.EditEndpoint)
+			} else {
+				m.EditCursorPos = len(m.EditPort)
+			}
+		}
+		return m, nil
 	}
 
 	return m, nil

@@ -69,6 +69,14 @@ type Model struct {
 	SQLEditorVisible bool
 	EditSQL          string
 	SQLCursorPos     int
+
+	// Connection Setup Dialog
+	ConnectionDialogVisible bool
+	ConnectionDialogField   int    // 0: Endpoint, 1: Port, 2: Connect button
+	ConnectionDialogEditing bool   // true when editing a field
+	EditEndpoint            string // Endpoint being edited
+	EditPort                string // Port being edited
+	EditCursorPos           int    // Cursor position in current field
 }
 
 // InitialModel creates the initial model for new UI

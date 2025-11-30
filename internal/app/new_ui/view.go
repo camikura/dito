@@ -91,7 +91,11 @@ func RenderView(m Model) string {
 	var footerContent string
 	switch m.CurrentPane {
 	case FocusPaneConnection:
-		footerContent = "Switch Pane: tab"
+		if m.Connected {
+			footerContent = "Switch Pane: tab | Disconnect: ctrl+d"
+		} else {
+			footerContent = "Switch Pane: tab | Connect: <enter>"
+		}
 	case FocusPaneTables:
 		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
 	case FocusPaneSQL:
@@ -116,6 +120,11 @@ func RenderView(m Model) string {
 	result.WriteString(footerContent)
 
 	baseView := result.String()
+
+	// Overlay connection dialog if visible
+	if m.ConnectionDialogVisible {
+		return renderConnectionDialog(m)
+	}
 
 	// Overlay SQL editor dialog if visible
 	if m.SQLEditorVisible {
@@ -906,6 +915,171 @@ func renderSQLEditorDialog(m Model) string {
 
 	// Help text
 	helpText := "Execute: ctrl+r | Cancel: esc"
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
+	helpPadding := dialogWidth - 4 - len(helpText)
+	if helpPadding < 0 {
+		helpPadding = 0
+	}
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(" ")
+	dialog.WriteString(helpStyle.Render(helpText))
+	dialog.WriteString(strings.Repeat(" ", helpPadding))
+	dialog.WriteString(" ")
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Bottom border
+	dialog.WriteString(borderStyle.Render("╰"))
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dialogWidth-2)))
+	dialog.WriteString(borderStyle.Render("╯"))
+
+	// Center the dialog
+	return lipgloss.Place(
+		m.Width,
+		m.Height,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog.String(),
+	)
+}
+
+// renderConnectionDialog renders the connection setup dialog
+func renderConnectionDialog(m Model) string {
+	dialogWidth := 50
+
+	// Border style
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorLabel))
+	selectedBgStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
+	cursorStyle := lipgloss.NewStyle().Background(lipgloss.Color("#ffffff")).Foreground(lipgloss.Color("#000000"))
+
+	var dialog strings.Builder
+
+	// Title
+	titleText := " Connection Setup "
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true)
+	title := titleStyle.Render(titleText)
+	titleLen := len([]rune(titleText))
+
+	dashesLen := dialogWidth - 2 - titleLen
+	if dashesLen < 0 {
+		dashesLen = 0
+	}
+	dialog.WriteString(borderStyle.Render("╭"))
+	dialog.WriteString(title)
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dashesLen)))
+	dialog.WriteString(borderStyle.Render("╮"))
+	dialog.WriteString("\n")
+
+	// Content width
+	contentWidth := dialogWidth - 4
+
+	// Helper function to render a field
+	renderField := func(label string, value string, fieldIndex int, isEditing bool, cursorPos int) string {
+		var line strings.Builder
+		line.WriteString(borderStyle.Render("│"))
+		line.WriteString(" ")
+
+		// Marker for current field
+		marker := "  "
+		if m.ConnectionDialogField == fieldIndex {
+			marker = "* "
+		}
+
+		labelText := labelStyle.Render(marker + label + ": ")
+		labelLen := len(marker) + len(label) + 2
+
+		valueWidth := contentWidth - labelLen
+		if valueWidth < 10 {
+			valueWidth = 10
+		}
+
+		var valueText string
+		if m.ConnectionDialogField == fieldIndex && isEditing {
+			// Show cursor in editing mode
+			if cursorPos < len(value) {
+				valueText = value[:cursorPos] + cursorStyle.Render(string(value[cursorPos])) + value[cursorPos+1:]
+			} else {
+				valueText = value + cursorStyle.Render(" ")
+			}
+		} else if m.ConnectionDialogField == fieldIndex {
+			// Highlight selected field
+			valueText = selectedBgStyle.Render(value + strings.Repeat(" ", valueWidth-len(value)))
+		} else {
+			valueText = value
+		}
+
+		// Pad to width
+		displayLen := len(value)
+		if m.ConnectionDialogField == fieldIndex && !isEditing {
+			displayLen = valueWidth
+		}
+		padding := contentWidth - labelLen - displayLen
+		if padding < 0 {
+			padding = 0
+		}
+
+		line.WriteString(labelText)
+		line.WriteString(valueText)
+		if m.ConnectionDialogField != fieldIndex || isEditing {
+			line.WriteString(strings.Repeat(" ", padding))
+		}
+		line.WriteString(" ")
+		line.WriteString(borderStyle.Render("│"))
+		return line.String()
+	}
+
+	// Empty line
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(strings.Repeat(" ", dialogWidth-2))
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Endpoint field
+	dialog.WriteString(renderField("Endpoint", m.EditEndpoint, 0, m.ConnectionDialogEditing, m.EditCursorPos))
+	dialog.WriteString("\n")
+
+	// Port field
+	dialog.WriteString(renderField("Port", m.EditPort, 1, m.ConnectionDialogEditing, m.EditCursorPos))
+	dialog.WriteString("\n")
+
+	// Empty line
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(strings.Repeat(" ", dialogWidth-2))
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Connect button
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(" ")
+	buttonText := "[ Connect ]"
+	buttonPadding := (contentWidth - len(buttonText)) / 2
+	if m.ConnectionDialogField == 2 {
+		dialog.WriteString(strings.Repeat(" ", buttonPadding))
+		dialog.WriteString(selectedBgStyle.Render(buttonText))
+		dialog.WriteString(strings.Repeat(" ", contentWidth-buttonPadding-len(buttonText)))
+	} else {
+		dialog.WriteString(strings.Repeat(" ", buttonPadding))
+		dialog.WriteString(buttonText)
+		dialog.WriteString(strings.Repeat(" ", contentWidth-buttonPadding-len(buttonText)))
+	}
+	dialog.WriteString(" ")
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Empty line
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(strings.Repeat(" ", dialogWidth-2))
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Help text
+	var helpText string
+	if m.ConnectionDialogEditing {
+		helpText = "Confirm: enter | Cancel: esc"
+	} else {
+		helpText = "Edit: enter | Navigate: ↑/↓ | Close: esc"
+	}
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
 	helpPadding := dialogWidth - 4 - len(helpText)
 	if helpPadding < 0 {
