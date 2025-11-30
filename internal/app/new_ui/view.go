@@ -951,7 +951,7 @@ func renderSQLEditorDialog(m Model) string {
 
 // renderConnectionDialog renders the connection setup dialog
 func renderConnectionDialog(m Model) string {
-	dialogWidth := 50
+	dialogWidth := 60
 
 	// Border style
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
@@ -1085,8 +1085,8 @@ func renderConnectionDialog(m Model) string {
 	dialog.WriteString(borderStyle.Render("│"))
 	dialog.WriteString("\n")
 
-	// Help text (must fit in contentWidth = 46 chars)
-	helpText := "tab/up/down: move | enter: ok | esc: close"
+	// Help text
+	helpText := "Navigate: tab/up/down | Connect: enter | Close: esc"
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
 	helpPadding := contentWidth - len(helpText)
 	if helpPadding < 0 {
