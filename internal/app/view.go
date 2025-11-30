@@ -566,62 +566,90 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	styledTitle := titleStyle.Render(titleText)
 	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", width-len(titleText)-3) + "╮")
 
-	// Split SQL into lines
-	var sqlLines []string
-	if m.CurrentSQL != "" {
-		sqlLines = strings.Split(m.CurrentSQL, "\n")
-	} else {
-		sqlLines = []string{""}
-	}
-
-	// Find cursor position (line and column) when focused
-	cursorLine, cursorCol := 0, 0
-	if isFocused {
-		currentPos := 0
-		found := false
-		for i, line := range sqlLines {
-			lineRuneLen := len([]rune(line)) + 1 // +1 for newline
-			if currentPos+lineRuneLen > m.SQLCursorPos {
-				cursorLine = i
-				cursorCol = m.SQLCursorPos - currentPos
-				found = true
-				break
-			}
-			currentPos += lineRuneLen
-		}
-		// Handle cursor at very end (after all content)
-		if !found {
-			cursorLine = len(sqlLines) - 1
-			cursorCol = len([]rune(sqlLines[cursorLine]))
-		}
-	}
-
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
 	contentWidth := width - 2 // Width inside borders
 
+	// Wrap SQL text to fit content width and track cursor position
+	type wrappedLine struct {
+		text      string
+		cursorCol int // -1 if cursor is not on this line
+	}
+
+	var wrappedLines []wrappedLine
+	sqlRunes := []rune(m.CurrentSQL)
+
+	if len(sqlRunes) == 0 {
+		// Empty SQL
+		if isFocused {
+			wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: 0})
+		} else {
+			wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: -1})
+		}
+	} else {
+		// Wrap text
+		lineStart := 0
+		lineWidth := 0
+		for i, r := range sqlRunes {
+			charWidth := lipgloss.Width(string(r))
+
+			if r == '\n' {
+				// End of logical line
+				line := string(sqlRunes[lineStart:i])
+				cursorCol := -1
+				if isFocused && m.SQLCursorPos >= lineStart && m.SQLCursorPos <= i {
+					cursorCol = m.SQLCursorPos - lineStart
+				}
+				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
+				lineStart = i + 1
+				lineWidth = 0
+			} else if lineWidth+charWidth > contentWidth && lineWidth > 0 {
+				// Wrap line
+				line := string(sqlRunes[lineStart:i])
+				cursorCol := -1
+				if isFocused && m.SQLCursorPos >= lineStart && m.SQLCursorPos < i {
+					cursorCol = m.SQLCursorPos - lineStart
+				}
+				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
+				lineStart = i
+				lineWidth = charWidth
+			} else {
+				lineWidth += charWidth
+			}
+		}
+
+		// Add remaining text
+		if lineStart <= len(sqlRunes) {
+			line := string(sqlRunes[lineStart:])
+			cursorCol := -1
+			if isFocused && m.SQLCursorPos >= lineStart {
+				cursorCol = m.SQLCursorPos - lineStart
+			}
+			wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
+		}
+	}
+
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
-	// Render SQL content with dynamic height
+	// Render wrapped lines
 	for i := 0; i < height; i++ {
 		var lineContent string
 		var lineDisplayWidth int
 
-		if i < len(sqlLines) {
-			line := sqlLines[i]
-			lineRunes := []rune(line)
+		if i < len(wrappedLines) {
+			wl := wrappedLines[i]
+			lineRunes := []rune(wl.text)
 
-			if isFocused && i == cursorLine {
-				// Render line with cursor
-				if cursorCol < len(lineRunes) {
-					beforeCursor := string(lineRunes[:cursorCol])
-					cursorChar := string(lineRunes[cursorCol])
-					afterCursor := string(lineRunes[cursorCol+1:])
+			if wl.cursorCol >= 0 {
+				// This line has the cursor
+				if wl.cursorCol < len(lineRunes) {
+					beforeCursor := string(lineRunes[:wl.cursorCol])
+					cursorChar := string(lineRunes[wl.cursorCol])
+					afterCursor := string(lineRunes[wl.cursorCol+1:])
 
-					// Check if cursor char is wide (CJK, etc.)
 					var cursorBlock string
 					if lipgloss.Width(cursorChar) > 1 {
 						cursorBlock = cursorStyleWide.Render(cursorChar)
@@ -629,29 +657,16 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 						cursorBlock = cursorStyleNarrow.Render(cursorChar)
 					}
 					lineContent = beforeCursor + cursorBlock + afterCursor
-					lineDisplayWidth = lipgloss.Width(line)
+					lineDisplayWidth = lipgloss.Width(wl.text)
 				} else {
 					// Cursor at end of line
-					lineContent = line + cursorStyleNarrow.Render(" ")
-					lineDisplayWidth = lipgloss.Width(line) + 1
+					lineContent = wl.text + cursorStyleNarrow.Render(" ")
+					lineDisplayWidth = lipgloss.Width(wl.text) + 1
 				}
 			} else {
-				lineContent = line
-				lineDisplayWidth = lipgloss.Width(line)
+				lineContent = wl.text
+				lineDisplayWidth = lipgloss.Width(wl.text)
 			}
-
-			// Truncate if too long (simple approach for now)
-			if lineDisplayWidth > contentWidth {
-				runes := []rune(line)
-				if len(runes) > contentWidth-3 {
-					lineContent = string(runes[:contentWidth-3]) + "..."
-				}
-				lineDisplayWidth = contentWidth
-			}
-		} else if isFocused && i == cursorLine {
-			// Empty line with cursor
-			lineContent = cursorStyleNarrow.Render(" ")
-			lineDisplayWidth = 1
 		}
 
 		paddingLen := contentWidth - lineDisplayWidth
