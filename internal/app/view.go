@@ -14,6 +14,17 @@ func RenderView(m Model) string {
 		return "Loading..."
 	}
 
+	// Minimum width check to prevent crashes
+	minWidth := ui.LeftPaneContentWidth + 10 // Left pane + minimum right pane
+	if m.Width < minWidth {
+		return "Window too narrow"
+	}
+
+	// Minimum height check
+	if m.Height < 20 {
+		return "Window too short"
+	}
+
 	// Layout configuration
 	// Left pane renders with borders included in leftPaneContentWidth
 	leftPaneContentWidth := ui.LeftPaneContentWidth

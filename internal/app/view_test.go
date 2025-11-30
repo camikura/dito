@@ -146,6 +146,57 @@ func TestBuildFooterContentNarrowWidth(t *testing.T) {
 	}
 }
 
+func TestRenderViewMinimumSize(t *testing.T) {
+	t.Run("zero width returns loading", func(t *testing.T) {
+		m := InitialModel()
+		m.Width = 0
+		m.Height = 30
+
+		result := RenderView(m)
+
+		if result != "Loading..." {
+			t.Errorf("RenderView() = %q, want 'Loading...'", result)
+		}
+	})
+
+	t.Run("narrow width returns message", func(t *testing.T) {
+		m := InitialModel()
+		m.Width = 30 // Too narrow
+		m.Height = 30
+
+		result := RenderView(m)
+
+		if result != "Window too narrow" {
+			t.Errorf("RenderView() = %q, want 'Window too narrow'", result)
+		}
+	})
+
+	t.Run("short height returns message", func(t *testing.T) {
+		m := InitialModel()
+		m.Width = 120
+		m.Height = 15 // Too short (< 20)
+
+		result := RenderView(m)
+
+		if result != "Window too short" {
+			t.Errorf("RenderView() = %q, want 'Window too short'", result)
+		}
+	})
+
+	t.Run("minimum valid size renders without crash", func(t *testing.T) {
+		m := InitialModel()
+		m.Width = 70  // Just above minimum
+		m.Height = 25 // Just above minimum (>= 20)
+
+		// Should not panic
+		result := RenderView(m)
+
+		if result == "Window too narrow" || result == "Window too short" || result == "Loading..." {
+			t.Errorf("RenderView() should render content, got %q", result)
+		}
+	})
+}
+
 func TestFooterWidthConsistency(t *testing.T) {
 	// Test that all pane states produce consistent footer widths
 	width := 120
