@@ -376,20 +376,6 @@ func TestCalculateMaxHorizontalOffset(t *testing.T) {
 	}
 }
 
-func TestQuitKey(t *testing.T) {
-	m := InitialModel()
-	m.Width = 120
-	m.Height = 40
-
-	// Press 'q' to quit
-	_, cmd := Update(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
-
-	// cmd should be tea.Quit
-	if cmd == nil {
-		t.Error("Expected quit command, got nil")
-	}
-}
-
 func TestCtrlCQuit(t *testing.T) {
 	m := InitialModel()
 	m.Width = 120

@@ -21,7 +21,7 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
-	case "ctrl+c", "q":
+	case "ctrl+c":
 		return m, tea.Quit
 
 	case "tab":
