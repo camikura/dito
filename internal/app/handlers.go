@@ -508,14 +508,21 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				tableName := m.Tables[m.SelectedTable]
 				if data, exists := m.TableData[tableName]; exists && data != nil {
 					remainingRows := totalRows - m.SelectedDataRow - 1
-					if remainingRows <= ui.FetchMoreThreshold && data.HasMore && !m.LoadingData && data.LastPKValues != nil {
-						m.LoadingData = true
-						// Get PRIMARY KEYs from schema
-						var primaryKeys []string
-						if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
-							primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+					if remainingRows <= ui.FetchMoreThreshold && data.HasMore && !m.LoadingData {
+						// Custom SQL uses OFFSET pagination
+						if data.IsCustomSQL && data.CurrentSQL != "" {
+							m.LoadingData = true
+							return m, db.FetchMoreCustomSQL(m.NosqlClient, tableName, data.CurrentSQL, ui.DefaultFetchSize, data.Offset)
 						}
-						return m, db.FetchMoreTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
+						// Standard queries use PRIMARY KEY cursor pagination
+						if data.LastPKValues != nil {
+							m.LoadingData = true
+							var primaryKeys []string
+							if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+								primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+							}
+							return m, db.FetchMoreTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
+						}
 					}
 				}
 			}

@@ -138,6 +138,7 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 			// Update pagination info
 			existingData.LastPKValues = msg.LastPKValues
 			existingData.HasMore = msg.HasMore
+			existingData.Offset = msg.Offset
 		}
 	} else {
 		// Store new data
@@ -146,6 +147,10 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 			Rows:         msg.Rows,
 			LastPKValues: msg.LastPKValues,
 			HasMore:      msg.HasMore,
+			IsCustomSQL:  msg.IsCustomSQL,
+			ColumnOrder:  msg.ColumnOrder,
+			CurrentSQL:   msg.CurrentSQL,
+			Offset:       msg.Offset,
 		}
 	}
 

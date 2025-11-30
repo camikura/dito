@@ -47,6 +47,8 @@ type TableDataResult struct {
 	DisplaySQL   string   // Display: SQL without LIMIT clause
 	IsCustomSQL  bool     // Whether this is a custom SQL query (not auto-generated)
 	ColumnOrder  []string // Column order from SELECT clause (for custom SQL)
+	CurrentSQL   string   // Original SQL for custom queries (used for pagination)
+	Offset       int      // Current offset for custom SQL pagination
 }
 
 // Connect attempts to connect to NoSQL database.
@@ -231,15 +233,35 @@ func ParseSelectColumns(sql string) []string {
 // ExecuteCustomSQL executes custom SQL query and returns results.
 // Returns a tea.Cmd that produces a TableDataResult message.
 func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limit int) tea.Cmd {
+	return executeCustomSQLWithOffset(client, tableName, sql, limit, 0, false)
+}
+
+// FetchMoreCustomSQL fetches additional rows for custom SQL using OFFSET pagination.
+func FetchMoreCustomSQL(client *nosqldb.Client, tableName string, sql string, limit int, offset int) tea.Cmd {
+	return executeCustomSQLWithOffset(client, tableName, sql, limit, offset, true)
+}
+
+// executeCustomSQLWithOffset is the internal implementation for custom SQL execution with offset support.
+func executeCustomSQLWithOffset(client *nosqldb.Client, tableName string, sql string, limit int, offset int, isAppend bool) tea.Cmd {
 	return func() tea.Msg {
 		// Parse column order from SELECT clause
 		columnOrder := ParseSelectColumns(sql)
 
-		// Add LIMIT clause to SQL if not present
+		// Build statement with LIMIT and OFFSET
 		statement := sql
 		displayStatement := sql
-		if !strings.Contains(strings.ToUpper(sql), "LIMIT") {
-			statement = fmt.Sprintf("%s LIMIT %d", sql, limit)
+		upperSQL := strings.ToUpper(sql)
+
+		// Remove existing LIMIT/OFFSET clauses if present
+		if idx := strings.Index(upperSQL, " LIMIT "); idx != -1 {
+			statement = sql[:idx]
+		}
+
+		// Add LIMIT and OFFSET
+		if offset > 0 {
+			statement = fmt.Sprintf("%s LIMIT %d OFFSET %d", statement, limit, offset)
+		} else {
+			statement = fmt.Sprintf("%s LIMIT %d", statement, limit)
 		}
 
 		prepReq := &nosqldb.PrepareRequest{
@@ -247,7 +269,7 @@ func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limi
 		}
 		prepResult, err := client.Prepare(prepReq)
 		if err != nil {
-			return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: true}
+			return TableDataResult{TableName: tableName, Err: err, IsAppend: isAppend, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: true}
 		}
 
 		queryReq := &nosqldb.QueryRequest{
@@ -259,13 +281,13 @@ func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limi
 		for {
 			queryResult, err := client.Query(queryReq)
 			if err != nil {
-				return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: true}
+				return TableDataResult{TableName: tableName, Err: err, IsAppend: isAppend, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: true}
 			}
 
 			// Get results
 			results, err := queryResult.GetResults()
 			if err != nil {
-				return TableDataResult{TableName: tableName, Err: err, IsAppend: false, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: true}
+				return TableDataResult{TableName: tableName, Err: err, IsAppend: isAppend, SQL: statement, DisplaySQL: displayStatement, IsCustomSQL: true}
 			}
 
 			for _, result := range results {
@@ -287,14 +309,16 @@ func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limi
 		return TableDataResult{
 			TableName:    tableName,
 			Rows:         rows,
-			LastPKValues: nil, // Custom queries don't support cursor-based pagination
+			LastPKValues: nil,
 			HasMore:      hasMore,
 			Err:          nil,
-			IsAppend:     false,
+			IsAppend:     isAppend,
 			SQL:          statement,
 			DisplaySQL:   displayStatement,
-			IsCustomSQL:  true, // This is a custom SQL query
+			IsCustomSQL:  true,
 			ColumnOrder:  columnOrder,
+			CurrentSQL:   sql, // Store original SQL for pagination
+			Offset:       offset + len(rows),
 		}
 	}
 }
