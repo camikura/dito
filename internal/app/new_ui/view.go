@@ -232,6 +232,18 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 		isSelected bool // * marker (Enter pressed)
 		isCursor   bool // cursor position (up/down navigation)
 	}
+
+	// Determine if selection marker should be shown
+	// Hide * when custom SQL targets a table not in the list
+	showSelectionMarker := true
+	if m.CustomSQL && m.CurrentSQL != "" {
+		extractedName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		if extractedName != "" && m.FindTableName(extractedName) == "" {
+			// Custom SQL targets a table not in the list
+			showSelectionMarker = false
+		}
+	}
+
 	var contentLines []tableLineInfo
 	if len(m.Tables) == 0 {
 		contentLines = []tableLineInfo{{text: "No tables", isSelected: false, isCursor: false}}
@@ -249,7 +261,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 
 			// Add selection marker (* for selected table via Enter)
 			var prefix string
-			isSelected := i == m.SelectedTable
+			isSelected := showSelectionMarker && i == m.SelectedTable
 			if isSelected {
 				prefix = "* "
 			} else {
@@ -322,8 +334,13 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 	// Use SelectedTable, or extract from custom SQL if applicable
 	var schemaTableName string
 	if m.CustomSQL && m.CurrentSQL != "" {
-		// Extract table name from custom SQL
-		schemaTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		// Extract table name from custom SQL and find exact match from tables list
+		extractedName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		schemaTableName = m.FindTableName(extractedName)
+		// Use extracted name if not found in tables list
+		if schemaTableName == "" && extractedName != "" {
+			schemaTableName = extractedName
+		}
 	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
 		schemaTableName = m.Tables[m.SelectedTable]
 	}
@@ -345,8 +362,20 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 
 	// Prepare content lines
 	var contentLines []string
+	var schemaError string
+	if m.SchemaErrorMsg != "" {
+		schemaError = m.SchemaErrorMsg
+	}
 	if schemaTableName == "" {
-		contentLines = []string{"Select a table"}
+		if m.CustomSQL && m.CurrentSQL != "" {
+			// Custom SQL with table not found in tables list
+			contentLines = []string{"No schema"}
+		} else {
+			contentLines = []string{"Select a table"}
+		}
+	} else if schemaError != "" {
+		// Show error message
+		contentLines = []string{schemaError}
 	} else {
 		details, exists := m.TableDetails[schemaTableName]
 		if !exists || details == nil {
@@ -509,7 +538,7 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 				line = content + strings.Repeat(" ", paddingLen)
 			}
 		} else {
-			// Other content (like "Select a table", "Loading...")
+			// Other content (like "Select a table", "Loading...", error messages)
 			if len(content) > width-2 {
 				content = content[:width-5] + "..."
 			}
@@ -517,8 +546,14 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 			if paddingLen < 0 {
 				paddingLen = 0
 			}
-			grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
-			line = grayStyle.Render(content) + strings.Repeat(" ", paddingLen)
+			// Use red for errors, gray for other messages
+			if schemaError != "" && content == schemaError {
+				errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6666"))
+				line = errorStyle.Render(content) + strings.Repeat(" ", paddingLen)
+			} else {
+				grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+				line = grayStyle.Render(content) + strings.Repeat(" ", paddingLen)
+			}
 			}
 			result.WriteString(leftBorder + line + rightBorder + "\n")
 		} else {
@@ -605,9 +640,10 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
 	// Build title with table name if available
-	// Use same logic as schema pane: extract from custom SQL or use SelectedTable
+	// For custom SQL, show extracted table name even if not in tables list
 	var dataTableName string
 	if m.CustomSQL && m.CurrentSQL != "" {
+		// Use extracted name directly (may include child table like orders.addresses)
 		dataTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
 	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
 		dataTableName = m.Tables[m.SelectedTable]
@@ -641,8 +677,17 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	// Track scroll info for bottom border
 	var totalContentWidth, viewportWidth int
 
+	// Determine which table's data to display
+	// For custom SQL, use the extracted table name; otherwise use SelectedTable
+	var dataLookupTableName string
+	if m.CustomSQL && m.CurrentSQL != "" {
+		dataLookupTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
+	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		dataLookupTableName = m.Tables[m.SelectedTable]
+	}
+
 	// Prepare content
-	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+	if dataLookupTableName == "" {
 		// No table selected
 		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 		for i := 0; i < contentLines; i++ {
@@ -661,9 +706,30 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 			result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 		}
 	} else {
-		tableName := m.Tables[m.SelectedTable]
-		data, exists := m.TableData[tableName]
-		if !exists || data == nil {
+		data, exists := m.TableData[dataLookupTableName]
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6666"))
+		if m.DataErrorMsg != "" {
+			// Show error message
+			errMsg := m.DataErrorMsg
+			maxLen := width - 4
+			if len(errMsg) > maxLen {
+				errMsg = errMsg[:maxLen-3] + "..."
+			}
+			for i := 0; i < contentLines; i++ {
+				line := ""
+				styledLine := ""
+				if i == 0 {
+					line = errMsg
+					styledLine = errorStyle.Render(line)
+				}
+				paddingLen := width - len(line) - 2
+				if paddingLen < 0 {
+					paddingLen = 0
+				}
+				result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+			}
+		} else if !exists || data == nil {
 			// No data loaded yet
 			message := "No data"
 			if m.LoadingData {
@@ -671,31 +737,35 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 			}
 			for i := 0; i < contentLines; i++ {
 				line := ""
+				styledLine := ""
 				if i == 0 {
 					line = message
+					styledLine = grayStyle.Render(line)
 				}
 				paddingLen := width - len(line) - 2
 				if paddingLen < 0 {
 					paddingLen = 0
 				}
-				result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+				result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 			}
 		} else if len(data.Rows) == 0 {
 			// No rows in result
 			for i := 0; i < contentLines; i++ {
-				line := "No rows"
-				if i > 0 {
-					line = ""
+				line := ""
+				styledLine := ""
+				if i == 0 {
+					line = "No rows"
+					styledLine = grayStyle.Render(line)
 				}
 				paddingLen := width - len(line) - 2
 				if paddingLen < 0 {
 					paddingLen = 0
 				}
-				result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+				result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 			}
 		} else {
 			// Render grid view and get scroll info
-			gridContent, scrollInfo := renderGridViewWithScrollInfo(m, data, width, contentLines, leftBorder, borderStyle)
+			gridContent, scrollInfo := renderGridViewWithScrollInfo(m, dataLookupTableName, data, width, contentLines, leftBorder, borderStyle)
 			result.WriteString(gridContent)
 			totalContentWidth = scrollInfo.totalWidth
 			viewportWidth = scrollInfo.viewportWidth
@@ -735,9 +805,8 @@ func renderBottomBorderWithScrollbar(borderStyle lipgloss.Style, width int, tota
 }
 
 // renderGridViewWithScrollInfo renders the data grid and returns scroll information
-func renderGridViewWithScrollInfo(m Model, data *db.TableDataResult, width int, contentLines int, leftBorder string, borderStyle lipgloss.Style) (string, scrollInfo) {
+func renderGridViewWithScrollInfo(m Model, tableName string, data *db.TableDataResult, width int, contentLines int, leftBorder string, borderStyle lipgloss.Style) (string, scrollInfo) {
 	// Get column names in schema definition order
-	tableName := m.Tables[m.SelectedTable]
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
 	// Get column types from schema

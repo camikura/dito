@@ -353,7 +353,11 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Determine which table schema is displayed (same logic as view)
 	var schemaTableName string
 	if m.CustomSQL && m.CurrentSQL != "" {
-		schemaTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		extractedName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		schemaTableName = m.FindTableName(extractedName)
+		if schemaTableName == "" && extractedName != "" {
+			schemaTableName = extractedName
+		}
 	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
 		schemaTableName = m.Tables[m.SelectedTable]
 	}
@@ -553,6 +557,8 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.SelectedDataRow = 0
 			m.ViewportOffset = 0
 			m.HorizontalOffset = 0
+			m.SchemaErrorMsg = ""
+			m.DataErrorMsg = ""
 
 			// Reload data with default SQL
 			var primaryKeys []string
@@ -588,7 +594,14 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.SchemaScrollOffset = 0
 
 		// Extract table name from SQL for schema display
-		tableName := ui.ExtractTableNameFromSQL(m.EditSQL)
+		extractedName := ui.ExtractTableNameFromSQL(m.EditSQL)
+		// Find exact table name from tables list (case-insensitive match)
+		tableName := m.FindTableName(extractedName)
+		// Use extracted name if not found in tables list (for child tables etc.)
+		if tableName == "" && extractedName != "" {
+			tableName = extractedName
+		}
+		// Fall back to selected table if no table name in SQL
 		if tableName == "" && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
 			tableName = m.Tables[m.SelectedTable]
 		}
@@ -596,7 +609,7 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if tableName != "" {
 			var cmds []tea.Cmd
 
-			// Fetch schema if not already loaded
+			// Fetch schema (always try, even for unknown tables to get error)
 			if _, exists := m.TableDetails[tableName]; !exists {
 				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
 			}
@@ -768,20 +781,25 @@ func sortTablesForTree(tables []string) []string {
 
 func handleTableDetailsResult(m Model, msg db.TableDetailsResult) (Model, tea.Cmd) {
 	if msg.Err != nil {
-		// TODO: Show error
+		m.SchemaErrorMsg = msg.Err.Error()
 		return m, nil
 	}
 
+	// Clear any previous error
+	m.SchemaErrorMsg = ""
 	m.TableDetails[msg.TableName] = &msg
 	return m, nil
 }
 
 func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 	if msg.Err != nil {
-		// TODO: Show error
 		m.LoadingData = false
+		m.DataErrorMsg = msg.Err.Error()
 		return m, nil
 	}
+
+	// Clear any previous error
+	m.DataErrorMsg = ""
 
 	// If this is an append operation (additional data fetch), merge with existing data
 	if msg.IsAppend {

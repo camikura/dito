@@ -1,6 +1,8 @@
 package new_ui
 
 import (
+	"strings"
+
 	"github.com/oracle/nosql-go-sdk/nosqldb"
 
 	"github.com/camikura/dito/internal/db"
@@ -45,9 +47,10 @@ type Model struct {
 	NosqlClient   *nosqldb.Client
 
 	// Schema (display only, auto-updated from cursor position)
-	TableDetails     map[string]*db.TableDetailsResult
-	LoadingDetails   bool
-	SchemaScrollOffset int  // Scroll offset for schema pane
+	TableDetails       map[string]*db.TableDetailsResult
+	LoadingDetails     bool
+	SchemaErrorMsg     string // Error message from schema fetch
+	SchemaScrollOffset int    // Scroll offset for schema pane
 
 	// SQL
 	CurrentSQL  string
@@ -55,10 +58,11 @@ type Model struct {
 	ColumnOrder []string // Column order from custom SQL SELECT clause
 
 	// Data
-	TableData       map[string]*db.TableDataResult
-	LoadingData     bool
-	SelectedDataRow int
-	ViewportOffset  int
+	TableData        map[string]*db.TableDataResult
+	LoadingData      bool
+	DataErrorMsg     string // Error message from data fetch
+	SelectedDataRow  int
+	ViewportOffset   int
 	HorizontalOffset int
 
 	// Record Detail Dialog
@@ -127,4 +131,19 @@ func (m Model) PrevPane() Model {
 		m.CurrentPane = FocusPaneSQL
 	}
 	return m
+}
+
+// FindTableName finds the actual table name from the tables list using case-insensitive matching.
+// Returns the matched table name from the list, or empty string if not found.
+func (m Model) FindTableName(name string) string {
+	if name == "" {
+		return ""
+	}
+	nameLower := strings.ToLower(name)
+	for _, t := range m.Tables {
+		if strings.ToLower(t) == nameLower {
+			return t
+		}
+	}
+	return ""
 }
