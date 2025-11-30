@@ -1,33 +1,33 @@
 # dito
 
-**dito（ディト）** は、Oracle NoSQL Database用のTUI（Text User Interface）クライアントです。
+**dito** is a TUI (Text User Interface) client for Oracle NoSQL Database.
 
-## 特徴
+## Features
 
-- 🖥️ Oracle NoSQL Database On-Premise版に対応
-- ⚡ 高速で軽量なGoで実装
-- 📊 テーブル一覧・スキーマ・データの閲覧
-- 🔍 カスタムSQLクエリの実行
+- 🖥️ Oracle NoSQL Database On-Premise support
+- ⚡ Fast and lightweight, built with Go
+- 📊 Browse tables, schemas, and data
+- 🔍 Execute custom SQL queries
 
-## 使い方
+## Usage
 
-1. **エディション選択**: `On-Premise` を選択して Enter
-2. **接続設定**: デフォルト設定（`localhost:8080`）のまま `Connect` を選択して Enter
-3. **テーブル選択**: 接続成功後、テーブル一覧が表示されます
-   - `j`/`k` または `↑`/`↓` でテーブルを選択
-   - Schemaペインに選択したテーブルの詳細（カラム、インデックス）が表示されます
-   - `Enter` でDataペインにデータを表示
-4. **Dataペイン**: テーブルのデータが表形式で表示されます
-   - データはPRIMARY KEYでソートされています（最大1000行）
-   - `j`/`k` または `↑`/`↓` でデータ行をスクロール
-   - `h`/`l` または `←`/`→` でカラムを左右にスクロール
-   - カラム幅はデータに応じて自動調整されます（最大32文字）
-   - `Enter` でレコード詳細ダイアログを表示
-5. **レコード詳細ダイアログ**: 選択した行のデータが縦に詳細表示されます
-   - `j`/`k` または `↑`/`↓` でデータ行を切り替え
-   - `Esc` で閉じる
-6. **終了**: `q` で終了
+1. **Edition Selection**: Select `On-Premise` and press Enter
+2. **Connection Setup**: Use default settings (`localhost:8080`) and select `Connect`
+3. **Table Selection**: After connecting, the table list is displayed
+   - Use `j`/`k` or `↑`/`↓` to select a table
+   - The Schema pane shows table details (columns, indexes)
+   - Press `Enter` to display data in the Data pane
+4. **Data Pane**: Table data is displayed in grid format
+   - Data is sorted by PRIMARY KEY (up to 1000 rows)
+   - Use `j`/`k` or `↑`/`↓` to scroll through rows
+   - Use `h`/`l` or `←`/`→` to scroll horizontally
+   - Column widths auto-adjust based on data (max 32 characters)
+   - Press `Enter` to open the record detail dialog
+5. **Record Detail Dialog**: Shows the selected row's data vertically
+   - Use `j`/`k` or `↑`/`↓` to navigate between rows
+   - Press `Esc` to close
+6. **Quit**: Press `q` to exit
 
-## ライセンス
+## License
 
-MIT License - 詳細は [LICENSE](LICENSE) を参照してください。
+MIT License - See [LICENSE](LICENSE) for details.
