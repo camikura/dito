@@ -88,31 +88,35 @@ func RenderView(m Model) string {
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanes, dataPane)
 
 	// Footer (changes based on focused pane)
-	var footerContent string
+	var footerHelp string
 	switch m.CurrentPane {
 	case FocusPaneConnection:
 		if m.Connected {
-			footerContent = "Switch Pane: tab | Disconnect: ctrl+d"
+			footerHelp = "Switch Pane: tab | Disconnect: ctrl+d"
 		} else {
-			footerContent = "Switch Pane: tab | Connect: <enter>"
+			footerHelp = "Switch Pane: tab | Connect: <enter>"
 		}
 	case FocusPaneTables:
-		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
+		footerHelp = "Navigate: j/k | Switch Pane: tab | Select: <enter>"
 	case FocusPaneSQL:
-		footerContent = "Switch Pane: tab | Edit: <enter>"
+		footerHelp = "Switch Pane: tab | Edit: <enter>"
 	case FocusPaneData:
 		if m.CustomSQL {
-			footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc"
+			footerHelp = "Navigate: j/k | Switch Pane: tab | Detail: <enter> | Reset: esc"
 		} else {
-			footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
+			footerHelp = "Navigate: j/k | Switch Pane: tab | Detail: <enter>"
 		}
 	}
 
-	footerPadding := m.Width - len(footerContent) - len("Dito") - 1
+	// Footer format: " {help} {padding} Dito "
+	// Left padding: 1, Right padding: 1
+	appName := "Dito"
+	footerHelpWidth := lipgloss.Width(footerHelp)
+	footerPadding := m.Width - footerHelpWidth - len(appName) - 3 // 1 left + 1 separator + 1 right
 	if footerPadding < 0 {
 		footerPadding = 0
 	}
-	footerContent += strings.Repeat(" ", footerPadding) + "Dito"
+	footerContent := " " + footerHelp + strings.Repeat(" ", footerPadding+1) + appName + " "
 
 	// Assemble final output
 	var result strings.Builder
