@@ -988,14 +988,8 @@ func renderConnectionDialog(m Model) string {
 		line.WriteString(borderStyle.Render("│"))
 		line.WriteString(" ")
 
-		// Marker for current field
-		marker := "  "
-		if m.ConnectionDialogField == fieldIndex {
-			marker = "* "
-		}
-
-		// Calculate label part: "* Label: " or "  Label: "
-		labelPart := marker + label + ": "
+		// Calculate label part: "Label: "
+		labelPart := label + ": "
 		labelLen := len(labelPart)
 
 		// Value area width
