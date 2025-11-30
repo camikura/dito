@@ -113,7 +113,7 @@ func handleTableDetailsResult(m Model, msg db.TableDetailsResult) (Model, tea.Cm
 			m.CurrentSQL = buildDefaultSQL(tableName, msg.Schema.DDL)
 			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 			// Now fetch data with proper ORDER BY
-			return m, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys)
+			return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
 		}
 	}
 

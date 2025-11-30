@@ -227,7 +227,7 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				primaryKeys := ui.ParsePrimaryKeysFromDDL(ddl)
 				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
 				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
-				return m, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys)
+				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
 			}
 
 			// Schema not loaded - fetch schema first, data will be fetched when schema arrives
@@ -616,7 +616,7 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case "pgup":
 		// Scroll up by page
-		m.RecordDetailScroll -= 10
+		m.RecordDetailScroll -= ui.PageScrollAmount
 		if m.RecordDetailScroll < 0 {
 			m.RecordDetailScroll = 0
 		}
@@ -624,7 +624,7 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case "pgdown":
 		// Scroll down by page
-		m.RecordDetailScroll += 10
+		m.RecordDetailScroll += ui.PageScrollAmount
 		if m.RecordDetailScroll > maxScroll {
 			m.RecordDetailScroll = maxScroll
 		}
