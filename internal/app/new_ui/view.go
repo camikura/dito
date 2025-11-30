@@ -156,15 +156,21 @@ func renderConnectionPane(m Model, width int) string {
 		// Apply green color to checkmark
 		checkmark := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGreen)).Render("✓")
 		titleText = titleStyle.Render(" Connection ") + checkmark + " "
-		// " Connection ✓ " = 1 + 10 + 1 + 1 + 1 = 14 display chars
+		// " Connection " + "✓" + " " = 12 + 1 + 1 = 14 display chars
 		titleDisplayWidth = 14
 	} else {
-		titleText = titleStyle.Render(" Connection ") + " "
-		// " Connection " = 1 + 10 + 1 = 12 display chars
+		titleText = titleStyle.Render(" Connection ")
+		// " Connection " = 12 display chars
 		titleDisplayWidth = 12
 	}
 
-	title := borderStyle.Render("╭─") + titleText + borderStyle.Render(strings.Repeat("─", width-titleDisplayWidth-3)+"╮")
+	// Title line: ╭─ + titleText + ─...─ + ╮
+	// Total width = width, so dashes = width - 2(╭╮) - 1(─ after ╭) - titleDisplayWidth
+	dashesLen := width - 3 - titleDisplayWidth
+	if dashesLen < 0 {
+		dashesLen = 0
+	}
+	title := borderStyle.Render("╭─") + titleText + borderStyle.Render(strings.Repeat("─", dashesLen)+"╮")
 
 	content := "(not configured)"
 	if m.ConnectionMsg != "" {
