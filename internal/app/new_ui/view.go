@@ -318,11 +318,20 @@ func renderSchemaPane(m Model, width int) string {
 }
 
 func renderSchemaPaneWithHeight(m Model, width int, height int) string {
+	// Determine which table to show schema for
+	// Use SelectedTable, or extract from custom SQL if applicable
+	var schemaTableName string
+	if m.CustomSQL && m.CurrentSQL != "" {
+		// Extract table name from custom SQL
+		schemaTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
+	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		schemaTableName = m.Tables[m.SelectedTable]
+	}
+
 	// Title includes table name if available
 	titleText := " Schema "
-	if len(m.Tables) > 0 && m.CursorTable < len(m.Tables) {
-		tableName := m.Tables[m.CursorTable]
-		titleText = " Schema (" + tableName + ") "
+	if schemaTableName != "" {
+		titleText = " Schema (" + schemaTableName + ") "
 	}
 
 	// Schema pane can be focused for scrolling
@@ -336,11 +345,10 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 
 	// Prepare content lines
 	var contentLines []string
-	if len(m.Tables) == 0 || m.CursorTable >= len(m.Tables) {
+	if schemaTableName == "" {
 		contentLines = []string{"Select a table"}
 	} else {
-		tableName := m.Tables[m.CursorTable]
-		details, exists := m.TableDetails[tableName]
+		details, exists := m.TableDetails[schemaTableName]
 		if !exists || details == nil {
 			contentLines = []string{"Loading..."}
 		} else {

@@ -1,5 +1,22 @@
 package ui
 
+import (
+	"regexp"
+	"strings"
+)
+
+// ExtractTableNameFromSQL extracts the table name from a SQL query.
+// Supports SELECT ... FROM table and SELECT ... FROM namespace.table
+func ExtractTableNameFromSQL(sql string) string {
+	// Case-insensitive regex to find FROM clause
+	re := regexp.MustCompile(`(?i)\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)`)
+	matches := re.FindStringSubmatch(sql)
+	if len(matches) >= 2 {
+		return strings.TrimSpace(matches[1])
+	}
+	return ""
+}
+
 // InsertAt inserts a string at the specified rune position in text.
 // Returns the new text.
 func InsertAt(text string, pos int, insert string) string {

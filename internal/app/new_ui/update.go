@@ -286,17 +286,10 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "up", "k":
 		if m.CursorTable > 0 {
 			m.CursorTable--
-			m.SchemaScrollOffset = 0 // Reset scroll when changing tables
 
 			// Adjust scroll offset to keep cursor visible
 			if m.CursorTable < m.TablesScrollOffset {
 				m.TablesScrollOffset = m.CursorTable
-			}
-
-			// Auto-update schema for table under cursor
-			if m.CursorTable < len(m.Tables) {
-				tableName := m.Tables[m.CursorTable]
-				return m, db.FetchTableDetails(m.NosqlClient, tableName)
 			}
 		}
 		return m, nil
@@ -304,17 +297,10 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "down", "j":
 		if m.CursorTable < len(m.Tables)-1 {
 			m.CursorTable++
-			m.SchemaScrollOffset = 0 // Reset scroll when changing tables
 
 			// Adjust scroll offset to keep cursor visible
 			if m.CursorTable >= m.TablesScrollOffset+visibleLines {
 				m.TablesScrollOffset = m.CursorTable - visibleLines + 1
-			}
-
-			// Auto-update schema for table under cursor
-			if m.CursorTable < len(m.Tables) {
-				tableName := m.Tables[m.CursorTable]
-				return m, db.FetchTableDetails(m.NosqlClient, tableName)
 			}
 		}
 		return m, nil
@@ -329,13 +315,22 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.CurrentSQL = "SELECT * FROM " + tableName
 			m.CustomSQL = false
 
-			// Reset data scrolling state
+			// Reset data scrolling state and schema scroll
 			m.SelectedDataRow = 0
 			m.ViewportOffset = 0
 			m.HorizontalOffset = 0
+			m.SchemaScrollOffset = 0
 
 			// Move focus to Data pane for immediate interaction
 			m.CurrentPane = FocusPaneData
+
+			// Fetch schema and data together
+			var cmds []tea.Cmd
+
+			// Fetch schema if not already loaded
+			if _, exists := m.TableDetails[tableName]; !exists {
+				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
+			}
 
 			// Get primary keys from schema if available
 			var primaryKeys []string
@@ -344,7 +339,9 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 
 			// Load table data (100 rows with ORDER BY PK)
-			return m, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys)
+			cmds = append(cmds, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys))
+
+			return m, tea.Batch(cmds...)
 		}
 		return m, nil
 	}
@@ -353,11 +350,18 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Determine which table schema is displayed (same logic as view)
+	var schemaTableName string
+	if m.CustomSQL && m.CurrentSQL != "" {
+		schemaTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
+	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		schemaTableName = m.Tables[m.SelectedTable]
+	}
+
 	// Calculate max scroll offset based on content
 	var maxScroll int
-	if len(m.Tables) > 0 && m.CursorTable < len(m.Tables) {
-		tableName := m.Tables[m.CursorTable]
-		if details, exists := m.TableDetails[tableName]; exists && details != nil {
+	if schemaTableName != "" {
+		if details, exists := m.TableDetails[schemaTableName]; exists && details != nil {
 			// Count content lines
 			lineCount := 1 // "Columns:"
 			if details.Schema.DDL != "" {
@@ -581,11 +585,26 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.SelectedDataRow = 0
 		m.ViewportOffset = 0
 		m.HorizontalOffset = 0
+		m.SchemaScrollOffset = 0
 
-		// Get current table name
-		if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-			tableName := m.Tables[m.SelectedTable]
-			return m, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.EditSQL, ui.DefaultFetchSize)
+		// Extract table name from SQL for schema display
+		tableName := ui.ExtractTableNameFromSQL(m.EditSQL)
+		if tableName == "" && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+			tableName = m.Tables[m.SelectedTable]
+		}
+
+		if tableName != "" {
+			var cmds []tea.Cmd
+
+			// Fetch schema if not already loaded
+			if _, exists := m.TableDetails[tableName]; !exists {
+				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
+			}
+
+			// Execute custom SQL
+			cmds = append(cmds, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.EditSQL, ui.DefaultFetchSize))
+
+			return m, tea.Batch(cmds...)
 		}
 		return m, nil
 
