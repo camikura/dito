@@ -154,6 +154,54 @@ func TestGetColumnsInSchemaOrder(t *testing.T) {
 	}
 }
 
+func TestGetColumnsFromData(t *testing.T) {
+	tests := []struct {
+		name     string
+		rows     []map[string]interface{}
+		expected []string
+	}{
+		{
+			name: "single column",
+			rows: []map[string]interface{}{
+				{"id": 1},
+			},
+			expected: []string{"id"},
+		},
+		{
+			name: "multiple columns sorted",
+			rows: []map[string]interface{}{
+				{"c": 3, "a": 1, "b": 2},
+			},
+			expected: []string{"a", "b", "c"},
+		},
+		{
+			name:     "empty rows",
+			rows:     []map[string]interface{}{},
+			expected: []string{},
+		},
+		{
+			name:     "nil rows",
+			rows:     nil,
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetColumnsFromData(tt.rows)
+			if len(result) != len(tt.expected) {
+				t.Errorf("GetColumnsFromData() got %v, want %v", result, tt.expected)
+				return
+			}
+			for i, col := range result {
+				if col != tt.expected[i] {
+					t.Errorf("GetColumnsFromData()[%d] = %q, want %q", i, col, tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
 func TestGetColumnTypes(t *testing.T) {
 	tests := []struct {
 		name     string
