@@ -555,7 +555,7 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
-	cursorStyleNarrow := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
+	cursorStyleNarrow := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#FFFFFF"))
 	cursorStyleWide := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color(ColorPrimary))
 
 	// Add [Custom] label if custom SQL is active
@@ -961,7 +961,7 @@ func renderConnectionDialog(m Model) string {
 	// Border style
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorLabel))
-	cursorStyleNarrow := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
+	cursorStyleNarrow := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#FFFFFF"))
 	cursorStyleWide := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color(ColorPrimary))
 
 	var dialog strings.Builder
