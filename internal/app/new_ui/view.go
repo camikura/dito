@@ -956,7 +956,7 @@ func renderConnectionDialog(m Model) string {
 	// Border style
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorLabel))
-	cursorStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
+	cursorStyle := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color(ColorPrimary))
 
 	var dialog strings.Builder
 
@@ -1019,7 +1019,9 @@ func renderConnectionDialog(m Model) string {
 				if padding < 0 {
 					padding = 0
 				}
-				valueDisplay = beforeCursor + cursorStyle.Render(cursorChar) + afterCursor + strings.Repeat(" ", padding)
+				// Render character with cursor style (reverse video for proper wide char support)
+				cursorBlock := cursorStyle.Render(cursorChar)
+				valueDisplay = beforeCursor + cursorBlock + afterCursor + strings.Repeat(" ", padding)
 			} else {
 				// Cursor at end
 				padding := valueAreaWidth - valueDisplayWidth - 1
