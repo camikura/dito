@@ -549,23 +549,33 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case "esc":
 		// Reset to default SQL mode (only when custom SQL is active)
-		if m.CustomSQL && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-			tableName := m.Tables[m.SelectedTable]
+		if m.CustomSQL {
+			// Restore previous selection
+			if m.PreviousSelectedTable >= 0 && m.PreviousSelectedTable < len(m.Tables) {
+				m.SelectedTable = m.PreviousSelectedTable
+			}
+			m.PreviousSelectedTable = -1
+
 			m.CustomSQL = false
 			m.ColumnOrder = nil
-			m.CurrentSQL = "SELECT * FROM " + tableName
 			m.SelectedDataRow = 0
 			m.ViewportOffset = 0
 			m.HorizontalOffset = 0
 			m.SchemaErrorMsg = ""
 			m.DataErrorMsg = ""
 
-			// Reload data with default SQL
-			var primaryKeys []string
-			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
-				primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+			// Reload data with default SQL if a table is selected
+			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+				tableName := m.Tables[m.SelectedTable]
+				m.CurrentSQL = "SELECT * FROM " + tableName
+
+				var primaryKeys []string
+				if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+					primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+				}
+				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
 			}
-			return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+			m.CurrentSQL = ""
 		}
 		return m, nil
 	}
@@ -587,6 +597,9 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.CurrentSQL = m.EditSQL
 		m.CustomSQL = true
 
+		// Save current selection before custom SQL
+		m.PreviousSelectedTable = m.SelectedTable
+
 		// Reset data state
 		m.SelectedDataRow = 0
 		m.ViewportOffset = 0
@@ -597,6 +610,11 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		extractedName := ui.ExtractTableNameFromSQL(m.EditSQL)
 		// Find exact table name from tables list (case-insensitive match)
 		tableName := m.FindTableName(extractedName)
+		// Update SelectedTable if table is in the list
+		tableIndex := m.FindTableIndex(extractedName)
+		if tableIndex >= 0 {
+			m.SelectedTable = tableIndex
+		}
 		// Use extracted name if not found in tables list (for child tables etc.)
 		if tableName == "" && extractedName != "" {
 			tableName = extractedName

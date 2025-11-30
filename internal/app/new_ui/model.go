@@ -53,9 +53,10 @@ type Model struct {
 	SchemaScrollOffset int    // Scroll offset for schema pane
 
 	// SQL
-	CurrentSQL  string
-	CustomSQL   bool
-	ColumnOrder []string // Column order from custom SQL SELECT clause
+	CurrentSQL            string
+	CustomSQL             bool
+	ColumnOrder           []string // Column order from custom SQL SELECT clause
+	PreviousSelectedTable int      // Saved SelectedTable before custom SQL
 
 	// Data
 	TableData        map[string]*db.TableDataResult
@@ -85,15 +86,16 @@ type Model struct {
 // InitialModel creates the initial model for new UI
 func InitialModel() Model {
 	return Model{
-		CurrentPane:    FocusPaneConnection,
-		Connected:      false,
-		Tables:         []string{},
-		SelectedTable:  -1,
-		CursorTable:    0,
-		TableDetails:   make(map[string]*db.TableDetailsResult),
-		TableData:      make(map[string]*db.TableDataResult),
-		CurrentSQL:     "",
-		CustomSQL:      false,
+		CurrentPane:           FocusPaneConnection,
+		Connected:             false,
+		Tables:                []string{},
+		SelectedTable:         -1,
+		CursorTable:           0,
+		TableDetails:          make(map[string]*db.TableDetailsResult),
+		TableData:             make(map[string]*db.TableDataResult),
+		CurrentSQL:            "",
+		CustomSQL:             false,
+		PreviousSelectedTable: -1,
 	}
 }
 
@@ -146,4 +148,19 @@ func (m Model) FindTableName(name string) string {
 		}
 	}
 	return ""
+}
+
+// FindTableIndex finds the index of a table name in the tables list using case-insensitive matching.
+// Returns the index, or -1 if not found.
+func (m Model) FindTableIndex(name string) int {
+	if name == "" {
+		return -1
+	}
+	nameLower := strings.ToLower(name)
+	for i, t := range m.Tables {
+		if strings.ToLower(t) == nameLower {
+			return i
+		}
+	}
+	return -1
 }
