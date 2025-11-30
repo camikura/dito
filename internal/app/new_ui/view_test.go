@@ -15,7 +15,7 @@ func TestGetFooterHelp(t *testing.T) {
 		{
 			name:     "Connection pane not connected",
 			model:    Model{CurrentPane: FocusPaneConnection, Connected: false},
-			expected: "Connect: <enter>",
+			expected: "Setup: <enter>",
 		},
 		{
 			name:     "Connection pane connected",
