@@ -8,19 +8,6 @@ import (
 	"github.com/camikura/dito/internal/ui"
 )
 
-// Color definitions - using ui package constants
-const (
-	ColorPrimary   = ui.ColorPrimaryHex
-	ColorInactive  = ui.ColorInactiveHex
-	ColorGreen     = ui.ColorGreenHex
-	ColorLabel     = ui.ColorLabelHex
-	ColorSecondary = ui.ColorSecondaryHex
-	ColorTertiary  = ui.ColorTertiaryHex
-	ColorPK        = ui.ColorPKHex
-	ColorIndex     = ui.ColorIndexHex
-	ColorHelp      = ui.ColorHelpHex
-)
-
 // RenderView renders the new UI
 func RenderView(m Model) string {
 	if m.Width == 0 {

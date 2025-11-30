@@ -45,7 +45,7 @@ func renderRecordDetailDialog(m Model) string {
 		Width:        dialogWidth,
 		Height:       dialogHeight,
 		ScrollOffset: m.RecordDetailScroll,
-		BorderColor:  ColorPrimary,
+		BorderColor:  ui.ColorPrimaryHex,
 	})
 
 	return rd.RenderCentered(m.Width, m.Height)
