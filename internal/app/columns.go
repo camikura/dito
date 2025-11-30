@@ -1,4 +1,4 @@
-package new_ui
+package app
 
 import (
 	"github.com/camikura/dito/internal/ui"

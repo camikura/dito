@@ -6,12 +6,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/camikura/dito/internal/app/new_ui"
+	"github.com/camikura/dito/internal/app"
 )
 
-// model wraps new_ui.Model to allow methods in main package
+// model wraps app.Model to allow methods in main package
 type model struct {
-	new_ui.Model
+	app.Model
 }
 
 func (m model) Init() tea.Cmd {
@@ -20,17 +20,17 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	m.Model, cmd = new_ui.Update(m.Model, msg)
+	m.Model, cmd = app.Update(m.Model, msg)
 	return m, cmd
 }
 
 func (m model) View() string {
-	return new_ui.RenderView(m.Model)
+	return app.RenderView(m.Model)
 }
 
 func main() {
 	p := tea.NewProgram(
-		model{Model: new_ui.InitialModel()},
+		model{Model: app.InitialModel()},
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)

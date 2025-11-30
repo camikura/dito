@@ -1,4 +1,4 @@
-package new_ui
+package app
 
 import (
 	"testing"
