@@ -143,6 +143,21 @@ func GetColumnsInSchemaOrder(ddl string, rows []map[string]interface{}) []string
 	return columns
 }
 
+// GetColumnsFromData extracts column names from actual data rows.
+// Used for custom SQL queries where we only want columns that exist in the result.
+func GetColumnsFromData(rows []map[string]interface{}) []string {
+	if len(rows) == 0 {
+		return []string{}
+	}
+
+	var columns []string
+	for col := range rows[0] {
+		columns = append(columns, col)
+	}
+	sort.Strings(columns)
+	return columns
+}
+
 // GetColumnTypes extracts column types from DDL.
 // Returns a map of column name to type (without Primary Key suffix).
 func GetColumnTypes(ddl string) map[string]string {

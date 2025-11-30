@@ -50,8 +50,9 @@ type Model struct {
 	SchemaScrollOffset int  // Scroll offset for schema pane
 
 	// SQL
-	CurrentSQL string
-	CustomSQL  bool
+	CurrentSQL  string
+	CustomSQL   bool
+	ColumnOrder []string // Column order from custom SQL SELECT clause
 
 	// Data
 	TableData       map[string]*db.TableDataResult
@@ -63,6 +64,11 @@ type Model struct {
 	// Record Detail Dialog
 	RecordDetailVisible bool
 	RecordDetailScroll  int // Scroll offset for record detail dialog
+
+	// SQL Editor Dialog
+	SQLEditorVisible bool
+	EditSQL          string
+	SQLCursorPos     int
 }
 
 // InitialModel creates the initial model for new UI

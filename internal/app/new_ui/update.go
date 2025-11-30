@@ -80,6 +80,11 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// SQL Editor dialog takes precedence
+	if m.SQLEditorVisible {
+		return handleSQLEditorKeys(m, msg)
+	}
+
 	// Record detail dialog takes precedence
 	if m.RecordDetailVisible {
 		return handleRecordDetailKeys(m, msg)
@@ -104,6 +109,8 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return handleTablesKeys(m, msg)
 	case FocusPaneSchema:
 		return handleSchemaKeys(m, msg)
+	case FocusPaneSQL:
+		return handleSQLKeys(m, msg)
 	case FocusPaneData:
 		return handleDataKeys(m, msg)
 	}
@@ -224,6 +231,19 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.SchemaScrollOffset > 0 {
 			m.SchemaScrollOffset--
 		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		// Open SQL editor dialog
+		m.SQLEditorVisible = true
+		m.EditSQL = m.CurrentSQL
+		m.SQLCursorPos = len(m.EditSQL)
 		return m, nil
 	}
 
@@ -357,6 +377,99 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if totalRows > 0 {
 			m.RecordDetailVisible = true
 			m.RecordDetailScroll = 0
+		}
+		return m, nil
+
+	case "esc":
+		// Reset to default SQL mode (only when custom SQL is active)
+		if m.CustomSQL && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+			tableName := m.Tables[m.SelectedTable]
+			m.CustomSQL = false
+			m.ColumnOrder = nil
+			m.CurrentSQL = "SELECT * FROM " + tableName
+			m.SelectedDataRow = 0
+			m.ViewportOffset = 0
+			m.HorizontalOffset = 0
+
+			// Reload data with default SQL
+			var primaryKeys []string
+			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+				primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+			}
+			return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleSQLEditorKeys handles key events in the SQL editor dialog
+func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		// Close dialog without executing
+		m.SQLEditorVisible = false
+		return m, nil
+
+	case tea.KeyCtrlR:
+		// Execute SQL
+		m.SQLEditorVisible = false
+		m.CurrentSQL = m.EditSQL
+		m.CustomSQL = true
+
+		// Reset data state
+		m.SelectedDataRow = 0
+		m.ViewportOffset = 0
+		m.HorizontalOffset = 0
+
+		// Get current table name
+		if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+			tableName := m.Tables[m.SelectedTable]
+			return m, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.EditSQL, ui.DefaultFetchSize)
+		}
+		return m, nil
+
+	case tea.KeyEnter:
+		// Insert newline
+		m.EditSQL, m.SQLCursorPos = ui.InsertWithCursor(m.EditSQL, m.SQLCursorPos, "\n")
+		return m, nil
+
+	case tea.KeyBackspace:
+		m.EditSQL, m.SQLCursorPos = ui.Backspace(m.EditSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyDelete:
+		m.EditSQL = ui.DeleteAt(m.EditSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyLeft:
+		if m.SQLCursorPos > 0 {
+			m.SQLCursorPos--
+		}
+		return m, nil
+
+	case tea.KeyRight:
+		if m.SQLCursorPos < len(m.EditSQL) {
+			m.SQLCursorPos++
+		}
+		return m, nil
+
+	case tea.KeyHome, tea.KeyCtrlA:
+		m.SQLCursorPos = 0
+		return m, nil
+
+	case tea.KeyEnd, tea.KeyCtrlE:
+		m.SQLCursorPos = len(m.EditSQL)
+		return m, nil
+
+	case tea.KeySpace:
+		m.EditSQL, m.SQLCursorPos = ui.InsertWithCursor(m.EditSQL, m.SQLCursorPos, " ")
+		return m, nil
+
+	case tea.KeyRunes:
+		for _, r := range msg.Runes {
+			m.EditSQL, m.SQLCursorPos = ui.InsertWithCursor(m.EditSQL, m.SQLCursorPos, string(r))
 		}
 		return m, nil
 	}
@@ -506,6 +619,13 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 	} else {
 		// Initial fetch: replace entire data
 		m.TableData[msg.TableName] = &msg
+	}
+
+	// Store column order from custom SQL
+	if msg.IsCustomSQL && len(msg.ColumnOrder) > 0 {
+		m.ColumnOrder = msg.ColumnOrder
+	} else if !msg.IsCustomSQL {
+		m.ColumnOrder = nil
 	}
 
 	m.LoadingData = false
