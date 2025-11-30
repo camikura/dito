@@ -956,8 +956,7 @@ func renderConnectionDialog(m Model) string {
 	// Border style
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorLabel))
-	selectedBgStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
-	cursorStyle := lipgloss.NewStyle().Background(lipgloss.Color("#ffffff")).Foreground(lipgloss.Color("#000000"))
+	cursorStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
 
 	var dialog strings.Builder
 
@@ -1011,7 +1010,7 @@ func renderConnectionDialog(m Model) string {
 		// Build value display
 		var valueDisplay string
 		if m.ConnectionDialogField == fieldIndex {
-			// Focused text field: background + cursor
+			// Focused text field: cursor only (no background)
 			if cursorPos < len(valueRunes) {
 				beforeCursor := string(valueRunes[:cursorPos])
 				cursorChar := string(valueRunes[cursorPos])
@@ -1020,14 +1019,14 @@ func renderConnectionDialog(m Model) string {
 				if padding < 0 {
 					padding = 0
 				}
-				valueDisplay = selectedBgStyle.Render(beforeCursor) + cursorStyle.Render(cursorChar) + selectedBgStyle.Render(afterCursor+strings.Repeat(" ", padding))
+				valueDisplay = beforeCursor + cursorStyle.Render(cursorChar) + afterCursor + strings.Repeat(" ", padding)
 			} else {
 				// Cursor at end
 				padding := valueAreaWidth - valueDisplayWidth - 1
 				if padding < 0 {
 					padding = 0
 				}
-				valueDisplay = selectedBgStyle.Render(value) + cursorStyle.Render(" ") + selectedBgStyle.Render(strings.Repeat(" ", padding))
+				valueDisplay = value + cursorStyle.Render(" ") + strings.Repeat(" ", padding)
 			}
 		} else {
 			// Not focused: plain value with padding
@@ -1071,8 +1070,10 @@ func renderConnectionDialog(m Model) string {
 	buttonText := "[ Connect ]"
 	buttonPadding := (contentWidth - len(buttonText)) / 2
 	if m.ConnectionDialogField == 2 {
+		// Selected button: blue background
+		selectedButtonStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
 		dialog.WriteString(strings.Repeat(" ", buttonPadding))
-		dialog.WriteString(selectedBgStyle.Render(buttonText))
+		dialog.WriteString(selectedButtonStyle.Render(buttonText))
 		dialog.WriteString(strings.Repeat(" ", contentWidth-buttonPadding-len(buttonText)))
 	} else {
 		dialog.WriteString(strings.Repeat(" ", buttonPadding))
