@@ -186,24 +186,12 @@ func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.Endpoint = m.EditEndpoint + ":" + m.EditPort
 		return m, db.Connect(m.EditEndpoint, m.EditPort, false)
 
-	case tea.KeyTab:
-		moveToField((m.ConnectionDialogField + 1) % 3)
+	case tea.KeyTab, tea.KeyDown:
+		moveToField((m.ConnectionDialogField + 1) % 2)
 		return m, nil
 
-	case tea.KeyShiftTab:
-		moveToField((m.ConnectionDialogField + 2) % 3)
-		return m, nil
-
-	case tea.KeyUp:
-		if m.ConnectionDialogField > 0 {
-			moveToField(m.ConnectionDialogField - 1)
-		}
-		return m, nil
-
-	case tea.KeyDown:
-		if m.ConnectionDialogField < 2 {
-			moveToField(m.ConnectionDialogField + 1)
-		}
+	case tea.KeyShiftTab, tea.KeyUp:
+		moveToField((m.ConnectionDialogField + 1) % 2)
 		return m, nil
 
 	case tea.KeyBackspace:

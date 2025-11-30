@@ -1070,34 +1070,8 @@ func renderConnectionDialog(m Model) string {
 	dialog.WriteString(borderStyle.Render("│"))
 	dialog.WriteString("\n")
 
-	// Connect button
-	dialog.WriteString(borderStyle.Render("│"))
-	dialog.WriteString(" ")
-	buttonText := "[ Connect ]"
-	buttonPadding := (contentWidth - len(buttonText)) / 2
-	if m.ConnectionDialogField == 2 {
-		// Selected button: blue background
-		selectedButtonStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
-		dialog.WriteString(strings.Repeat(" ", buttonPadding))
-		dialog.WriteString(selectedButtonStyle.Render(buttonText))
-		dialog.WriteString(strings.Repeat(" ", contentWidth-buttonPadding-len(buttonText)))
-	} else {
-		dialog.WriteString(strings.Repeat(" ", buttonPadding))
-		dialog.WriteString(buttonText)
-		dialog.WriteString(strings.Repeat(" ", contentWidth-buttonPadding-len(buttonText)))
-	}
-	dialog.WriteString(" ")
-	dialog.WriteString(borderStyle.Render("│"))
-	dialog.WriteString("\n")
-
-	// Empty line
-	dialog.WriteString(borderStyle.Render("│"))
-	dialog.WriteString(strings.Repeat(" ", dialogWidth-2))
-	dialog.WriteString(borderStyle.Render("│"))
-	dialog.WriteString("\n")
-
 	// Help text
-	helpText := "Navigate: tab/↑/↓ | Connect: <enter> | Close: esc"
+	helpText := "Connect: <enter> | Close: esc"
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
 	helpDisplayWidth := lipgloss.Width(helpText)
 	helpPadding := contentWidth - helpDisplayWidth
