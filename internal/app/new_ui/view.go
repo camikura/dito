@@ -31,9 +31,9 @@ func RenderView(m Model) string {
 	}
 
 	// Layout configuration
+	// Left pane renders with borders included in leftPaneContentWidth
 	leftPaneContentWidth := ui.LeftPaneContentWidth
-	leftPaneActualWidth := leftPaneContentWidth + ui.LeftPaneBorderWidth
-	rightPaneActualWidth := m.Width - leftPaneActualWidth + 1 // +1 to use full width
+	rightPaneActualWidth := m.Width - leftPaneContentWidth
 
 	// Render connection pane first to get its actual height
 	connectionPane := renderConnectionPane(m, leftPaneContentWidth)
