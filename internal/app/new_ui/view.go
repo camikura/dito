@@ -855,6 +855,8 @@ func renderGridViewWithScrollInfo(m Model, tableName string, data *db.TableDataR
 	grid.HorizontalOffset = m.HorizontalOffset
 	grid.VerticalOffset = m.ViewportOffset
 	grid.SelectedRow = m.SelectedDataRow
+	grid.ShowLoading = m.LoadingData
+	grid.HasMore = data.HasMore
 
 	// Calculate viewport rows (contentLines minus header and separator)
 	viewportRows := contentLines - 2
