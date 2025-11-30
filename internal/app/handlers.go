@@ -311,31 +311,18 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			tableName = actualTableName
 		}
 
-		// Check if this is a custom SQL (not the default SELECT * FROM table)
+		// Ctrl+R always executes as custom SQL
 		tableIndex := m.FindTableIndex(tableName)
 		if tableIndex >= 0 {
-			// Get DDL to generate proper default SQL with ORDER BY
-			var ddl string
-			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
-				ddl = details.Schema.DDL
+			m.CustomSQL = true
+			// Parse column order from SQL
+			m.ColumnOrder = db.ParseSelectColumns(m.CurrentSQL)
+			// Save current SelectedTable for later restoration
+			if m.PreviousSelectedTable == -1 {
+				m.PreviousSelectedTable = m.SelectedTable
 			}
-			defaultSQL := buildDefaultSQL(tableName, ddl)
-			if m.CurrentSQL != defaultSQL {
-				// This is custom SQL
-				m.CustomSQL = true
-				// Parse column order from SQL
-				m.ColumnOrder = db.ParseSelectColumns(m.CurrentSQL)
-				// Save current SelectedTable for later restoration
-				if !m.CustomSQL || m.PreviousSelectedTable == -1 {
-					m.PreviousSelectedTable = m.SelectedTable
-				}
-				// Update SelectedTable to match the table in SQL
-				m.SelectedTable = tableIndex
-			} else {
-				// This is standard SQL
-				m.CustomSQL = false
-				m.ColumnOrder = nil
-			}
+			// Update SelectedTable to match the table in SQL
+			m.SelectedTable = tableIndex
 		}
 
 		// Fall back to selected table if no table name in SQL
