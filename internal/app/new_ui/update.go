@@ -295,20 +295,8 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.SelectedTable = m.CursorTable
 			tableName := m.Tables[m.SelectedTable]
 
-			// Get DDL if available
-			var ddl string
-			var primaryKeys []string
-			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
-				ddl = details.Schema.DDL
-				primaryKeys = views.ParsePrimaryKeysFromDDL(ddl)
-			}
-
-			// Generate SQL query with ORDER BY if PK is known
-			m.CurrentSQL = buildDefaultSQL(tableName, ddl)
-			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+			// Reset state
 			m.CustomSQL = false
-
-			// Reset data scrolling state and schema scroll
 			m.SelectedDataRow = 0
 			m.ViewportOffset = 0
 			m.HorizontalOffset = 0
@@ -317,18 +305,21 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			// Move focus to Data pane for immediate interaction
 			m.CurrentPane = FocusPaneData
 
-			// Fetch schema and data together
-			var cmds []tea.Cmd
-
-			// Fetch schema if not already loaded
-			if ddl == "" {
-				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
+			// Check if schema is already loaded
+			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+				// Schema available - fetch data with ORDER BY
+				ddl := details.Schema.DDL
+				primaryKeys := views.ParsePrimaryKeysFromDDL(ddl)
+				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
+				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+				return m, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys)
 			}
 
-			// Load table data (100 rows with ORDER BY PK)
-			cmds = append(cmds, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys))
-
-			return m, tea.Batch(cmds...)
+			// Schema not loaded - fetch schema first, data will be fetched when schema arrives
+			m.CurrentSQL = "SELECT * FROM " + tableName
+			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+			m.LoadingData = true
+			return m, db.FetchTableDetails(m.NosqlClient, tableName)
 		}
 		return m, nil
 	}
@@ -874,12 +865,27 @@ func sortTablesForTree(tables []string) []string {
 func handleTableDetailsResult(m Model, msg db.TableDetailsResult) (Model, tea.Cmd) {
 	if msg.Err != nil {
 		m.SchemaErrorMsg = msg.Err.Error()
+		m.LoadingData = false
 		return m, nil
 	}
 
 	// Clear any previous error
 	m.SchemaErrorMsg = ""
 	m.TableDetails[msg.TableName] = &msg
+
+	// If this is the selected table and we're waiting for data, fetch it now
+	if m.LoadingData && !m.CustomSQL && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		tableName := m.Tables[m.SelectedTable]
+		if tableName == msg.TableName && msg.Schema != nil {
+			// Update SQL with ORDER BY
+			primaryKeys := views.ParsePrimaryKeysFromDDL(msg.Schema.DDL)
+			m.CurrentSQL = buildDefaultSQL(tableName, msg.Schema.DDL)
+			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+			// Now fetch data with proper ORDER BY
+			return m, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys)
+		}
+	}
+
 	return m, nil
 }
 
