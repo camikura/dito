@@ -8,7 +8,7 @@ import (
 // When focused, displays a cursor at the specified position with background color highlighting.
 // Returns a formatted string like "[ value__ ]" with proper width.
 func TextField(value string, width int, focused bool, cursorPos int) string {
-	// カーソル位置が範囲内であることを確認
+	// Ensure cursor position is within bounds
 	if cursorPos > len(value) {
 		cursorPos = len(value)
 	}
@@ -18,22 +18,22 @@ func TextField(value string, width int, focused bool, cursorPos int) string {
 
 	var displayValue string
 	if focused {
-		// カーソル位置にアンダースコアを挿入
+		// Insert underscore at cursor position
 		valueWithCursor := value[:cursorPos] + "_" + value[cursorPos:]
 
 		if len(valueWithCursor) > width {
-			// カーソル位置に応じてスクロール
-			// 表示可能な文字数（"..."を除く）
+			// Scroll based on cursor position
+			// Visible character count (excluding "...")
 			visibleWidth := width - 3
 
-			// 表示開始位置を計算
+			// Calculate display start position
 			var start int
 			if cursorPos < visibleWidth {
-				// カーソルが左端近くにある場合、先頭から表示
+				// When cursor is near left edge, display from the beginning
 				start = 0
 				displayValue = valueWithCursor[:width-3] + "..."
 			} else {
-				// カーソルが右側にある場合、カーソルが見えるように右側を表示
+				// When cursor is on the right side, scroll to keep cursor visible
 				start = cursorPos - visibleWidth + 1
 				end := start + visibleWidth
 				if end > len(valueWithCursor) {
@@ -45,7 +45,7 @@ func TextField(value string, width int, focused bool, cursorPos int) string {
 			displayValue = valueWithCursor
 		}
 	} else {
-		// フォーカスが外れている時は先頭から表示
+		// When not focused, display from the beginning
 		if len(value) > width {
 			displayValue = value[:width-3] + "..."
 		} else {
