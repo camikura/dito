@@ -2,34 +2,34 @@
 
 ## 全体レイアウト
 
-lazygit風の2ペインレイアウトで、各ペインが縦に複数のボックスに分割されています。
+2ペインレイアウトで、各ペインが縦に複数のボックスに分割されています。
 
 ### 基本レイアウト
 
 ```
 ╭─ Connection ✓ ─────────────╮╭─ Data ────────────────────────────────╮
-│ localhost:8080             ││ id name          email         age    │
-╰────────────────────────────╯│ ── ──────────── ────────────── ───────│
-╭─ Tables (7) ───────────────╮│  1 Alice Smith  alice@...       28   │
-│   users                    ││  2 Bob Johnson  bob@...         35   │
-│ *   addresses              ││  3 Charlie      charlie@...     42   │
-│     phones                 ││  4 Diana        diana@...       31   │
-│   products                 ││  5 Eve          eve@...         29   │
-│   orders                   ││                                       │
+│ localhost:8080             ││id name          email         age     │
+╰────────────────────────────╯│── ──────────── ────────────── ────────│
+╭─ Tables (7) ───────────────╮│ 1 Alice Smith  alice@...       28     │
+│  users                     ││ 2 Bob Johnson  bob@...         35     │
+│*  addresses                ││ 3 Charlie      charlie@...     42     │
+│   phones                   ││ 4 Diana        diana@...       31     │
+│  products                  ││ 5 Eve          eve@...         29     │
+│  orders                    ││                                       │
 ╰────────────────────────────╯│                                       │
 ╭─ Schema (users) ───────────╮│                                       │
-│ Columns: (cyan)            ││                                       │
-│ id     INTEGER (PK)        ││                                       │
-│ name   STRING              ││                                       │
-│ email  STRING              ││                                       │
+│ Columns:                   ││                                       │
+│ P id     INTEGER           ││                                       │
+│   name   STRING            ││                                       │
+│   email  STRING            ││                                       │
 │                            ││                                       │
-│ Indexes: (cyan)            ││                                       │
-│ email_idx  (email)         ││                                       │
+│ Indexes:                   ││                                       │
+│   email_idx  (email)       ││                                       │
 ╰────────────────────────────╯│                                       │
 ╭─ SQL ──────────────────────╮│                                       │
 │ SELECT * FROM users        ││                                       │
 ╰────────────────────────────╯╰───────────────────────────────────────╯
-Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e    Dito
+Select: <enter>                                                  Dito
 ```
 
 **レイアウト構成:**
@@ -86,13 +86,13 @@ Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e    Dito
 
 ```
 ╭─ Tables (7) ───────────────╮
-│   users                    │
-│     addresses              │
-│     phones                 │
-│   products                 │
-│     reviews                │
-│   orders                   │
-│     items                  │
+│  users                     │
+│   addresses                │
+│   phones                   │
+│  products                  │
+│   reviews                  │
+│  orders                    │
+│   items                    │
 ╰────────────────────────────╯
 ```
 ※ カーソル移動中の行は背景色（フルスパン）で表示
@@ -101,13 +101,13 @@ Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e    Dito
 
 ```
 ╭─ Tables (7) ───────────────╮
-│   users                    │
-│ *   addresses              │
-│     phones                 │
-│   products                 │
-│     reviews                │
-│   orders                   │
-│     items                  │
+│  users                     │
+│*  addresses                │
+│   phones                   │
+│  products                  │
+│   reviews                  │
+│  orders                    │
+│   items                    │
 ╰────────────────────────────╯
 ```
 ※ 選択中の行は背景色（フルスパン）で表示、`*` は選択済み（データ表示中）のテーブル
@@ -119,20 +119,19 @@ Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e    Dito
 - データ表示中のテーブルは行頭（左寄せ）に `*` でマーク
 - `↑/↓` または `k/j` でテーブルを移動 → **Schemaペインが自動更新**
 - `Enter` で選択 → **Dataペインが更新**（SQL、Dataペインが更新される）
-- `ctrl+i` で詳細スキーマ情報ダイアログを表示
 
 ### 3. Schema（スキーマ詳細）
 
 ```
 ╭─ Schema (users) ───────────╮
-│ Columns: (cyan)            │
-│ id     INTEGER (PK)        │
-│ name   STRING              │
-│ email  STRING              │
-│ age    INTEGER             │
+│ Columns:                   │
+│ P id     INTEGER           │
+│   name   STRING            │
+│   email  STRING            │
+│   age    INTEGER           │
 │                            │
-│ Indexes: (cyan)            │
-│ email_idx  (email)         │
+│ Indexes:                   │
+│   email_idx  (email)       │
 ╰────────────────────────────╯
 ```
 
@@ -144,7 +143,6 @@ Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e    Dito
 - セクションラベル（Columns、Indexes）はシアン色で表示
 - カラム一覧（型、Primary Key表示）
 - インデックス一覧
-- `ctrl+i` で詳細スキーマ情報ダイアログを表示（制約、デフォルト値など含む）
 
 ### 4. SQL（SQLクエリ表示）
 
@@ -169,8 +167,8 @@ Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e    Dito
 - 現在実行中/実行したSQLクエリを表示
 - テーブル選択時は自動的に `SELECT * FROM テーブル名` を表示
 - カスタムSQL実行時はタイトルに `[Custom]` を表示し、そのクエリを表示
-- 読み取り専用（編集は `e` キーでSQLエディタダイアログを開く）
-- `Esc` キーでカスタムSQLモードを解除し、通常モードに戻る
+- SQLペインにフォーカスして編集、`Ctrl+R` で実行
+- Dataペインで `Esc` キーを押すとカスタムSQLモードを解除し、通常モードに戻る
 
 ### 5. Data（データ表示）
 
@@ -178,12 +176,12 @@ Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e    Dito
 
 ```
 ╭─ Data ────────────────────────────────────────────────────╮
-│ id name          email             age created_at         │
-│ ── ──────────── ───────────────── ──── ───────────────────│
-│  1 Alice Smith  alice@example.com   28 2024-01-15T10:30:00│
-│  2 Bob Johnson  bob@example.com     35 2024-01-16T14:20:00│
-│  3 Charlie Bro… charlie@exampl…     42 2024-01-17T09:15:00│
-│  4 Diana Princ… diana@example.c…    31 2024-01-18T16:45:00│
+│id name          email             age created_at          │
+│── ──────────── ───────────────── ──── ────────────────────│
+│ 1 Alice Smith  alice@example.com   28 2024-01-15T10:30:00 │
+│ 2 Bob Johnson  bob@example.com     35 2024-01-16T14:20:00 │
+│ 3 Charlie Bro… charlie@exampl…     42 2024-01-17T09:15:00 │
+│ 4 Diana Princ… diana@example.c…    31 2024-01-18T16:45:00 │
 │                                                           │
 │                                                           │
 ╰───────────────────────────────────────────────────────────╯
@@ -198,13 +196,12 @@ Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e    Dito
 - `↑/↓` または `k/j` で行選択
 - `←/→` または `h/l` で横スクロール
 - `Enter` でレコード詳細ダイアログを開く
-- `e` キーでSQLエディタダイアログを開く
 
 
 ## ペイン切り替え
 
 ```
-Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e    Dito
+Detail: <enter>                                                  Dito
 ```
 
 **操作:**
@@ -272,42 +269,9 @@ Editing... | Confirm: <enter> | Cancel: <esc>
 ※ 選択中の行は背景色（フルスパン）で表示、`*` は選択済みマーク
 ※ █ はブロックカーソル（背景色で表示）
 
-#### Cloud設定（通常表示）
+#### Cloud設定（TODO）
 
-```
-╭─ Cloud Connection ─────────────────────────╮
-│                                            │
-│ * Region:       us-phoenix-1               │
-│   Compartment:  ocid1.compartment...       │
-│   Auth Method:  (•) Config File            │
-│                 ( ) Instance Principal     │
-│   Config File:  ~/.oci/config              │
-│                                            │
-│   [Test Connection]  [Connect]             │
-│                                            │
-╰────────────────────────────────────────────╯
-Navigate: tab/shift+tab | Toggle: <space> | Edit: <enter> | Cancel: <esc>
-```
-※ 選択中の行は背景色（フルスパン）で表示、`*` は選択済みマーク
-
-#### Cloud設定（編集中）
-
-```
-╭─ Cloud Connection ─────────────────────────╮
-│                                            │
-│ * Region:       us-phoenix-1█              │
-│   Compartment:  ocid1.compartment...       │
-│   Auth Method:  (•) Config File            │
-│                 ( ) Instance Principal     │
-│   Config File:  ~/.oci/config              │
-│                                            │
-│   [Test Connection]  [Connect]             │
-│                                            │
-╰────────────────────────────────────────────╯
-Editing... | Confirm: <enter> | Cancel: <esc>
-```
-※ 選択中の行は背景色（フルスパン）で表示、`*` は選択済みマーク
-※ █ はブロックカーソル（背景色で表示）
+Cloud設定は将来実装予定です。
 
 **操作:**
 - `tab` / `shift+tab` でフィールド間を移動
@@ -317,38 +281,6 @@ Editing... | Confirm: <enter> | Cancel: <esc>
 - `Space` でチェックボックス/ラジオボタンをトグル
 - ボタンで `Enter` を押すと実行
 - `Esc` でダイアログをキャンセル（編集モード外）
-
-### 詳細スキーマ情報ダイアログ
-
-Tablesペインで `ctrl+i` キーを押すと開く。
-
-```
-╭─ Schema Info: users ───────────────────────────────╮
-│                                                    │
-│ Parent:   -                                        │
-│ Children: addresses, phones                        │
-│                                                    │
-│ Columns: (cyan)                                    │
-│ id          INTEGER      PRIMARY KEY               │
-│ name        STRING       NOT NULL                  │
-│ email       STRING       NOT NULL                  │
-│ age         INTEGER                                │
-│ created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP │
-│                                                    │
-│ Indexes: (cyan)                                    │
-│ email_idx   (email)      UNIQUE                    │
-│ age_idx     (age)                                  │
-│                                                    │
-╰────────────────────────────────────────────────────╯
-Close: <esc>
-```
-
-**操作:**
-- テーブルの詳細スキーマ情報を表示
-- 親子関係
-- カラム詳細（制約、デフォルト値など）
-- インデックス一覧
-- `Esc` で閉じる
 
 ### レコード詳細ダイアログ
 
@@ -376,28 +308,6 @@ Navigate: ↑/↓ | Close: <esc>
 - `↑/↓` で次/前の行に切り替え
 - `Esc` で閉じる
 
-### SQLエディタダイアログ
-
-Data ペイン（グリッドビュー）で `e` キーを押すと開く。
-
-```
-╭─ SQL Editor ───────────────────────────────────────╮
-│                                                    │
-│  SELECT * FROM users WHERE age > 30█               │
-│                                                    │
-│                                                    │
-│                                                    │
-╰────────────────────────────────────────────────────╯
-Execute: ctrl+r | Cancel: <esc>
-```
-※ █ はブロックカーソル（背景色で表示）
-
-**操作:**
-- カスタムSQLクエリを編集
-- `Enter` キーは改行として機能
-- `Ctrl+R` で実行、結果がグリッドビューに表示
-- `Esc` でキャンセル
-
 ## キーバインディング一覧
 
 ### グローバル
@@ -411,12 +321,10 @@ Execute: ctrl+r | Cancel: <esc>
 ### Tables ペイン
 - `↑/↓` または `k/j` - テーブル移動（Schemaペインが自動更新）
 - `Enter` - テーブル選択（SQL、Dataペインが更新される）
-- `ctrl+i` - 詳細スキーマ情報ダイアログを開く
 
 ### Data ペイン（グリッドビュー）
 - `←` / `→` または `h` / `l` - 横スクロール
 - `Enter` - レコード詳細ダイアログを開く
-- `e` - SQLエディタダイアログを開く
 - `Esc` - （カスタムSQL実行後）デフォルトSQLに戻る
 
 ### Connection ペイン
@@ -437,10 +345,8 @@ Execute: ctrl+r | Cancel: <esc>
 - `↑/↓` - 次/前のレコードに切り替え
 - `<esc>` - 閉じる
 
-### ダイアログ（SQLエディタ）
-- `<enter>` - 改行
-- `ctrl+r` - SQL実行
-- `<esc>` - キャンセル
+### SQL ペイン
+- SQLを編集して `ctrl+r` でカスタムSQL実行
 
 ## 配色・スタイル
 
