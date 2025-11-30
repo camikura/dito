@@ -1088,10 +1088,10 @@ func renderConnectionDialog(m Model) string {
 	if m.ConnectionDialogEditing {
 		helpText = "Confirm: enter | Cancel: esc"
 	} else {
-		helpText = "Edit: enter | Navigate: ↑/↓ | Close: esc"
+		helpText = "Edit: enter | Navigate: up/down | Close: esc"
 	}
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
-	helpPadding := dialogWidth - 4 - len(helpText)
+	helpPadding := contentWidth - len(helpText)
 	if helpPadding < 0 {
 		helpPadding = 0
 	}
