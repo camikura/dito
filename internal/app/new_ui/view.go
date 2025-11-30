@@ -108,15 +108,15 @@ func RenderView(m Model) string {
 		}
 	}
 
-	// Footer format: " {help} {padding} Dito "
-	// Left padding: 1, Right padding: 1
+	// Footer format: " {help} {padding} Dito"
+	// Left padding: 1, Right padding: 0
 	appName := "Dito"
 	footerHelpWidth := lipgloss.Width(footerHelp)
-	footerPadding := m.Width - footerHelpWidth - len(appName) - 3 // 1 left + 1 separator + 1 right
+	footerPadding := m.Width - footerHelpWidth - len(appName) - 1 // 1 left padding only
 	if footerPadding < 0 {
 		footerPadding = 0
 	}
-	footerContent := " " + footerHelp + strings.Repeat(" ", footerPadding+1) + appName + " "
+	footerContent := " " + footerHelp + strings.Repeat(" ", footerPadding) + appName
 
 	// Assemble final output
 	var result strings.Builder
