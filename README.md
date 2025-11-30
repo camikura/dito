@@ -1,127 +1,33 @@
 # dito
 
-**dito（ディト）** は、Oracle NoSQL Database用のモダンなTUI（Text User Interface）クライアントです。
+**dito** is a TUI (Text User Interface) client for Oracle NoSQL Database.
 
-## 特徴
+## Features
 
-- 🎨 モダンでカラフルなターミナルUI
-- ☁️ Oracle NoSQL Cloud ServiceとOn-Premise版の両方に対応
-- ⚡ 高速で軽量なGoで実装
-- 🔐 セキュアな接続管理
+- 🖥️ Oracle NoSQL Database On-Premise support
+- ⚡ Fast and lightweight, built with Go
+- 📊 Browse tables, schemas, and data
+- 🔍 Execute custom SQL queries
 
-## 開発状況
+## Usage
 
-現在、Phase 1（MVP）を開発中です：
+1. **Edition Selection**: Select `On-Premise` and press Enter
+2. **Connection Setup**: Use default settings (`localhost:8080`) and select `Connect`
+3. **Table Selection**: After connecting, the table list is displayed
+   - Use `j`/`k` or `↑`/`↓` to select a table
+   - The Schema pane shows table details (columns, indexes)
+   - Press `Enter` to display data in the Data pane
+4. **Data Pane**: Table data is displayed in grid format
+   - Data is sorted by PRIMARY KEY (up to 1000 rows)
+   - Use `j`/`k` or `↑`/`↓` to scroll through rows
+   - Use `h`/`l` or `←`/`→` to scroll horizontally
+   - Column widths auto-adjust based on data (max 32 characters)
+   - Press `Enter` to open the record detail dialog
+5. **Record Detail Dialog**: Shows the selected row's data vertically
+   - Use `j`/`k` or `↑`/`↓` to navigate between rows
+   - Press `Esc` to close
+6. **Quit**: Press `q` to exit
 
-- [x] 要件定義
-- [x] UI設計
-- [x] 開発環境構築
-- [x] TUI Hello World
-- [x] 実装
-  - [x] 接続機能（On-Premise）
-    - [x] エディション選択画面
-    - [x] 接続設定フォーム
-    - [x] 接続テスト機能
-  - [x] テーブル一覧表示
-    - [x] 2ペインレイアウト（左：テーブルリスト、右：テーブル詳細）
-    - [x] 左ペイン固定幅（30文字）
-    - [x] システムテーブルのフィルタリング
-    - [x] 親子テーブルの関係表示
-    - [x] アクティブなテーブルのハイライト表示（シアン + 太字）
-    - [x] キーボードナビゲーション（j/k, ↑/↓）
-    - [x] テーブル詳細表示
-      - [x] カラム一覧（DDL解析による整形表示）
-      - [x] インデックス一覧
-      - [x] 親子関係の表示
-  - [x] テーブルデータ表示
-    - [x] グリッドビューへの切り替え（Enter/o, Esc/u）
-    - [x] レコードビュー（選択行の詳細表示）
-    - [x] PRIMARY KEYでソートされたデータ取得
-    - [x] 画面高さに応じた動的ビューポート
-    - [x] カラム幅の自動調整（最大32文字）
-    - [x] データ行のスクロール（最大1000行）
-    - [x] 横スクロール機能（h/l, ←/→）
-    - [x] エラーメッセージ表示
+## License
 
-## クイックスタート
-
-### ビルド
-
-```bash
-# miseを使用する場合
-mise run build
-
-# または直接
-go build -o dito cmd/dito/main.go
-```
-
-### 実行
-
-```bash
-# 1. データベースを起動（初回のみテーブル作成）
-mise run db-start
-mise run db-init
-
-# 2. ditoを実行
-./dito
-
-# または miseタスクで実行
-mise run run
-```
-
-### 使い方
-
-1. **エディション選択**: `On-Premise` を選択して Enter
-2. **接続設定**: デフォルト設定（`localhost:8080`）のまま `Connect` を選択して Enter
-3. **スキーマビュー**: 接続成功後、テーブル一覧が表示されます
-   - `j`/`k` または `↑`/`↓` でテーブルを選択
-   - 右ペインに選択したテーブルの詳細（カラム、インデックス、親子関係）が表示されます
-   - `Enter` または `o` でグリッドビューに切り替え
-4. **グリッドビュー**: テーブルのデータが表形式で表示されます
-   - データはPRIMARY KEYでソートされています（最大1000行）
-   - `j`/`k` または `↑`/`↓` でデータ行をスクロール
-   - `h`/`l` または `←`/`→` でカラムを左右にスクロール
-   - カラム幅はデータに応じて自動調整されます（最大32文字）
-   - `Enter` または `o` でレコードビューに切り替え
-   - `Esc` または `u` でスキーマビューに戻る
-5. **レコードビュー**: 選択した行のデータが縦に詳細表示されます
-   - `j`/`k` または `↑`/`↓` でデータ行を切り替え
-   - `Esc` または `u` でグリッドビューに戻る
-6. **終了**: `q` で終了
-
-## 開発環境
-
-### 必要要件
-
-- Go 1.21以上
-- Docker & Docker Compose
-- mise (推奨)
-
-### テスト用データベースの起動
-
-```bash
-# データベースを起動
-mise run db-start
-
-# テスト用テーブルを作成
-mise run db-init
-
-# ステータス確認
-mise run db-status
-
-# ログ確認
-mise run db-logs
-```
-
-詳しくは [docker/README.md](docker/README.md) を参照してください。
-
-## ドキュメント
-
-- [要件仕様書](docs/REQUIREMENTS_SPEC.md)
-- [デザインポリシー](docs/DESIGN_POLICY.md)
-- [UI仕様](docs/UI_MOCKUP.md)
-- [Docker環境](docker/README.md)
-
-## ライセンス
-
-TBD
+MIT License - See [LICENSE](LICENSE) for details.

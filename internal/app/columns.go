@@ -7,6 +7,7 @@ import (
 // getColumnsInSchemaOrder returns column names in schema definition order.
 // For custom SQL with explicit column list, it uses the parsed column order.
 // For SELECT * or normal queries, it uses schema definition order.
+// For child tables, ancestor primary key columns are placed first.
 func getColumnsInSchemaOrder(m Model, tableName string, rows []map[string]interface{}) []string {
 	// For custom SQL with explicit column order from SELECT clause (not SELECT *)
 	if m.CustomSQL && len(m.ColumnOrder) > 0 {
@@ -19,5 +20,16 @@ func getColumnsInSchemaOrder(m Model, tableName string, rows []map[string]interf
 		ddl = details.Schema.DDL
 	}
 
-	return ui.GetColumnsInSchemaOrder(ddl, rows)
+	// Get ancestor DDLs for child tables (root to parent order)
+	var ancestorDDLs []string
+	ancestors := ui.GetAncestorTableNames(tableName)
+	for _, ancestor := range ancestors {
+		if details, exists := m.TableDetails[ancestor]; exists && details != nil && details.Schema != nil {
+			ancestorDDLs = append(ancestorDDLs, details.Schema.DDL)
+		} else {
+			ancestorDDLs = append(ancestorDDLs, "")
+		}
+	}
+
+	return ui.GetColumnsInSchemaOrderWithAncestors(ddl, ancestorDDLs, rows)
 }

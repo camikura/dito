@@ -220,6 +220,15 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			// Move focus to Data pane for immediate interaction
 			m.CurrentPane = FocusPaneData
 
+			// Fetch ancestor table schemas if not already loaded (for inherited columns display)
+			var ancestorCmds []tea.Cmd
+			ancestors := ui.GetAncestorTableNames(tableName)
+			for _, ancestor := range ancestors {
+				if _, exists := m.TableDetails[ancestor]; !exists {
+					ancestorCmds = append(ancestorCmds, db.FetchTableDetails(m.NosqlClient, ancestor))
+				}
+			}
+
 			// Check if schema is already loaded
 			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
 				// Schema available - fetch data with ORDER BY
@@ -227,14 +236,20 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				primaryKeys := ui.ParsePrimaryKeysFromDDL(ddl)
 				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
 				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
-				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+				dataCmd := db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+				if len(ancestorCmds) > 0 {
+					ancestorCmds = append(ancestorCmds, dataCmd)
+					return m, tea.Batch(ancestorCmds...)
+				}
+				return m, dataCmd
 			}
 
 			// Schema not loaded - fetch schema first, data will be fetched when schema arrives
 			m.CurrentSQL = "SELECT * FROM " + tableName
 			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 			m.LoadingData = true
-			return m, db.FetchTableDetails(m.NosqlClient, tableName)
+			ancestorCmds = append(ancestorCmds, db.FetchTableDetails(m.NosqlClient, tableName))
+			return m, tea.Batch(ancestorCmds...)
 		}
 		return m, nil
 	}
@@ -311,31 +326,18 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			tableName = actualTableName
 		}
 
-		// Check if this is a custom SQL (not the default SELECT * FROM table)
+		// Ctrl+R always executes as custom SQL
 		tableIndex := m.FindTableIndex(tableName)
 		if tableIndex >= 0 {
-			// Get DDL to generate proper default SQL with ORDER BY
-			var ddl string
-			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
-				ddl = details.Schema.DDL
+			m.CustomSQL = true
+			// Parse column order from SQL
+			m.ColumnOrder = db.ParseSelectColumns(m.CurrentSQL)
+			// Save current SelectedTable for later restoration
+			if m.PreviousSelectedTable == -1 {
+				m.PreviousSelectedTable = m.SelectedTable
 			}
-			defaultSQL := buildDefaultSQL(tableName, ddl)
-			if m.CurrentSQL != defaultSQL {
-				// This is custom SQL
-				m.CustomSQL = true
-				// Parse column order from SQL
-				m.ColumnOrder = db.ParseSelectColumns(m.CurrentSQL)
-				// Save current SelectedTable for later restoration
-				if !m.CustomSQL || m.PreviousSelectedTable == -1 {
-					m.PreviousSelectedTable = m.SelectedTable
-				}
-				// Update SelectedTable to match the table in SQL
-				m.SelectedTable = tableIndex
-			} else {
-				// This is standard SQL
-				m.CustomSQL = false
-				m.ColumnOrder = nil
-			}
+			// Update SelectedTable to match the table in SQL
+			m.SelectedTable = tableIndex
 		}
 
 		// Fall back to selected table if no table name in SQL
@@ -353,6 +355,10 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 			// Execute custom SQL
 			cmds = append(cmds, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.CurrentSQL, ui.DefaultFetchSize))
+
+			// Reset data row selection to top
+			m.SelectedDataRow = 0
+			m.ViewportOffset = 0
 
 			// Move focus to Data pane
 			m.CurrentPane = FocusPaneData

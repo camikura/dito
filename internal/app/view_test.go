@@ -20,7 +20,7 @@ func TestGetFooterHelp(t *testing.T) {
 		{
 			name:     "Connection pane connected",
 			model:    Model{CurrentPane: FocusPaneConnection, Connected: true},
-			expected: "Switch Pane: tab | Disconnect: ctrl+d",
+			expected: "Disconnect: ctrl+d",
 		},
 		{
 			name:     "Tables pane",

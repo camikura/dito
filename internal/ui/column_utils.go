@@ -10,6 +10,35 @@ type ColumnInfo struct {
 	Name         string
 	Type         string
 	IsPrimaryKey bool
+	IsInherited  bool // True if this column is inherited from a parent table
+}
+
+// GetParentTableName returns the parent table name for a child table.
+// For "users.addresses" returns "users", for "users.addresses.phones" returns "users.addresses".
+// Returns empty string if the table has no parent.
+func GetParentTableName(tableName string) string {
+	lastDot := strings.LastIndex(tableName, ".")
+	if lastDot == -1 {
+		return ""
+	}
+	return tableName[:lastDot]
+}
+
+// GetAncestorTableNames returns all ancestor table names from root to immediate parent.
+// For "users.addresses.phones" returns ["users", "users.addresses"].
+func GetAncestorTableNames(tableName string) []string {
+	var ancestors []string
+	current := tableName
+	for {
+		parent := GetParentTableName(current)
+		if parent == "" {
+			break
+		}
+		// Prepend to get root-to-leaf order
+		ancestors = append([]string{parent}, ancestors...)
+		current = parent
+	}
+	return ancestors
 }
 
 // ParsePrimaryKeysFromDDL extracts primary key column names from DDL string.
@@ -103,18 +132,42 @@ func ParseColumnsFromDDL(ddl string, primaryKeys []string) []ColumnInfo {
 // GetColumnsInSchemaOrder returns column names in schema definition order.
 // It first tries to get columns from DDL, then adds any extra columns from actual data.
 func GetColumnsInSchemaOrder(ddl string, rows []map[string]interface{}) []string {
+	return GetColumnsInSchemaOrderWithAncestors(ddl, nil, rows)
+}
+
+// GetColumnsInSchemaOrderWithAncestors returns column names in schema definition order,
+// including inherited primary key columns from ancestor tables.
+// ancestorDDLs should be in order from root to immediate parent.
+func GetColumnsInSchemaOrderWithAncestors(ddl string, ancestorDDLs []string, rows []map[string]interface{}) []string {
 	var columns []string
 	columnSet := make(map[string]bool)
 
-	// Try to get columns from schema DDL first
+	// First, add primary key columns from ancestors (root to parent order)
+	for _, ancestorDDL := range ancestorDDLs {
+		if ancestorDDL != "" {
+			ancestorPKs := ParsePrimaryKeysFromDDL(ancestorDDL)
+			ancestorCols := ParseColumnsFromDDL(ancestorDDL, ancestorPKs)
+			// Only add primary key columns from ancestors
+			for _, col := range ancestorCols {
+				if col.IsPrimaryKey && !columnSet[col.Name] {
+					columns = append(columns, col.Name)
+					columnSet[col.Name] = true
+				}
+			}
+		}
+	}
+
+	// Then add this table's own columns from DDL
 	if ddl != "" {
 		primaryKeys := ParsePrimaryKeysFromDDL(ddl)
 		cols := ParseColumnsFromDDL(ddl, primaryKeys)
 
 		// Extract column names in schema order
 		for _, col := range cols {
-			columns = append(columns, col.Name)
-			columnSet[col.Name] = true
+			if !columnSet[col.Name] {
+				columns = append(columns, col.Name)
+				columnSet[col.Name] = true
+			}
 		}
 	}
 

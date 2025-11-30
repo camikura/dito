@@ -7,10 +7,11 @@
 
 ## 対象エディション
 
-- **Oracle NoSQL Cloud Service** (OCI上のマネージドサービス)
 - **Oracle NoSQL Database On-Premise** (オンプレミス/ローカル環境)
 
-両方のエディションに対応します。
+### TODO
+
+- **Oracle NoSQL Cloud Service** (OCI上のマネージドサービス) への対応
 
 ## 技術スタック
 

@@ -25,11 +25,11 @@ type ScrollBar struct {
 const (
 	// Horizontal scrollbar
 	ScrollBarHNormal = "─" // Normal horizontal (not in viewport)
-	ScrollBarHThumb  = "━" // Thumb horizontal (current viewport indicator)
+	ScrollBarHThumb  = "═" // Thumb horizontal (double line for visibility)
 
 	// Vertical scrollbar
 	ScrollBarVNormal = "│" // Normal vertical (not in viewport)
-	ScrollBarVThumb  = "┃" // Thumb vertical (current viewport indicator)
+	ScrollBarVThumb  = "║" // Thumb vertical (double line for visibility)
 )
 
 // For backward compatibility
