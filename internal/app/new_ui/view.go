@@ -644,7 +644,7 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
 		// No table selected
 		for i := 0; i < contentLines; i++ {
-			line := "No data"
+			line := "Select a table"
 			if i > 0 {
 				line = ""
 			}
