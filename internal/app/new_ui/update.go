@@ -173,6 +173,18 @@ func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.ConnectionDialogEditing = false
 			return m, nil
 
+		case tea.KeyTab:
+			// Confirm and move to next field
+			m.ConnectionDialogEditing = false
+			m.ConnectionDialogField = (m.ConnectionDialogField + 1) % 3
+			return m, nil
+
+		case tea.KeyShiftTab:
+			// Confirm and move to previous field
+			m.ConnectionDialogEditing = false
+			m.ConnectionDialogField = (m.ConnectionDialogField + 2) % 3
+			return m, nil
+
 		case tea.KeyBackspace:
 			if m.ConnectionDialogField == 0 {
 				m.EditEndpoint, m.EditCursorPos = ui.Backspace(m.EditEndpoint, m.EditCursorPos)
