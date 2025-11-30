@@ -975,7 +975,7 @@ func renderConnectionDialog(m Model) string {
 	contentWidth := dialogWidth - 4
 
 	// Helper function to render a field line with fixed width
-	renderFieldLine := func(label string, value string, fieldIndex int, isEditing bool, cursorPos int) string {
+	renderFieldLine := func(label string, value string, fieldIndex int, cursorPos int) string {
 		var line strings.Builder
 		line.WriteString(borderStyle.Render("│"))
 		line.WriteString(" ")
@@ -999,30 +999,23 @@ func renderConnectionDialog(m Model) string {
 		// Build value display
 		var valueDisplay string
 		if m.ConnectionDialogField == fieldIndex {
-			// Focused field: always show background color
-			if isEditing {
-				// Editing mode: background + cursor
-				if cursorPos < len(value) {
-					beforeCursor := selectedBgStyle.Render(value[:cursorPos])
-					cursorChar := cursorStyle.Render(string(value[cursorPos]))
-					afterCursor := value[cursorPos+1:]
-					padding := valueAreaWidth - len(value)
-					if padding < 0 {
-						padding = 0
-					}
-					valueDisplay = beforeCursor + cursorChar + selectedBgStyle.Render(afterCursor+strings.Repeat(" ", padding))
-				} else {
-					// Cursor at end
-					padding := valueAreaWidth - len(value) - 1
-					if padding < 0 {
-						padding = 0
-					}
-					valueDisplay = selectedBgStyle.Render(value) + cursorStyle.Render(" ") + selectedBgStyle.Render(strings.Repeat(" ", padding))
+			// Focused text field: background + cursor
+			if cursorPos < len(value) {
+				beforeCursor := selectedBgStyle.Render(value[:cursorPos])
+				cursorChar := cursorStyle.Render(string(value[cursorPos]))
+				afterCursor := value[cursorPos+1:]
+				padding := valueAreaWidth - len(value)
+				if padding < 0 {
+					padding = 0
 				}
+				valueDisplay = beforeCursor + cursorChar + selectedBgStyle.Render(afterCursor+strings.Repeat(" ", padding))
 			} else {
-				// Focused but not editing: just background, no cursor
-				paddedValue := value + strings.Repeat(" ", valueAreaWidth-len(value))
-				valueDisplay = selectedBgStyle.Render(paddedValue)
+				// Cursor at end
+				padding := valueAreaWidth - len(value) - 1
+				if padding < 0 {
+					padding = 0
+				}
+				valueDisplay = selectedBgStyle.Render(value) + cursorStyle.Render(" ") + selectedBgStyle.Render(strings.Repeat(" ", padding))
 			}
 		} else {
 			// Not focused: plain value with padding
@@ -1047,11 +1040,11 @@ func renderConnectionDialog(m Model) string {
 	dialog.WriteString("\n")
 
 	// Endpoint field
-	dialog.WriteString(renderFieldLine("Endpoint", m.EditEndpoint, 0, m.ConnectionDialogEditing, m.EditCursorPos))
+	dialog.WriteString(renderFieldLine("Endpoint", m.EditEndpoint, 0, m.EditCursorPos))
 	dialog.WriteString("\n")
 
 	// Port field
-	dialog.WriteString(renderFieldLine("Port", m.EditPort, 1, m.ConnectionDialogEditing, m.EditCursorPos))
+	dialog.WriteString(renderFieldLine("Port", m.EditPort, 1, m.EditCursorPos))
 	dialog.WriteString("\n")
 
 	// Empty line
@@ -1085,12 +1078,7 @@ func renderConnectionDialog(m Model) string {
 	dialog.WriteString("\n")
 
 	// Help text
-	var helpText string
-	if m.ConnectionDialogEditing {
-		helpText = "Confirm: enter | Cancel: esc"
-	} else {
-		helpText = "Edit: enter | Navigate: up/down | Close: esc"
-	}
+	helpText := "Navigate: tab/up/down | Connect: enter | Close: esc"
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
 	helpPadding := contentWidth - len(helpText)
 	if helpPadding < 0 {
