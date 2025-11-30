@@ -26,7 +26,7 @@ func TestRecordDetail_NewRecordDetail(t *testing.T) {
 		t.Errorf("Default title not set, got %q", rd.config.Title)
 	}
 
-	if rd.config.BorderColor != "#00D9FF" {
+	if rd.config.BorderColor != ColorPrimaryHex {
 		t.Errorf("Default border color not set, got %q", rd.config.BorderColor)
 	}
 }

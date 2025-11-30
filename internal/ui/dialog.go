@@ -41,11 +41,11 @@ func NewDialog(config DialogConfig) *Dialog {
 	if config.BorderColor == "" {
 		switch config.Type {
 		case DialogTypeSuccess:
-			config.BorderColor = "#00FF00"
+			config.BorderColor = ColorSuccessHex
 		case DialogTypeError:
-			config.BorderColor = "#FF0000"
+			config.BorderColor = ColorErrorHex
 		default:
-			config.BorderColor = string(ColorPrimary)
+			config.BorderColor = ColorPrimaryHex
 		}
 	}
 	return &Dialog{config: config}
@@ -75,11 +75,11 @@ func (d *Dialog) Render() string {
 		Width(width - 6)
 
 	contentStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
+		Foreground(ColorWhite).
 		Width(width - 6)
 
 	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
+		Foreground(ColorGray).
 		Width(width - 6)
 
 	// Build content

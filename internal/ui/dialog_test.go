@@ -26,7 +26,7 @@ func TestNewDialog(t *testing.T) {
 				Title: "Success",
 				Type:  DialogTypeSuccess,
 			},
-			expectedColor: "#00FF00",
+			expectedColor: ColorSuccessHex,
 		},
 		{
 			name: "error dialog",
@@ -34,7 +34,7 @@ func TestNewDialog(t *testing.T) {
 				Title: "Error",
 				Type:  DialogTypeError,
 			},
-			expectedColor: "#FF0000",
+			expectedColor: ColorErrorHex,
 		},
 		{
 			name: "custom color",
