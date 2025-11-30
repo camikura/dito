@@ -593,7 +593,12 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 
 	content := ""
 	if m.CurrentSQL != "" {
-		content = m.CurrentSQL
+		// Replace newlines with spaces for single-line display
+		content = strings.ReplaceAll(m.CurrentSQL, "\n", " ")
+		// Collapse multiple spaces
+		for strings.Contains(content, "  ") {
+			content = strings.ReplaceAll(content, "  ", " ")
+		}
 		// Truncate if too long
 		if len(content) > width-2 {
 			content = content[:width-5] + "..."
