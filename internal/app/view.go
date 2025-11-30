@@ -555,8 +555,6 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
-	cursorStyleNarrow := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#FFFFFF"))
-	cursorStyleWide := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color(ColorPrimary))
 
 	// Add [Custom] label if custom SQL is active
 	titleText := " SQL "
@@ -652,15 +650,15 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 
 					var cursorBlock string
 					if lipgloss.Width(cursorChar) > 1 {
-						cursorBlock = cursorStyleWide.Render(cursorChar)
+						cursorBlock = ui.CursorWide.Render(cursorChar)
 					} else {
-						cursorBlock = cursorStyleNarrow.Render(cursorChar)
+						cursorBlock = ui.CursorNarrow.Render(cursorChar)
 					}
 					lineContent = beforeCursor + cursorBlock + afterCursor
 					lineDisplayWidth = lipgloss.Width(wl.text)
 				} else {
 					// Cursor at end of line
-					lineContent = wl.text + cursorStyleNarrow.Render(" ")
+					lineContent = wl.text + ui.CursorNarrow.Render(" ")
 					lineDisplayWidth = lipgloss.Width(wl.text) + 1
 				}
 			} else {
@@ -978,8 +976,6 @@ func renderConnectionDialog(m Model) string {
 	// Border style
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorLabel))
-	cursorStyleNarrow := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#FFFFFF"))
-	cursorStyleWide := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color(ColorPrimary))
 
 	var dialog strings.Builder
 
@@ -1040,9 +1036,9 @@ func renderConnectionDialog(m Model) string {
 				// Use different cursor style for narrow (width=1) vs wide (width>=2) characters
 				var cursorBlock string
 				if cursorCharWidth >= 2 {
-					cursorBlock = cursorStyleWide.Render(cursorChar)
+					cursorBlock = ui.CursorWide.Render(cursorChar)
 				} else {
-					cursorBlock = cursorStyleNarrow.Render(cursorChar)
+					cursorBlock = ui.CursorNarrow.Render(cursorChar)
 				}
 				valueDisplay = beforeCursor + cursorBlock + afterCursor + strings.Repeat(" ", padding)
 			} else {
@@ -1051,7 +1047,7 @@ func renderConnectionDialog(m Model) string {
 				if padding < 0 {
 					padding = 0
 				}
-				valueDisplay = value + cursorStyleNarrow.Render(" ") + strings.Repeat(" ", padding)
+				valueDisplay = value + ui.CursorNarrow.Render(" ") + strings.Repeat(" ", padding)
 			}
 		} else {
 			// Not focused: plain value with padding
