@@ -181,15 +181,10 @@ func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyEnter:
-		if m.ConnectionDialogField == 2 {
-			// Connect button - attempt connection
-			m.ConnectionDialogVisible = false
-			m.Endpoint = m.EditEndpoint + ":" + m.EditPort
-			return m, db.Connect(m.EditEndpoint, m.EditPort, false)
-		}
-		// On text fields, Enter moves to next field
-		moveToField((m.ConnectionDialogField + 1) % 3)
-		return m, nil
+		// Connect from any field
+		m.ConnectionDialogVisible = false
+		m.Endpoint = m.EditEndpoint + ":" + m.EditPort
+		return m, db.Connect(m.EditEndpoint, m.EditPort, false)
 
 	case tea.KeyTab:
 		moveToField((m.ConnectionDialogField + 1) % 3)
