@@ -85,11 +85,6 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return handleConnectionDialogKeys(m, msg)
 	}
 
-	// SQL Editor dialog takes precedence
-	if m.SQLEditorVisible {
-		return handleSQLEditorKeys(m, msg)
-	}
-
 	// Record detail dialog takes precedence
 	if m.RecordDetailVisible {
 		return handleRecordDetailKeys(m, msg)
@@ -405,16 +400,201 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.String() {
-	case "enter":
-		// Open SQL editor dialog
-		m.SQLEditorVisible = true
-		m.EditSQL = m.CurrentSQL
-		m.SQLCursorPos = ui.RuneLen(m.EditSQL)
+	switch msg.Type {
+	case tea.KeyCtrlR:
+		// Execute SQL
+		if m.CurrentSQL == "" {
+			return m, nil
+		}
+
+		m.CustomSQL = true
+
+		// Save current selection before custom SQL
+		m.PreviousSelectedTable = m.SelectedTable
+
+		// Reset data state
+		m.SelectedDataRow = 0
+		m.ViewportOffset = 0
+		m.HorizontalOffset = 0
+		m.SchemaScrollOffset = 0
+
+		// Extract table name from SQL for schema display
+		extractedName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		// Find exact table name from tables list (case-insensitive match)
+		tableName := m.FindTableName(extractedName)
+		// Update SelectedTable if table is in the list
+		tableIndex := m.FindTableIndex(extractedName)
+		if tableIndex >= 0 {
+			m.SelectedTable = tableIndex
+		}
+		// Use extracted name if not found in tables list (for child tables etc.)
+		if tableName == "" && extractedName != "" {
+			tableName = extractedName
+		}
+		// Fall back to selected table if no table name in SQL
+		if tableName == "" && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+			tableName = m.Tables[m.SelectedTable]
+		}
+
+		if tableName != "" {
+			var cmds []tea.Cmd
+
+			// Fetch schema (always try, even for unknown tables to get error)
+			if _, exists := m.TableDetails[tableName]; !exists {
+				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
+			}
+
+			// Execute custom SQL
+			cmds = append(cmds, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.CurrentSQL, ui.DefaultFetchSize))
+
+			// Move focus to Data pane
+			m.CurrentPane = FocusPaneData
+
+			return m, tea.Batch(cmds...)
+		}
+		return m, nil
+
+	case tea.KeyEnter:
+		// Insert newline
+		m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, "\n")
+		return m, nil
+
+	case tea.KeyBackspace:
+		m.CurrentSQL, m.SQLCursorPos = ui.Backspace(m.CurrentSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyDelete:
+		m.CurrentSQL = ui.DeleteAt(m.CurrentSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyLeft:
+		if m.SQLCursorPos > 0 {
+			m.SQLCursorPos--
+		}
+		return m, nil
+
+	case tea.KeyRight:
+		if m.SQLCursorPos < ui.RuneLen(m.CurrentSQL) {
+			m.SQLCursorPos++
+		}
+		return m, nil
+
+	case tea.KeyUp:
+		// Move cursor up one line
+		m.SQLCursorPos = moveCursorUpInText(m.CurrentSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyDown:
+		// Move cursor down one line
+		m.SQLCursorPos = moveCursorDownInText(m.CurrentSQL, m.SQLCursorPos)
+		return m, nil
+
+	case tea.KeyHome, tea.KeyCtrlA:
+		m.SQLCursorPos = 0
+		return m, nil
+
+	case tea.KeyEnd, tea.KeyCtrlE:
+		m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+		return m, nil
+
+	case tea.KeySpace:
+		m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, " ")
+		return m, nil
+
+	case tea.KeyRunes:
+		for _, r := range msg.Runes {
+			m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, string(r))
+		}
 		return m, nil
 	}
 
 	return m, nil
+}
+
+// moveCursorUpInText moves cursor up one line in multi-line text
+func moveCursorUpInText(text string, cursorPos int) int {
+	lines := strings.Split(text, "\n")
+	if len(lines) <= 1 {
+		return cursorPos
+	}
+
+	// Find current line and column
+	currentPos := 0
+	currentLine := 0
+	currentCol := 0
+	for i, line := range lines {
+		lineLen := len([]rune(line)) + 1 // +1 for newline
+		if currentPos+lineLen > cursorPos {
+			currentLine = i
+			currentCol = cursorPos - currentPos
+			break
+		}
+		currentPos += lineLen
+	}
+
+	if currentLine == 0 {
+		return 0 // Already on first line, go to start
+	}
+
+	// Move to previous line, same column or end of line
+	prevLine := lines[currentLine-1]
+	prevLineLen := len([]rune(prevLine))
+	newCol := currentCol
+	if newCol > prevLineLen {
+		newCol = prevLineLen
+	}
+
+	// Calculate new position
+	newPos := 0
+	for i := 0; i < currentLine-1; i++ {
+		newPos += len([]rune(lines[i])) + 1
+	}
+	newPos += newCol
+
+	return newPos
+}
+
+// moveCursorDownInText moves cursor down one line in multi-line text
+func moveCursorDownInText(text string, cursorPos int) int {
+	lines := strings.Split(text, "\n")
+	if len(lines) <= 1 {
+		return len([]rune(text)) // Go to end
+	}
+
+	// Find current line and column
+	currentPos := 0
+	currentLine := 0
+	currentCol := 0
+	for i, line := range lines {
+		lineLen := len([]rune(line)) + 1 // +1 for newline
+		if currentPos+lineLen > cursorPos {
+			currentLine = i
+			currentCol = cursorPos - currentPos
+			break
+		}
+		currentPos += lineLen
+	}
+
+	if currentLine >= len(lines)-1 {
+		return len([]rune(text)) // Already on last line, go to end
+	}
+
+	// Move to next line, same column or end of line
+	nextLine := lines[currentLine+1]
+	nextLineLen := len([]rune(nextLine))
+	newCol := currentCol
+	if newCol > nextLineLen {
+		newCol = nextLineLen
+	}
+
+	// Calculate new position
+	newPos := 0
+	for i := 0; i <= currentLine; i++ {
+		newPos += len([]rune(lines[i])) + 1
+	}
+	newPos += newCol
+
+	return newPos
 }
 
 func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -576,109 +756,6 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
 			}
 			m.CurrentSQL = ""
-		}
-		return m, nil
-	}
-
-	return m, nil
-}
-
-// handleSQLEditorKeys handles key events in the SQL editor dialog
-func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
-		// Close dialog without executing
-		m.SQLEditorVisible = false
-		return m, nil
-
-	case tea.KeyCtrlR:
-		// Execute SQL
-		m.SQLEditorVisible = false
-		m.CurrentSQL = m.EditSQL
-		m.CustomSQL = true
-
-		// Save current selection before custom SQL
-		m.PreviousSelectedTable = m.SelectedTable
-
-		// Reset data state
-		m.SelectedDataRow = 0
-		m.ViewportOffset = 0
-		m.HorizontalOffset = 0
-		m.SchemaScrollOffset = 0
-
-		// Extract table name from SQL for schema display
-		extractedName := ui.ExtractTableNameFromSQL(m.EditSQL)
-		// Find exact table name from tables list (case-insensitive match)
-		tableName := m.FindTableName(extractedName)
-		// Update SelectedTable if table is in the list
-		tableIndex := m.FindTableIndex(extractedName)
-		if tableIndex >= 0 {
-			m.SelectedTable = tableIndex
-		}
-		// Use extracted name if not found in tables list (for child tables etc.)
-		if tableName == "" && extractedName != "" {
-			tableName = extractedName
-		}
-		// Fall back to selected table if no table name in SQL
-		if tableName == "" && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-			tableName = m.Tables[m.SelectedTable]
-		}
-
-		if tableName != "" {
-			var cmds []tea.Cmd
-
-			// Fetch schema (always try, even for unknown tables to get error)
-			if _, exists := m.TableDetails[tableName]; !exists {
-				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
-			}
-
-			// Execute custom SQL
-			cmds = append(cmds, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.EditSQL, ui.DefaultFetchSize))
-
-			return m, tea.Batch(cmds...)
-		}
-		return m, nil
-
-	case tea.KeyEnter:
-		// Insert newline
-		m.EditSQL, m.SQLCursorPos = ui.InsertWithCursor(m.EditSQL, m.SQLCursorPos, "\n")
-		return m, nil
-
-	case tea.KeyBackspace:
-		m.EditSQL, m.SQLCursorPos = ui.Backspace(m.EditSQL, m.SQLCursorPos)
-		return m, nil
-
-	case tea.KeyDelete:
-		m.EditSQL = ui.DeleteAt(m.EditSQL, m.SQLCursorPos)
-		return m, nil
-
-	case tea.KeyLeft:
-		if m.SQLCursorPos > 0 {
-			m.SQLCursorPos--
-		}
-		return m, nil
-
-	case tea.KeyRight:
-		if m.SQLCursorPos < ui.RuneLen(m.EditSQL) {
-			m.SQLCursorPos++
-		}
-		return m, nil
-
-	case tea.KeyHome, tea.KeyCtrlA:
-		m.SQLCursorPos = 0
-		return m, nil
-
-	case tea.KeyEnd, tea.KeyCtrlE:
-		m.SQLCursorPos = ui.RuneLen(m.EditSQL)
-		return m, nil
-
-	case tea.KeySpace:
-		m.EditSQL, m.SQLCursorPos = ui.InsertWithCursor(m.EditSQL, m.SQLCursorPos, " ")
-		return m, nil
-
-	case tea.KeyRunes:
-		for _, r := range msg.Runes {
-			m.EditSQL, m.SQLCursorPos = ui.InsertWithCursor(m.EditSQL, m.SQLCursorPos, string(r))
 		}
 		return m, nil
 	}

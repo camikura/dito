@@ -30,7 +30,7 @@ func TestGetFooterHelp(t *testing.T) {
 		{
 			name:     "SQL pane",
 			model:    Model{CurrentPane: FocusPaneSQL},
-			expected: "Switch Pane: tab | Edit: <enter>",
+			expected: "Execute: ctrl+r | Switch Pane: tab",
 		},
 		{
 			name:     "Schema pane",
