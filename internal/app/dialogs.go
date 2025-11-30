@@ -53,7 +53,7 @@ func renderRecordDetailDialog(m Model) string {
 
 // renderConnectionDialog renders the connection setup dialog
 func renderConnectionDialog(m Model) string {
-	dialogWidth := 60
+	dialogWidth := ui.ConnectionDialogWidth
 
 	// Styles
 	borderStyle := ui.StyleBorderActive

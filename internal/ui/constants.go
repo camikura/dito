@@ -7,6 +7,15 @@ const (
 
 	// LeftPaneBorderWidth is the total border width (left + right).
 	LeftPaneBorderWidth = 2
+
+	// MinRightPaneWidth is the minimum width for the right (data) pane.
+	MinRightPaneWidth = 10
+
+	// MinWindowHeight is the minimum window height before showing "Window too short".
+	MinWindowHeight = 20
+
+	// ConnectionDialogWidth is the width of the connection setup dialog.
+	ConnectionDialogWidth = 60
 )
 
 // Data loading constants
@@ -31,4 +40,10 @@ const (
 
 	// PaneHeightSQLParts is the parts for SQL pane (1 of 5).
 	PaneHeightSQLParts = 1
+)
+
+// Scroll constants
+const (
+	// PageScrollAmount is the number of lines to scroll for page up/down.
+	PageScrollAmount = 10
 )
