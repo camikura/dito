@@ -226,6 +226,56 @@ func TestGetColumnsInSchemaOrder(t *testing.T) {
 	}
 }
 
+func TestGetColumnsInSchemaOrderWithAncestors(t *testing.T) {
+	tests := []struct {
+		name         string
+		ddl          string
+		ancestorDDLs []string
+		rows         []map[string]interface{}
+		expected     []string
+	}{
+		{
+			name:         "child table with parent PK first",
+			ddl:          "CREATE TABLE addresses (address_id INTEGER, street STRING, city STRING, PRIMARY KEY(address_id))",
+			ancestorDDLs: []string{"CREATE TABLE users (id INTEGER, name STRING, PRIMARY KEY(id))"},
+			rows: []map[string]interface{}{
+				{"id": 1, "address_id": 10, "street": "Main St", "city": "NYC"},
+			},
+			expected: []string{"id", "address_id", "street", "city"},
+		},
+		{
+			name: "grandchild table with ancestor PKs first",
+			ddl:  "CREATE TABLE phones (phone_id INTEGER, number STRING, PRIMARY KEY(phone_id))",
+			ancestorDDLs: []string{
+				"CREATE TABLE users (id INTEGER, name STRING, PRIMARY KEY(id))",
+				"CREATE TABLE addresses (address_id INTEGER, street STRING, PRIMARY KEY(address_id))",
+			},
+			rows: []map[string]interface{}{
+				{"id": 1, "address_id": 10, "phone_id": 100, "number": "555-1234"},
+			},
+			expected: []string{"id", "address_id", "phone_id", "number"},
+		},
+		{
+			name:         "no ancestors",
+			ddl:          "CREATE TABLE users (id INTEGER, name STRING, PRIMARY KEY(id))",
+			ancestorDDLs: nil,
+			rows: []map[string]interface{}{
+				{"id": 1, "name": "Alice"},
+			},
+			expected: []string{"id", "name"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetColumnsInSchemaOrderWithAncestors(tt.ddl, tt.ancestorDDLs, tt.rows)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("GetColumnsInSchemaOrderWithAncestors() got %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestGetColumnsFromData(t *testing.T) {
 	tests := []struct {
 		name     string

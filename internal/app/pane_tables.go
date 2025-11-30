@@ -335,8 +335,10 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 
 					// Type field with inherited marker if applicable
 					typeDisplay := colType
+					typeDisplayWidth := len(colType)
 					if isInherited {
 						typeDisplay = colType + " (↑)"
+						typeDisplayWidth = len(colType) + 4 // " (↑)" is 4 display chars (space + parens + arrow)
 					}
 					typeField := ui.StyleSchemaType.Render(typeDisplay)
 
@@ -344,7 +346,7 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 					alignedLine := pkField + nameField + typeField
 
 					// Calculate right padding
-					displayLen := pkColWidth + nameColWidth + len(typeDisplay)
+					displayLen := pkColWidth + nameColWidth + typeDisplayWidth
 					availableWidth := width - 2 // -2 for borders
 					rightPadding := availableWidth - displayLen
 					if rightPadding < 0 {
