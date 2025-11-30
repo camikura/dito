@@ -87,36 +87,9 @@ func RenderView(m Model) string {
 	// Join left and right panes horizontally
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanes, dataPane)
 
-	// Footer (changes based on focused pane)
-	var footerHelp string
-	switch m.CurrentPane {
-	case FocusPaneConnection:
-		if m.Connected {
-			footerHelp = "Switch Pane: tab | Disconnect: ctrl+d"
-		} else {
-			footerHelp = "Switch Pane: tab | Connect: <enter>"
-		}
-	case FocusPaneTables:
-		footerHelp = "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
-	case FocusPaneSQL:
-		footerHelp = "Switch Pane: tab | Edit: <enter>"
-	case FocusPaneData:
-		if m.CustomSQL {
-			footerHelp = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc"
-		} else {
-			footerHelp = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
-		}
-	}
-
-	// Footer format: " {help} {padding} Dito "
-	// Left padding: 1, Right padding after help: 1, Right padding after Dito: 1
-	appName := "Dito"
-	footerHelpWidth := lipgloss.Width(footerHelp)
-	footerPadding := m.Width - footerHelpWidth - len(appName) - 3 // 1 left + 1 right of help + 1 right of Dito
-	if footerPadding < 0 {
-		footerPadding = 0
-	}
-	footerContent := " " + footerHelp + " " + strings.Repeat(" ", footerPadding) + appName + " "
+	// Footer
+	footerHelp := getFooterHelp(m)
+	footerContent := buildFooterContent(footerHelp, m.Width)
 
 	// Assemble final output
 	var result strings.Builder
@@ -1241,4 +1214,38 @@ func renderConnectionDialog(m Model) string {
 		lipgloss.Center,
 		dialog.String(),
 	)
+}
+
+// getFooterHelp returns the footer help text based on the current pane and state
+func getFooterHelp(m Model) string {
+	switch m.CurrentPane {
+	case FocusPaneConnection:
+		if m.Connected {
+			return "Switch Pane: tab | Disconnect: ctrl+d"
+		}
+		return "Switch Pane: tab | Connect: <enter>"
+	case FocusPaneTables:
+		return "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
+	case FocusPaneSQL:
+		return "Switch Pane: tab | Edit: <enter>"
+	case FocusPaneData:
+		if m.CustomSQL {
+			return "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc"
+		}
+		return "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
+	}
+	return ""
+}
+
+// buildFooterContent builds the footer content string with proper padding
+// Format: " {help} {padding} Dito "
+func buildFooterContent(footerHelp string, width int) string {
+	appName := "Dito"
+	footerHelpWidth := lipgloss.Width(footerHelp)
+	// 1 left + 1 right of help + 1 right of Dito = 3
+	footerPadding := width - footerHelpWidth - len(appName) - 3
+	if footerPadding < 0 {
+		footerPadding = 0
+	}
+	return " " + footerHelp + " " + strings.Repeat(" ", footerPadding) + appName + " "
 }
