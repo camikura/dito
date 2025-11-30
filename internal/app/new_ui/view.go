@@ -517,7 +517,8 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 			if paddingLen < 0 {
 				paddingLen = 0
 			}
-			line = content + strings.Repeat(" ", paddingLen)
+			grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+			line = grayStyle.Render(content) + strings.Repeat(" ", paddingLen)
 			}
 			result.WriteString(leftBorder + line + rightBorder + "\n")
 		} else {
@@ -643,6 +644,7 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	// Prepare content
 	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
 		// No table selected
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 		for i := 0; i < contentLines; i++ {
 			line := "Select a table"
 			if i > 0 {
@@ -652,7 +654,11 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 			if paddingLen < 0 {
 				paddingLen = 0
 			}
-			result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+			styledLine := line
+			if line != "" {
+				styledLine = grayStyle.Render(line)
+			}
+			result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 		}
 	} else {
 		tableName := m.Tables[m.SelectedTable]
