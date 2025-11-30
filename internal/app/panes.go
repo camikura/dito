@@ -473,7 +473,7 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	// Wrap SQL text to fit content width and track cursor position
 	type wrappedLine struct {
 		text      string
-		cursorCol int // -1 if cursor is not on this line
+		cursorCol int // -1 if cursor is not on this line, >= 0 means cursor position
 	}
 
 	var wrappedLines []wrappedLine
@@ -521,11 +521,20 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 		// Add remaining text
 		if lineStart <= len(sqlRunes) {
 			line := string(sqlRunes[lineStart:])
+			lineDisplayWidth := lipgloss.Width(line)
 			cursorCol := -1
 			if isFocused && m.SQLCursorPos >= lineStart {
 				cursorCol = m.SQLCursorPos - lineStart
+				// If cursor is at end and line is full width, move cursor to next line
+				if cursorCol == len([]rune(line)) && lineDisplayWidth >= contentWidth {
+					wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: -1})
+					wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: 0})
+				} else {
+					wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
+				}
+			} else {
+				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
 			}
-			wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
 		}
 	}
 
