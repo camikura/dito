@@ -55,16 +55,15 @@ func renderRecordDetailDialog(m Model) string {
 func renderConnectionDialog(m Model) string {
 	dialogWidth := 60
 
-	// Border style
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorLabel))
+	// Styles
+	borderStyle := ui.StyleBorderActive
+	labelStyle := ui.StyleTitleActive
 
 	var dialog strings.Builder
 
 	// Title
 	titleText := " Connection Setup "
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true)
-	title := titleStyle.Render(titleText)
+	title := ui.StyleTitleBold.Render(titleText)
 	titleLen := len([]rune(titleText))
 
 	// Title line: ╭─ + title + ─...─ + ╮
@@ -169,7 +168,6 @@ func renderConnectionDialog(m Model) string {
 
 	// Help text
 	helpText := "Connect: <enter> | Close: esc"
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
 	helpDisplayWidth := lipgloss.Width(helpText)
 	helpPadding := contentWidth - helpDisplayWidth
 	if helpPadding < 0 {
@@ -177,7 +175,7 @@ func renderConnectionDialog(m Model) string {
 	}
 	dialog.WriteString(borderStyle.Render("│"))
 	dialog.WriteString(" ")
-	dialog.WriteString(helpStyle.Render(helpText))
+	dialog.WriteString(ui.StyleHelpText.Render(helpText))
 	dialog.WriteString(strings.Repeat(" ", helpPadding))
 	dialog.WriteString(" ")
 	dialog.WriteString(borderStyle.Render("│"))
