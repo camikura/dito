@@ -109,6 +109,8 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return handleTablesKeys(m, msg)
 	case FocusPaneSchema:
 		return handleSchemaKeys(m, msg)
+	case FocusPaneSQL:
+		return handleSQLKeys(m, msg)
 	case FocusPaneData:
 		return handleDataKeys(m, msg)
 	}
@@ -229,6 +231,19 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.SchemaScrollOffset > 0 {
 			m.SchemaScrollOffset--
 		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		// Open SQL editor dialog
+		m.SQLEditorVisible = true
+		m.EditSQL = m.CurrentSQL
+		m.SQLCursorPos = len(m.EditSQL)
 		return m, nil
 	}
 
@@ -363,13 +378,6 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.RecordDetailVisible = true
 			m.RecordDetailScroll = 0
 		}
-		return m, nil
-
-	case "e":
-		// Open SQL editor dialog
-		m.SQLEditorVisible = true
-		m.EditSQL = m.CurrentSQL
-		m.SQLCursorPos = len(m.EditSQL)
 		return m, nil
 
 	case "esc":

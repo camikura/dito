@@ -95,12 +95,12 @@ func RenderView(m Model) string {
 	case FocusPaneTables:
 		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
 	case FocusPaneSQL:
-		footerContent = "Switch Pane: tab | Edit SQL: e"
+		footerContent = "Switch Pane: tab | Edit: <enter>"
 	case FocusPaneData:
 		if m.CustomSQL {
-			footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e | Reset: esc"
+			footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc"
 		} else {
-			footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | SQL: e"
+			footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
 		}
 	}
 
