@@ -295,8 +295,16 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.SelectedTable = m.CursorTable
 			tableName := m.Tables[m.SelectedTable]
 
-			// Generate SQL query
-			m.CurrentSQL = "SELECT * FROM " + tableName
+			// Get DDL if available
+			var ddl string
+			var primaryKeys []string
+			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+				ddl = details.Schema.DDL
+				primaryKeys = views.ParsePrimaryKeysFromDDL(ddl)
+			}
+
+			// Generate SQL query with ORDER BY if PK is known
+			m.CurrentSQL = buildDefaultSQL(tableName, ddl)
 			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 			m.CustomSQL = false
 
@@ -313,14 +321,8 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			var cmds []tea.Cmd
 
 			// Fetch schema if not already loaded
-			if _, exists := m.TableDetails[tableName]; !exists {
+			if ddl == "" {
 				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
-			}
-
-			// Get primary keys from schema if available
-			var primaryKeys []string
-			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
-				primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
 			}
 
 			// Load table data (100 rows with ORDER BY PK)
@@ -737,13 +739,16 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			// Reload data with default SQL if a table is selected
 			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
 				tableName := m.Tables[m.SelectedTable]
-				m.CurrentSQL = "SELECT * FROM " + tableName
-				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 
+				var ddl string
 				var primaryKeys []string
-				if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
-					primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+				if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+					ddl = details.Schema.DDL
+					primaryKeys = views.ParsePrimaryKeysFromDDL(ddl)
 				}
+
+				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
+				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
 			}
 			m.CurrentSQL = ""
@@ -1019,4 +1024,17 @@ func calculateRecordDetailMaxScroll(m Model) int {
 	}
 
 	return maxScroll
+}
+
+// buildDefaultSQL generates the default SELECT statement for a table.
+// If primary keys are available from DDL, adds ORDER BY clause.
+func buildDefaultSQL(tableName string, ddl string) string {
+	sql := "SELECT * FROM " + tableName
+	if ddl != "" {
+		primaryKeys := views.ParsePrimaryKeysFromDDL(ddl)
+		if len(primaryKeys) > 0 {
+			sql += " ORDER BY " + strings.Join(primaryKeys, ", ")
+		}
+	}
+	return sql
 }
