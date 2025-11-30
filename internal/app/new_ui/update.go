@@ -402,8 +402,8 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlR:
-		// Execute SQL
-		if m.CurrentSQL == "" {
+		// Execute SQL - require connection and SQL
+		if !m.Connected || m.CurrentSQL == "" {
 			return m, nil
 		}
 
