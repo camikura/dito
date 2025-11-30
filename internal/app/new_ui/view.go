@@ -591,42 +591,34 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	styledTitle := titleStyle.Render(titleText)
 	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", width-len(titleText)-3) + "╮")
 
-	content := ""
+	// Split SQL into lines
+	var sqlLines []string
 	if m.CurrentSQL != "" {
-		// Replace newlines with spaces for single-line display
-		content = strings.ReplaceAll(m.CurrentSQL, "\n", " ")
-		// Collapse multiple spaces
-		for strings.Contains(content, "  ") {
-			content = strings.ReplaceAll(content, "  ", " ")
-		}
-		// Truncate if too long
-		if len(content) > width-2 {
-			content = content[:width-5] + "..."
-		}
+		sqlLines = strings.Split(m.CurrentSQL, "\n")
 	}
 
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
-	// Calculate padding, ensuring it's not negative (no left/right padding)
-	paddingLen := width - len(content) - 2
-	if paddingLen < 0 {
-		paddingLen = 0
-	}
-	contentPadded := content + strings.Repeat(" ", paddingLen)
-
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
-	// Render SQL content with dynamic height (fill with empty lines to use allocated space)
+	// Render SQL content with dynamic height
 	for i := 0; i < height; i++ {
-		if i == 0 {
-			result.WriteString(leftBorder + contentPadded + rightBorder + "\n")
-		} else {
-			emptyLine := strings.Repeat(" ", width-2)
-			result.WriteString(leftBorder + emptyLine + rightBorder + "\n")
+		var line string
+		if i < len(sqlLines) {
+			line = sqlLines[i]
+			// Truncate if too long
+			if len(line) > width-2 {
+				line = line[:width-5] + "..."
+			}
 		}
+		paddingLen := width - len(line) - 2
+		if paddingLen < 0 {
+			paddingLen = 0
+		}
+		result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 	}
 	result.WriteString(bottomBorder)
 
