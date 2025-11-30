@@ -138,7 +138,7 @@ func handleConnectionKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.EditPort == "" {
 			m.EditPort = "8080"
 		}
-		m.EditCursorPos = len(m.EditEndpoint)
+		m.EditCursorPos = ui.RuneLen(m.EditEndpoint)
 		return m, nil
 
 	case "ctrl+d":
@@ -167,9 +167,9 @@ func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	moveToField := func(field int) {
 		m.ConnectionDialogField = field
 		if field == 0 {
-			m.EditCursorPos = len(m.EditEndpoint)
+			m.EditCursorPos = ui.RuneLen(m.EditEndpoint)
 		} else if field == 1 {
-			m.EditCursorPos = len(m.EditPort)
+			m.EditCursorPos = ui.RuneLen(m.EditPort)
 		}
 	}
 
@@ -238,9 +238,9 @@ func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case tea.KeyRight:
 		if isTextField {
-			maxPos := len(m.EditEndpoint)
+			maxPos := ui.RuneLen(m.EditEndpoint)
 			if m.ConnectionDialogField == 1 {
-				maxPos = len(m.EditPort)
+				maxPos = ui.RuneLen(m.EditPort)
 			}
 			if m.EditCursorPos < maxPos {
 				m.EditCursorPos++
@@ -257,9 +257,9 @@ func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyEnd:
 		if isTextField {
 			if m.ConnectionDialogField == 0 {
-				m.EditCursorPos = len(m.EditEndpoint)
+				m.EditCursorPos = ui.RuneLen(m.EditEndpoint)
 			} else {
-				m.EditCursorPos = len(m.EditPort)
+				m.EditCursorPos = ui.RuneLen(m.EditPort)
 			}
 		}
 		return m, nil

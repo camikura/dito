@@ -1004,22 +1004,26 @@ func renderConnectionDialog(m Model) string {
 			valueAreaWidth = 1
 		}
 
+		// Convert value to runes for proper multi-byte character handling
+		valueRunes := []rune(value)
+		valueDisplayWidth := lipgloss.Width(value)
+
 		// Build value display
 		var valueDisplay string
 		if m.ConnectionDialogField == fieldIndex {
 			// Focused text field: background + cursor
-			if cursorPos < len(value) {
-				beforeCursor := selectedBgStyle.Render(value[:cursorPos])
-				cursorChar := cursorStyle.Render(string(value[cursorPos]))
-				afterCursor := value[cursorPos+1:]
-				padding := valueAreaWidth - len(value)
+			if cursorPos < len(valueRunes) {
+				beforeCursor := string(valueRunes[:cursorPos])
+				cursorChar := string(valueRunes[cursorPos])
+				afterCursor := string(valueRunes[cursorPos+1:])
+				padding := valueAreaWidth - valueDisplayWidth
 				if padding < 0 {
 					padding = 0
 				}
-				valueDisplay = beforeCursor + cursorChar + selectedBgStyle.Render(afterCursor+strings.Repeat(" ", padding))
+				valueDisplay = selectedBgStyle.Render(beforeCursor) + cursorStyle.Render(cursorChar) + selectedBgStyle.Render(afterCursor+strings.Repeat(" ", padding))
 			} else {
 				// Cursor at end
-				padding := valueAreaWidth - len(value) - 1
+				padding := valueAreaWidth - valueDisplayWidth - 1
 				if padding < 0 {
 					padding = 0
 				}
@@ -1027,7 +1031,7 @@ func renderConnectionDialog(m Model) string {
 			}
 		} else {
 			// Not focused: plain value with padding
-			padding := valueAreaWidth - len(value)
+			padding := valueAreaWidth - valueDisplayWidth
 			if padding < 0 {
 				padding = 0
 			}
