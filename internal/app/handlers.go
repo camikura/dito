@@ -354,6 +354,10 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			// Execute custom SQL
 			cmds = append(cmds, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.CurrentSQL, ui.DefaultFetchSize))
 
+			// Reset data row selection to top
+			m.SelectedDataRow = 0
+			m.ViewportOffset = 0
+
 			// Move focus to Data pane
 			m.CurrentPane = FocusPaneData
 
