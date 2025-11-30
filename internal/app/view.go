@@ -111,7 +111,7 @@ func getFooterHelp(m Model) string {
 	switch m.CurrentPane {
 	case FocusPaneConnection:
 		if m.Connected {
-			return "Switch Pane: tab | Disconnect: ctrl+d"
+			return "Disconnect: ctrl+d"
 		}
 		return "Setup: <enter>"
 	case FocusPaneTables:
