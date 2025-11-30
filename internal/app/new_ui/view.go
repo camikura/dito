@@ -843,6 +843,8 @@ func renderSQLEditorDialog(m Model) string {
 
 	// Border style
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
+	cursorStyleNarrow := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
+	cursorStyleWide := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color(ColorPrimary))
 
 	// Build dialog
 	var dialog strings.Builder
@@ -853,30 +855,30 @@ func renderSQLEditorDialog(m Model) string {
 	title := titleStyle.Render(titleText)
 	titleLen := len([]rune(titleText))
 
-	// Top border: ╭ + title + ─...─ + ╮
-	dashesLen := dialogWidth - 2 - titleLen
+	// Top border: ╭─ + title + ─...─ + ╮
+	dashesLen := dialogWidth - 3 - titleLen
 	if dashesLen < 0 {
 		dashesLen = 0
 	}
-	dialog.WriteString(borderStyle.Render("╭"))
+	dialog.WriteString(borderStyle.Render("╭─"))
 	dialog.WriteString(title)
 	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dashesLen)))
 	dialog.WriteString(borderStyle.Render("╮"))
 	dialog.WriteString("\n")
 
-	// Parse SQL into lines and calculate cursor position
+	// Parse SQL into lines and calculate cursor position (rune-based)
 	sqlLines := strings.Split(m.EditSQL, "\n")
 	cursorLine := 0
-	cursorCol := m.SQLCursorPos
+	cursorCol := 0
 	currentPos := 0
 	for i, line := range sqlLines {
-		lineLen := len(line) + 1 // +1 for newline
-		if currentPos+lineLen > m.SQLCursorPos {
+		lineRuneLen := len([]rune(line)) + 1 // +1 for newline
+		if currentPos+lineRuneLen > m.SQLCursorPos {
 			cursorLine = i
 			cursorCol = m.SQLCursorPos - currentPos
 			break
 		}
-		currentPos += lineLen
+		currentPos += lineRuneLen
 	}
 
 	// Render SQL content with cursor
@@ -887,24 +889,41 @@ func renderSQLEditorDialog(m Model) string {
 		var lineContent string
 		if i < len(sqlLines) {
 			line := sqlLines[i]
+			lineRunes := []rune(line)
+			lineDisplayWidth := lipgloss.Width(line)
+
 			if i == cursorLine {
-				// Insert cursor indicator
-				if cursorCol <= len(line) {
-					lineContent = line[:cursorCol] + "_" + line[cursorCol:]
+				// Render line with cursor
+				if cursorCol < len(lineRunes) {
+					beforeCursor := string(lineRunes[:cursorCol])
+					cursorChar := string(lineRunes[cursorCol])
+					cursorCharWidth := lipgloss.Width(cursorChar)
+					afterCursor := string(lineRunes[cursorCol+1:])
+
+					var cursorBlock string
+					if cursorCharWidth >= 2 {
+						cursorBlock = cursorStyleWide.Render(cursorChar)
+					} else {
+						cursorBlock = cursorStyleNarrow.Render(cursorChar)
+					}
+					lineContent = beforeCursor + cursorBlock + afterCursor
 				} else {
-					lineContent = line + "_"
+					// Cursor at end of line
+					lineContent = line + cursorStyleNarrow.Render(" ")
+					lineDisplayWidth++ // Account for cursor space
 				}
 			} else {
 				lineContent = line
 			}
-		}
 
-		// Pad or truncate to fit content width
-		visibleLen := len([]rune(lineContent))
-		if visibleLen < contentWidth {
-			lineContent += strings.Repeat(" ", contentWidth-visibleLen)
-		} else if visibleLen > contentWidth {
-			lineContent = string([]rune(lineContent)[:contentWidth])
+			// Pad to fit content width
+			padding := contentWidth - lineDisplayWidth
+			if padding > 0 {
+				lineContent += strings.Repeat(" ", padding)
+			}
+		} else {
+			// Empty line
+			lineContent = strings.Repeat(" ", contentWidth)
 		}
 
 		dialog.WriteString(lineContent)

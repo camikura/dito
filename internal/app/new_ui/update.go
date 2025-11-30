@@ -404,7 +404,7 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		// Open SQL editor dialog
 		m.SQLEditorVisible = true
 		m.EditSQL = m.CurrentSQL
-		m.SQLCursorPos = len(m.EditSQL)
+		m.SQLCursorPos = ui.RuneLen(m.EditSQL)
 		return m, nil
 	}
 
@@ -611,7 +611,7 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyRight:
-		if m.SQLCursorPos < len(m.EditSQL) {
+		if m.SQLCursorPos < ui.RuneLen(m.EditSQL) {
 			m.SQLCursorPos++
 		}
 		return m, nil
@@ -621,7 +621,7 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyEnd, tea.KeyCtrlE:
-		m.SQLCursorPos = len(m.EditSQL)
+		m.SQLCursorPos = ui.RuneLen(m.EditSQL)
 		return m, nil
 
 	case tea.KeySpace:
