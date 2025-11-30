@@ -50,8 +50,9 @@ type Model struct {
 	SchemaScrollOffset int  // Scroll offset for schema pane
 
 	// SQL
-	CurrentSQL string
-	CustomSQL  bool
+	CurrentSQL  string
+	CustomSQL   bool
+	ColumnOrder []string // Column order from custom SQL SELECT clause
 
 	// Data
 	TableData       map[string]*db.TableDataResult

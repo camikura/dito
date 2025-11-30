@@ -42,10 +42,11 @@ type TableDataResult struct {
 	LastPKValues map[string]interface{} // Last row's PRIMARY KEY values (used as cursor)
 	HasMore      bool                   // Whether more data is available
 	Err          error
-	IsAppend     bool   // Whether to append to existing data
-	SQL          string // Debug: executed SQL
-	DisplaySQL   string // Display: SQL without LIMIT clause
-	IsCustomSQL  bool   // Whether this is a custom SQL query (not auto-generated)
+	IsAppend     bool     // Whether to append to existing data
+	SQL          string   // Debug: executed SQL
+	DisplaySQL   string   // Display: SQL without LIMIT clause
+	IsCustomSQL  bool     // Whether this is a custom SQL query (not auto-generated)
+	ColumnOrder  []string // Column order from SELECT clause (for custom SQL)
 }
 
 // Connect attempts to connect to NoSQL database.
@@ -159,10 +160,81 @@ func FetchMoreTableData(client *nosqldb.Client, tableName string, limit int, pri
 	return fetchTableDataWithCursor(client, tableName, limit, primaryKeys, lastPKValues, true)
 }
 
+// parseSelectColumns extracts column names/aliases from SELECT clause in order.
+// Handles: SELECT col1, col2 as alias, t.col3 FROM ...
+func parseSelectColumns(sql string) []string {
+	upperSQL := strings.ToUpper(sql)
+
+	// Find SELECT and FROM positions
+	selectIdx := strings.Index(upperSQL, "SELECT")
+	if selectIdx == -1 {
+		return nil
+	}
+	fromIdx := strings.Index(upperSQL, "FROM")
+	if fromIdx == -1 || fromIdx <= selectIdx+6 {
+		return nil
+	}
+
+	// Extract the part between SELECT and FROM
+	selectPart := strings.TrimSpace(sql[selectIdx+6 : fromIdx])
+	if selectPart == "*" || strings.HasPrefix(selectPart, "* ") {
+		return nil // SELECT * doesn't specify column order
+	}
+
+	// Split by comma, handling potential nested parentheses
+	var columns []string
+	depth := 0
+	current := ""
+	for _, ch := range selectPart {
+		if ch == '(' {
+			depth++
+			current += string(ch)
+		} else if ch == ')' {
+			depth--
+			current += string(ch)
+		} else if ch == ',' && depth == 0 {
+			columns = append(columns, strings.TrimSpace(current))
+			current = ""
+		} else {
+			current += string(ch)
+		}
+	}
+	if current != "" {
+		columns = append(columns, strings.TrimSpace(current))
+	}
+
+	// Extract column name or alias from each column expression
+	var result []string
+	for _, col := range columns {
+		col = strings.TrimSpace(col)
+		if col == "" {
+			continue
+		}
+
+		// Check for AS alias (case insensitive)
+		upperCol := strings.ToUpper(col)
+		if asIdx := strings.LastIndex(upperCol, " AS "); asIdx != -1 {
+			// Use the alias
+			alias := strings.TrimSpace(col[asIdx+4:])
+			result = append(result, alias)
+		} else {
+			// No alias, use the column name (handle table.column format)
+			parts := strings.Split(col, ".")
+			colName := strings.TrimSpace(parts[len(parts)-1])
+			result = append(result, colName)
+		}
+	}
+
+	return result
+}
+
 // ExecuteCustomSQL executes custom SQL query and returns results.
 // Returns a tea.Cmd that produces a TableDataResult message.
 func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limit int) tea.Cmd {
 	return func() tea.Msg {
+		// Parse column order from SELECT clause
+		columnOrder := parseSelectColumns(sql)
+
 		// Add LIMIT clause to SQL if not present
 		statement := sql
 		displayStatement := sql
@@ -222,6 +294,7 @@ func ExecuteCustomSQL(client *nosqldb.Client, tableName string, sql string, limi
 			SQL:          statement,
 			DisplaySQL:   displayStatement,
 			IsCustomSQL:  true, // This is a custom SQL query
+			ColumnOrder:  columnOrder,
 		}
 	}
 }

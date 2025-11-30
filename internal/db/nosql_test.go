@@ -343,6 +343,74 @@ func TestConvertValueWithPointers(t *testing.T) {
 	})
 }
 
+func TestParseSelectColumns(t *testing.T) {
+	tests := []struct {
+		name     string
+		sql      string
+		expected []string
+	}{
+		{
+			name:     "simple select",
+			sql:      "SELECT id, name FROM users",
+			expected: []string{"id", "name"},
+		},
+		{
+			name:     "select with alias",
+			sql:      "SELECT id, id as hoge FROM users",
+			expected: []string{"id", "hoge"},
+		},
+		{
+			name:     "select with AS keyword",
+			sql:      "SELECT id AS user_id, name AS user_name FROM users",
+			expected: []string{"user_id", "user_name"},
+		},
+		{
+			name:     "select with lowercase as",
+			sql:      "select id as hoge, name as fuga from users",
+			expected: []string{"hoge", "fuga"},
+		},
+		{
+			name:     "select with table prefix",
+			sql:      "SELECT u.id, u.name FROM users u",
+			expected: []string{"id", "name"},
+		},
+		{
+			name:     "select star",
+			sql:      "SELECT * FROM users",
+			expected: nil,
+		},
+		{
+			name:     "select with function",
+			sql:      "SELECT COUNT(id) as cnt, name FROM users",
+			expected: []string{"cnt", "name"},
+		},
+		{
+			name:     "select with spaces",
+			sql:      "SELECT   id  ,  name   FROM users",
+			expected: []string{"id", "name"},
+		},
+		{
+			name:     "no from clause",
+			sql:      "SELECT id, name",
+			expected: nil,
+		},
+		{
+			name:     "empty sql",
+			sql:      "",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseSelectColumns(tt.sql)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("parseSelectColumns(%q) = %v, want %v", tt.sql, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestConvertValueWithComplexStructures(t *testing.T) {
 	t.Run("deeply nested structure", func(t *testing.T) {
 		input := map[string]interface{}{

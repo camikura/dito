@@ -593,6 +593,13 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 		m.TableData[msg.TableName] = &msg
 	}
 
+	// Store column order from custom SQL
+	if msg.IsCustomSQL && len(msg.ColumnOrder) > 0 {
+		m.ColumnOrder = msg.ColumnOrder
+	} else if !msg.IsCustomSQL {
+		m.ColumnOrder = nil
+	}
+
 	m.LoadingData = false
 	return m, nil
 }
