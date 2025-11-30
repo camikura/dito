@@ -314,6 +314,7 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 			// Generate SQL query
 			m.CurrentSQL = "SELECT * FROM " + tableName
+			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 			m.CustomSQL = false
 
 			// Reset data scrolling state and schema scroll
@@ -754,6 +755,7 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
 				tableName := m.Tables[m.SelectedTable]
 				m.CurrentSQL = "SELECT * FROM " + tableName
+				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 
 				var primaryKeys []string
 				if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
@@ -762,6 +764,7 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
 			}
 			m.CurrentSQL = ""
+			m.SQLCursorPos = 0
 		}
 		return m, nil
 	}
