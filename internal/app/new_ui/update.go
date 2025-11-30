@@ -95,11 +95,17 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "tab":
-		m = m.NextPane()
+		// Only allow pane switching when connected
+		if m.Connected {
+			m = m.NextPane()
+		}
 		return m, nil
 
 	case "shift+tab":
-		m = m.PrevPane()
+		// Only allow pane switching when connected
+		if m.Connected {
+			m = m.PrevPane()
+		}
 		return m, nil
 	}
 
