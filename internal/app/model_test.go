@@ -2,66 +2,41 @@ package app
 
 import (
 	"testing"
-
-	"github.com/camikura/dito/internal/db"
 )
 
 func TestInitialModel(t *testing.T) {
 	model := InitialModel()
 
-	// Check initial screen
-	if model.Screen != ScreenSelection {
-		t.Errorf("InitialModel() Screen = %v, want %v", model.Screen, ScreenSelection)
+	// Check initial pane
+	if model.CurrentPane != FocusPaneConnection {
+		t.Errorf("InitialModel() CurrentPane = %v, want %v", model.CurrentPane, FocusPaneConnection)
 	}
 
-	// Check choices
-	expectedChoices := []string{"Oracle NoSQL Cloud Service", "On-Premise"}
-	if len(model.Choices) != len(expectedChoices) {
-		t.Errorf("InitialModel() Choices length = %d, want %d", len(model.Choices), len(expectedChoices))
-	}
-	for i, choice := range expectedChoices {
-		if model.Choices[i] != choice {
-			t.Errorf("InitialModel() Choices[%d] = %v, want %v", i, model.Choices[i], choice)
-		}
+	// Check not connected
+	if model.Connected {
+		t.Error("InitialModel() Connected should be false")
 	}
 
-	// Check selected map is initialized
-	if model.Selected == nil {
-		t.Error("InitialModel() Selected map should be initialized")
+	// Check tables is empty slice
+	if model.Tables == nil {
+		t.Error("InitialModel() Tables should not be nil")
+	}
+	if len(model.Tables) != 0 {
+		t.Errorf("InitialModel() Tables length = %d, want 0", len(model.Tables))
 	}
 
-	// Check OnPremiseConfig defaults
-	if model.OnPremiseConfig.Endpoint != "localhost" {
-		t.Errorf("InitialModel() OnPremiseConfig.Endpoint = %v, want localhost", model.OnPremiseConfig.Endpoint)
+	// Check selection indices
+	if model.SelectedTable != -1 {
+		t.Errorf("InitialModel() SelectedTable = %d, want -1", model.SelectedTable)
 	}
-	if model.OnPremiseConfig.Port != "8080" {
-		t.Errorf("InitialModel() OnPremiseConfig.Port = %v, want 8080", model.OnPremiseConfig.Port)
+	if model.CursorTable != 0 {
+		t.Errorf("InitialModel() CursorTable = %d, want 0", model.CursorTable)
 	}
-	if model.OnPremiseConfig.Secure != false {
-		t.Error("InitialModel() OnPremiseConfig.Secure should be false")
-	}
-	if model.OnPremiseConfig.Status != StatusDisconnected {
-		t.Errorf("InitialModel() OnPremiseConfig.Status = %v, want %v", model.OnPremiseConfig.Status, StatusDisconnected)
+	if model.PreviousSelectedTable != -1 {
+		t.Errorf("InitialModel() PreviousSelectedTable = %d, want -1", model.PreviousSelectedTable)
 	}
 
-	// Check CloudConfig defaults
-	if model.CloudConfig.Region != "us-ashburn-1" {
-		t.Errorf("InitialModel() CloudConfig.Region = %v, want us-ashburn-1", model.CloudConfig.Region)
-	}
-	if model.CloudConfig.Compartment != "" {
-		t.Error("InitialModel() CloudConfig.Compartment should be empty")
-	}
-	if model.CloudConfig.AuthMethod != 0 {
-		t.Errorf("InitialModel() CloudConfig.AuthMethod = %d, want 0", model.CloudConfig.AuthMethod)
-	}
-	if model.CloudConfig.ConfigFile != "DEFAULT" {
-		t.Errorf("InitialModel() CloudConfig.ConfigFile = %v, want DEFAULT", model.CloudConfig.ConfigFile)
-	}
-	if model.CloudConfig.Status != StatusDisconnected {
-		t.Errorf("InitialModel() CloudConfig.Status = %v, want %v", model.CloudConfig.Status, StatusDisconnected)
-	}
-
-	// Check table-related maps are initialized
+	// Check maps are initialized
 	if model.TableDetails == nil {
 		t.Error("InitialModel() TableDetails map should be initialized")
 	}
@@ -69,134 +44,160 @@ func TestInitialModel(t *testing.T) {
 		t.Error("InitialModel() TableData map should be initialized")
 	}
 
-	// Check RightPaneMode default
-	if model.RightPaneMode != RightPaneModeSchema {
-		t.Errorf("InitialModel() RightPaneMode = %v, want %v", model.RightPaneMode, RightPaneModeSchema)
+	// Check SQL state
+	if model.CurrentSQL != "" {
+		t.Errorf("InitialModel() CurrentSQL = %q, want empty", model.CurrentSQL)
 	}
-
-	// Check fetch size
-	if model.FetchSize != 100 {
-		t.Errorf("InitialModel() FetchSize = %d, want 100", model.FetchSize)
-	}
-
-	// Check viewport size
-	if model.ViewportSize != 10 {
-		t.Errorf("InitialModel() ViewportSize = %d, want 10", model.ViewportSize)
+	if model.CustomSQL {
+		t.Error("InitialModel() CustomSQL should be false")
 	}
 }
 
-func TestToTableListViewModel(t *testing.T) {
+func TestNextPane(t *testing.T) {
 	tests := []struct {
-		name  string
-		model Model
+		name     string
+		current  FocusPane
+		expected FocusPane
 	}{
-		{
-			name: "basic model conversion",
-			model: Model{
-				Width:            100,
-				Height:           30,
-				Endpoint:         "localhost:8080",
-				Tables:           []string{"users", "products"},
-				SelectedTable:    1,
-				RightPaneMode:    RightPaneModeList,
-				TableData:        map[string]*db.TableDataResult{},
-				TableDetails:     map[string]*db.TableDetailsResult{},
-				LoadingDetails:   false,
-				LoadingData:      true,
-				SelectedDataRow:  5,
-				HorizontalOffset: 2,
-				ViewportOffset:   3,
-			},
-		},
-		{
-			name: "model with nil maps",
-			model: Model{
-				Width:            80,
-				Height:           25,
-				Endpoint:         "example.com:8080",
-				Tables:           []string{"table1"},
-				SelectedTable:    0,
-				RightPaneMode:    RightPaneModeSchema,
-				TableData:        nil,
-				TableDetails:     nil,
-				LoadingDetails:   true,
-				LoadingData:      false,
-				SelectedDataRow:  0,
-				HorizontalOffset: 0,
-				ViewportOffset:   0,
-			},
-		},
-		{
-			name: "model in detail view mode",
-			model: Model{
-				Width:            120,
-				Height:           40,
-				Endpoint:         "cloud.oracle.com",
-				Tables:           []string{"customers", "orders", "products"},
-				SelectedTable:    2,
-				RightPaneMode:    RightPaneModeDetail,
-				TableData:        map[string]*db.TableDataResult{},
-				TableDetails:     map[string]*db.TableDetailsResult{},
-				LoadingDetails:   false,
-				LoadingData:      false,
-				SelectedDataRow:  10,
-				HorizontalOffset: 0,
-				ViewportOffset:   5,
-			},
-		},
+		{"Connection to Tables", FocusPaneConnection, FocusPaneTables},
+		{"Tables to Schema", FocusPaneTables, FocusPaneSchema},
+		{"Schema to SQL", FocusPaneSchema, FocusPaneSQL},
+		{"SQL to Data", FocusPaneSQL, FocusPaneData},
+		{"Data wraps to Connection", FocusPaneData, FocusPaneConnection},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			vm := tt.model.ToTableListViewModel()
-
-			// Check all fields are correctly copied
-			if vm.Width != tt.model.Width {
-				t.Errorf("ToTableListViewModel() Width = %v, want %v", vm.Width, tt.model.Width)
-			}
-			if vm.Height != tt.model.Height {
-				t.Errorf("ToTableListViewModel() Height = %v, want %v", vm.Height, tt.model.Height)
-			}
-			if vm.Endpoint != tt.model.Endpoint {
-				t.Errorf("ToTableListViewModel() Endpoint = %v, want %v", vm.Endpoint, tt.model.Endpoint)
-			}
-			if len(vm.Tables) != len(tt.model.Tables) {
-				t.Errorf("ToTableListViewModel() Tables length = %d, want %d", len(vm.Tables), len(tt.model.Tables))
-			}
-			for i := range tt.model.Tables {
-				if vm.Tables[i] != tt.model.Tables[i] {
-					t.Errorf("ToTableListViewModel() Tables[%d] = %v, want %v", i, vm.Tables[i], tt.model.Tables[i])
-				}
-			}
-			if vm.SelectedTable != tt.model.SelectedTable {
-				t.Errorf("ToTableListViewModel() SelectedTable = %v, want %v", vm.SelectedTable, tt.model.SelectedTable)
-			}
-			if vm.RightPaneMode != tt.model.RightPaneMode {
-				t.Errorf("ToTableListViewModel() RightPaneMode = %v, want %v", vm.RightPaneMode, tt.model.RightPaneMode)
-			}
-			if vm.LoadingDetails != tt.model.LoadingDetails {
-				t.Errorf("ToTableListViewModel() LoadingDetails = %v, want %v", vm.LoadingDetails, tt.model.LoadingDetails)
-			}
-			if vm.LoadingData != tt.model.LoadingData {
-				t.Errorf("ToTableListViewModel() LoadingData = %v, want %v", vm.LoadingData, tt.model.LoadingData)
-			}
-			if vm.SelectedDataRow != tt.model.SelectedDataRow {
-				t.Errorf("ToTableListViewModel() SelectedDataRow = %v, want %v", vm.SelectedDataRow, tt.model.SelectedDataRow)
-			}
-			if vm.HorizontalOffset != tt.model.HorizontalOffset {
-				t.Errorf("ToTableListViewModel() HorizontalOffset = %v, want %v", vm.HorizontalOffset, tt.model.HorizontalOffset)
-			}
-			if vm.ViewportOffset != tt.model.ViewportOffset {
-				t.Errorf("ToTableListViewModel() ViewportOffset = %v, want %v", vm.ViewportOffset, tt.model.ViewportOffset)
-			}
-
-			// Check that maps are set (we can't directly compare map references in Go)
-			if tt.model.TableData != nil && vm.TableData == nil {
-				t.Error("ToTableListViewModel() TableData should not be nil when source is not nil")
-			}
-			if tt.model.TableDetails != nil && vm.TableDetails == nil {
-				t.Error("ToTableListViewModel() TableDetails should not be nil when source is not nil")
+			m := Model{CurrentPane: tt.current}
+			m = m.NextPane()
+			if m.CurrentPane != tt.expected {
+				t.Errorf("NextPane() from %v = %v, want %v", tt.current, m.CurrentPane, tt.expected)
 			}
 		})
+	}
+}
+
+func TestPrevPane(t *testing.T) {
+	tests := []struct {
+		name     string
+		current  FocusPane
+		expected FocusPane
+	}{
+		{"Connection wraps to Data", FocusPaneConnection, FocusPaneData},
+		{"Tables to Connection", FocusPaneTables, FocusPaneConnection},
+		{"Schema to Tables", FocusPaneSchema, FocusPaneTables},
+		{"SQL to Schema", FocusPaneSQL, FocusPaneSchema},
+		{"Data to SQL", FocusPaneData, FocusPaneSQL},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{CurrentPane: tt.current}
+			m = m.PrevPane()
+			if m.CurrentPane != tt.expected {
+				t.Errorf("PrevPane() from %v = %v, want %v", tt.current, m.CurrentPane, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFindTableName(t *testing.T) {
+	m := Model{
+		Tables: []string{"Users", "Products", "Orders", "users.addresses"},
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"exact match", "Users", "Users"},
+		{"case insensitive lowercase", "users", "Users"},
+		{"case insensitive uppercase", "PRODUCTS", "Products"},
+		{"case insensitive mixed", "oRdErS", "Orders"},
+		{"child table exact", "users.addresses", "users.addresses"},
+		{"child table case insensitive", "Users.Addresses", "users.addresses"},
+		{"not found", "customers", ""},
+		{"empty input", "", ""},
+		{"partial match not found", "User", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := m.FindTableName(tt.input)
+			if result != tt.expected {
+				t.Errorf("FindTableName(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFindTableName_EmptyTables(t *testing.T) {
+	m := Model{Tables: []string{}}
+
+	result := m.FindTableName("users")
+	if result != "" {
+		t.Errorf("FindTableName on empty tables = %q, want empty", result)
+	}
+}
+
+func TestFindTableIndex(t *testing.T) {
+	m := Model{
+		Tables: []string{"Users", "Products", "Orders", "users.addresses"},
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected int
+	}{
+		{"exact match first", "Users", 0},
+		{"exact match second", "Products", 1},
+		{"exact match third", "Orders", 2},
+		{"case insensitive lowercase", "users", 0},
+		{"case insensitive uppercase", "PRODUCTS", 1},
+		{"child table", "users.addresses", 3},
+		{"child table case insensitive", "Users.Addresses", 3},
+		{"not found", "customers", -1},
+		{"empty input", "", -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := m.FindTableIndex(tt.input)
+			if result != tt.expected {
+				t.Errorf("FindTableIndex(%q) = %d, want %d", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFindTableIndex_EmptyTables(t *testing.T) {
+	m := Model{Tables: []string{}}
+
+	result := m.FindTableIndex("users")
+	if result != -1 {
+		t.Errorf("FindTableIndex on empty tables = %d, want -1", result)
+	}
+}
+
+func TestPaneCycle(t *testing.T) {
+	// Test that cycling through all panes returns to start
+	m := Model{CurrentPane: FocusPaneConnection}
+
+	// Forward cycle
+	for i := 0; i < 5; i++ {
+		m = m.NextPane()
+	}
+	if m.CurrentPane != FocusPaneConnection {
+		t.Errorf("After 5 NextPane(), CurrentPane = %v, want %v", m.CurrentPane, FocusPaneConnection)
+	}
+
+	// Backward cycle
+	for i := 0; i < 5; i++ {
+		m = m.PrevPane()
+	}
+	if m.CurrentPane != FocusPaneConnection {
+		t.Errorf("After 5 PrevPane(), CurrentPane = %v, want %v", m.CurrentPane, FocusPaneConnection)
 	}
 }

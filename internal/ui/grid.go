@@ -27,6 +27,10 @@ type Grid struct {
 	// Display dimensions
 	Width  int // Available width for rendering
 	Height int // Available height (number of rows including header)
+
+	// Loading state
+	ShowLoading bool // Show "Loading..." at the bottom when fetching more data
+	HasMore     bool // Whether there are more rows to fetch
 }
 
 // GridColumn represents a column definition.
@@ -141,6 +145,16 @@ func (g *Grid) Render() string {
 			isSelected := rowIndex == g.SelectedRow
 			rowLine := g.renderRow(g.Rows[rowIndex], isSelected)
 			lines = append(lines, rowLine)
+		} else if rowIndex == len(g.Rows) && g.ShowLoading && g.HasMore {
+			// Show loading indicator at the position after last row
+			loadingText := "Loading..."
+			grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+			styledLoading := grayStyle.Render(loadingText)
+			padding := g.Width - len(loadingText)
+			if padding < 0 {
+				padding = 0
+			}
+			lines = append(lines, styledLoading+strings.Repeat(" ", padding))
 		} else {
 			// Empty line to fill height
 			lines = append(lines, strings.Repeat(" ", g.Width))

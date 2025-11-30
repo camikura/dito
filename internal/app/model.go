@@ -1,185 +1,164 @@
 package app
 
 import (
+	"strings"
+
 	"github.com/oracle/nosql-go-sdk/nosqldb"
 
 	"github.com/camikura/dito/internal/db"
-	"github.com/camikura/dito/internal/ui"
 )
 
-// Screen represents the current screen type
-type Screen int
+// FocusPane represents which pane is currently focused
+type FocusPane int
 
 const (
-	ScreenSelection Screen = iota
-	ScreenOnPremiseConfig
-	ScreenCloudConfig
-	ScreenTableList
+	FocusPaneConnection FocusPane = iota
+	FocusPaneTables
+	FocusPaneSchema
+	FocusPaneSQL
+	FocusPaneData
 )
 
-// ConnectionStatus represents the connection state
-type ConnectionStatus int
-
-const (
-	StatusDisconnected ConnectionStatus = iota
-	StatusConnecting
-	StatusConnected
-	StatusError
-)
-
-// RightPaneMode represents the right pane display mode
-type RightPaneMode int
-
-const (
-	RightPaneModeSchema RightPaneMode = iota
-	RightPaneModeList   // Data list view
-	RightPaneModeDetail // Record detail view
-)
-
-// DialogType represents the type of dialog
-type DialogType int
-
-const (
-	DialogTypeSuccess DialogType = iota
-	DialogTypeError
-)
-
-// OnPremiseConfig holds on-premise connection configuration
-type OnPremiseConfig struct {
-	Endpoint      string
-	Port          string
-	Secure        bool
-	Focus         int // Currently focused field
-	Status        ConnectionStatus
-	ErrorMsg      string
-	ServerVersion string
-}
-
-// CloudConfig holds cloud connection configuration
-type CloudConfig struct {
-	Region        string
-	Compartment   string
-	AuthMethod    int // 0: OCI Config Profile, 1: Instance Principal, 2: Resource Principal
-	ConfigFile    string
-	Focus         int // Currently focused field
-	Status        ConnectionStatus
-	ErrorMsg      string
-	ServerVersion string
-}
-
-// Model is the main application model
+// Model represents the new UI model
 type Model struct {
-	Screen          Screen
-	Choices         []string
-	Cursor          int
-	Selected        map[int]struct{}
-	OnPremiseConfig OnPremiseConfig
-	CloudConfig     CloudConfig
-	Width           int
-	Height          int
-	// Table list screen
-	NosqlClient    *nosqldb.Client
-	Tables         []string
-	SelectedTable  int
-	Endpoint       string // Connection endpoint (for status display)
-	TableDetails   map[string]*db.TableDetailsResult
-	LoadingDetails bool
-	// Data display
-	RightPaneMode    RightPaneMode
+	// Window dimensions
+	Width  int
+	Height int
+
+	// Pane heights (calculated dynamically)
+	ConnectionPaneHeight int // Actual height of rendered connection pane
+	TablesHeight         int
+	SchemaHeight         int
+	SQLHeight            int
+
+	// Focus management
+	CurrentPane FocusPane
+
+	// Connection info
+	Endpoint      string
+	Connected     bool
+	ConnectionMsg string
+
+	// Tables
+	Tables        []string
+	SelectedTable int  // Index of selected table (marked with *)
+	CursorTable   int  // Index of table under cursor
+	TablesScrollOffset int  // Scroll offset for tables pane
+	NosqlClient   *nosqldb.Client
+
+	// Schema (display only, auto-updated from cursor position)
+	TableDetails       map[string]*db.TableDetailsResult
+	LoadingDetails     bool
+	SchemaErrorMsg     string // Error message from schema fetch
+	SchemaScrollOffset int    // Scroll offset for schema pane
+
+	// SQL
+	CurrentSQL            string
+	CustomSQL             bool
+	ColumnOrder           []string // Column order from custom SQL SELECT clause
+	PreviousSelectedTable int      // Saved SelectedTable before custom SQL
+
+	// Data
 	TableData        map[string]*db.TableDataResult
-	DataOffset       int // Data fetch offset (for infinite scroll)
-	FetchSize        int // Number of rows to fetch at once
 	LoadingData      bool
-	SelectedDataRow  int // Selected row in data view mode (absolute position)
-	ViewportOffset   int // Display start position
-	ViewportSize     int // Number of rows to display at once
-	HorizontalOffset int // Horizontal scroll offset (column-based, 0-indexed)
-	// SQL Editor Dialog
-	SQLEditorVisible bool   // Whether SQL editor dialog is visible
-	EditSQL          string // SQL query being edited
-	SQLCursorPos     int    // Cursor position in SQL editor
-	// Text Input Dialog
-	TextInputVisible   bool   // Whether text input dialog is visible
-	TextInputValue     string // Text being edited
-	TextInputCursorPos int    // Cursor position in text input
-	TextInputLabel     string // Label for the input field
-	// Dialog
-	DialogVisible bool
-	DialogType    DialogType
-	DialogTitle   string
-	DialogMessage string
+	DataErrorMsg     string // Error message from data fetch
+	SelectedDataRow  int
+	ViewportOffset   int
+	HorizontalOffset int
+
+	// Record Detail Dialog
+	RecordDetailVisible bool
+	RecordDetailScroll  int // Scroll offset for record detail dialog
+
+	// SQL cursor position (for inline editing)
+	SQLCursorPos int
+
+	// Connection Setup Dialog
+	ConnectionDialogVisible bool
+	ConnectionDialogField   int    // 0: Endpoint, 1: Port, 2: Connect button
+	EditEndpoint            string // Endpoint being edited
+	EditPort                string // Port being edited
+	EditCursorPos           int    // Cursor position in current field
 }
 
-// InitialModel returns the initial application model
+// InitialModel creates the initial model for new UI
 func InitialModel() Model {
 	return Model{
-		Screen:   ScreenSelection,
-		Choices:  []string{"Oracle NoSQL Cloud Service", "On-Premise"},
-		Selected: make(map[int]struct{}),
-		OnPremiseConfig: OnPremiseConfig{
-			Endpoint: "localhost",
-			Port:     "8080",
-			Secure:   false,
-			Focus:    0,
-			Status:   StatusDisconnected,
-		},
-		CloudConfig: CloudConfig{
-			Region:      "us-ashburn-1",
-			Compartment: "",
-			AuthMethod:  0, // OCI Config Profile
-			ConfigFile:  "DEFAULT",
-			Focus:       0,
-			Status:      StatusDisconnected,
-		},
-		TableDetails:  make(map[string]*db.TableDetailsResult),
-		RightPaneMode: RightPaneModeSchema,
-		TableData:     make(map[string]*db.TableDataResult),
-		DataOffset:    0,
-		FetchSize:     ui.DefaultFetchSize,
-		ViewportSize:  10,
+		CurrentPane:           FocusPaneConnection,
+		Connected:             false,
+		Tables:                []string{},
+		SelectedTable:         -1,
+		CursorTable:           0,
+		TableDetails:          make(map[string]*db.TableDetailsResult),
+		TableData:             make(map[string]*db.TableDataResult),
+		CurrentSQL:            "",
+		CustomSQL:             false,
+		PreviousSelectedTable: -1,
 	}
 }
 
-// TableListViewModel represents the model for table list view
-// This is defined here to avoid circular dependency with views package
-type TableListViewModel struct {
-	Width            int
-	Height           int
-	Endpoint         string
-	Tables           []string
-	SelectedTable    int
-	RightPaneMode    RightPaneMode
-	TableData        map[string]*db.TableDataResult
-	TableDetails     map[string]*db.TableDetailsResult
-	LoadingDetails   bool
-	LoadingData      bool
-	SelectedDataRow  int
-	HorizontalOffset int
-	ViewportOffset   int
-	// SQL Editor Dialog
-	SQLEditorVisible bool
-	EditSQL          string
-	SQLCursorPos     int
+// NextPane moves focus to the next focusable pane
+func (m Model) NextPane() Model {
+	// Focus order: Connection → Tables → Schema → SQL → Data
+	switch m.CurrentPane {
+	case FocusPaneConnection:
+		m.CurrentPane = FocusPaneTables
+	case FocusPaneTables:
+		m.CurrentPane = FocusPaneSchema
+	case FocusPaneSchema:
+		m.CurrentPane = FocusPaneSQL
+	case FocusPaneSQL:
+		m.CurrentPane = FocusPaneData
+	case FocusPaneData:
+		m.CurrentPane = FocusPaneConnection
+	}
+	return m
 }
 
-// ToTableListViewModel converts the Model to TableListViewModel
-func (m Model) ToTableListViewModel() TableListViewModel {
-	return TableListViewModel{
-		Width:            m.Width,
-		Height:           m.Height,
-		Endpoint:         m.Endpoint,
-		Tables:           m.Tables,
-		SelectedTable:    m.SelectedTable,
-		RightPaneMode:    m.RightPaneMode,
-		TableData:        m.TableData,
-		TableDetails:     m.TableDetails,
-		LoadingDetails:   m.LoadingDetails,
-		LoadingData:      m.LoadingData,
-		SelectedDataRow:  m.SelectedDataRow,
-		HorizontalOffset: m.HorizontalOffset,
-		ViewportOffset:   m.ViewportOffset,
-		SQLEditorVisible: m.SQLEditorVisible,
-		EditSQL:          m.EditSQL,
-		SQLCursorPos:     m.SQLCursorPos,
+// PrevPane moves focus to the previous focusable pane
+func (m Model) PrevPane() Model {
+	// Focus order: Connection ← Tables ← Schema ← SQL ← Data
+	switch m.CurrentPane {
+	case FocusPaneConnection:
+		m.CurrentPane = FocusPaneData
+	case FocusPaneTables:
+		m.CurrentPane = FocusPaneConnection
+	case FocusPaneSchema:
+		m.CurrentPane = FocusPaneTables
+	case FocusPaneSQL:
+		m.CurrentPane = FocusPaneSchema
+	case FocusPaneData:
+		m.CurrentPane = FocusPaneSQL
 	}
+	return m
+}
+
+// FindTableName finds the actual table name from the tables list using case-insensitive matching.
+// Returns the matched table name from the list, or empty string if not found.
+func (m Model) FindTableName(name string) string {
+	if name == "" {
+		return ""
+	}
+	nameLower := strings.ToLower(name)
+	for _, t := range m.Tables {
+		if strings.ToLower(t) == nameLower {
+			return t
+		}
+	}
+	return ""
+}
+
+// FindTableIndex finds the index of a table name in the tables list using case-insensitive matching.
+// Returns the index, or -1 if not found.
+func (m Model) FindTableIndex(name string) int {
+	if name == "" {
+		return -1
+	}
+	nameLower := strings.ToLower(name)
+	for i, t := range m.Tables {
+		if strings.ToLower(t) == nameLower {
+			return i
+		}
+	}
+	return -1
 }
