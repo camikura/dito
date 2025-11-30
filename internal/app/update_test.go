@@ -870,17 +870,6 @@ func TestHandleRecordDetailKeys(t *testing.T) {
 		}
 	})
 
-	t.Run("Q closes dialog", func(t *testing.T) {
-		m := InitialModel()
-		m.RecordDetailVisible = true
-
-		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
-
-		if newModel.RecordDetailVisible {
-			t.Error("Expected record detail to be closed")
-		}
-	})
-
 	t.Run("Down scrolls down when maxScroll > 0", func(t *testing.T) {
 		m := InitialModel()
 		m.RecordDetailVisible = true

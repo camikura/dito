@@ -562,7 +562,7 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	maxScroll := calculateRecordDetailMaxScroll(m)
 
 	switch msg.String() {
-	case "esc", "enter", "q":
+	case "esc", "enter":
 		m.RecordDetailVisible = false
 		m.RecordDetailScroll = 0
 		return m, nil
