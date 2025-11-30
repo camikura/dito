@@ -10,6 +10,35 @@ type ColumnInfo struct {
 	Name         string
 	Type         string
 	IsPrimaryKey bool
+	IsInherited  bool // True if this column is inherited from a parent table
+}
+
+// GetParentTableName returns the parent table name for a child table.
+// For "users.addresses" returns "users", for "users.addresses.phones" returns "users.addresses".
+// Returns empty string if the table has no parent.
+func GetParentTableName(tableName string) string {
+	lastDot := strings.LastIndex(tableName, ".")
+	if lastDot == -1 {
+		return ""
+	}
+	return tableName[:lastDot]
+}
+
+// GetAncestorTableNames returns all ancestor table names from root to immediate parent.
+// For "users.addresses.phones" returns ["users", "users.addresses"].
+func GetAncestorTableNames(tableName string) []string {
+	var ancestors []string
+	current := tableName
+	for {
+		parent := GetParentTableName(current)
+		if parent == "" {
+			break
+		}
+		// Prepend to get root-to-leaf order
+		ancestors = append([]string{parent}, ancestors...)
+		current = parent
+	}
+	return ancestors
 }
 
 // ParsePrimaryKeysFromDDL extracts primary key column names from DDL string.

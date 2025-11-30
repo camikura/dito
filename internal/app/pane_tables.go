@@ -176,26 +176,55 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 		} else {
 			// Render schema information
 			contentLines = append(contentLines, "Columns:")
+
+			// Collect all columns including inherited from ancestors
+			var allColumns []ui.ColumnInfo
+
+			// Get ancestor table names (root to immediate parent)
+			ancestors := ui.GetAncestorTableNames(schemaTableName)
+
+			// Add inherited primary key columns from ancestors
+			for _, ancestorName := range ancestors {
+				ancestorDetails, ancestorExists := m.TableDetails[ancestorName]
+				if ancestorExists && ancestorDetails != nil && ancestorDetails.Schema != nil && ancestorDetails.Schema.DDL != "" {
+					ancestorPKs := ui.ParsePrimaryKeysFromDDL(ancestorDetails.Schema.DDL)
+					ancestorCols := ui.ParseColumnsFromDDL(ancestorDetails.Schema.DDL, ancestorPKs)
+					// Only add primary key columns from ancestors
+					for _, col := range ancestorCols {
+						if col.IsPrimaryKey {
+							col.IsInherited = true
+							allColumns = append(allColumns, col)
+						}
+					}
+				}
+			}
+
+			// Add this table's own columns
 			if details.Schema.DDL != "" {
 				primaryKeys := ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
 				columns := ui.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+				allColumns = append(allColumns, columns...)
+			}
 
-				// First pass: find the longest column name
-				maxColNameLen := 0
-				for _, col := range columns {
-					if len(col.Name) > maxColNameLen {
-						maxColNameLen = len(col.Name)
-					}
+			// Find the longest column name
+			maxColNameLen := 0
+			for _, col := range allColumns {
+				if len(col.Name) > maxColNameLen {
+					maxColNameLen = len(col.Name)
 				}
+			}
 
-				// Format each column: PK|||Name|||Type|||maxLen (use ||| as separator)
-				for _, col := range columns {
-					pkMarker := " " // Single space when not PK
-					if col.IsPrimaryKey {
-						pkMarker = "P" // Single "P" for primary key
-					}
-					contentLines = append(contentLines, fmt.Sprintf("%s|||%s|||%s|||%d", pkMarker, col.Name, col.Type, maxColNameLen))
+			// Format each column: PK|||Name|||Type|||maxLen|||IsInherited (use ||| as separator)
+			for _, col := range allColumns {
+				pkMarker := " " // Single space when not PK
+				if col.IsPrimaryKey {
+					pkMarker = "P" // Single "P" for primary key
 				}
+				inherited := ""
+				if col.IsInherited {
+					inherited = "|||inherited"
+				}
+				contentLines = append(contentLines, fmt.Sprintf("%s|||%s|||%s|||%d%s", pkMarker, col.Name, col.Type, maxColNameLen, inherited))
 			}
 
 			// Add indexes section
@@ -276,12 +305,14 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 				}
 			} else if strings.Contains(content, "|||") {
 				// Column line with PK, name, type, and maxColNameLen separated by |||
+				// Format: PK|||Name|||Type|||maxLen or PK|||Name|||Type|||maxLen|||inherited
 				parts := strings.Split(content, "|||")
 				if len(parts) >= 4 {
 					pkMarker := parts[0] // "P" or " "
 					colName := parts[1]
 					colType := parts[2]
 					maxColNameLen, _ := strconv.Atoi(parts[3])
+					isInherited := len(parts) >= 5 && parts[4] == "inherited"
 
 					// Fixed column widths for alignment
 					const pkColWidth = 2              // Fixed width for PK marker (1 char + 1 space)
@@ -302,14 +333,18 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 					}
 					nameField := colName + strings.Repeat(" ", namePadding)
 
-					// Type field (no fixed width, left-aligned)
-					typeField := ui.StyleSchemaType.Render(colType)
+					// Type field with inherited marker if applicable
+					typeDisplay := colType
+					if isInherited {
+						typeDisplay = colType + " (↑)"
+					}
+					typeField := ui.StyleSchemaType.Render(typeDisplay)
 
 					// Build line with fixed-width columns: PK + Name + Type
 					alignedLine := pkField + nameField + typeField
 
 					// Calculate right padding
-					displayLen := pkColWidth + nameColWidth + len(colType)
+					displayLen := pkColWidth + nameColWidth + len(typeDisplay)
 					availableWidth := width - 2 // -2 for borders
 					rightPadding := availableWidth - displayLen
 					if rightPadding < 0 {

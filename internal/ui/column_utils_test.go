@@ -1,8 +1,80 @@
 package ui
 
 import (
+	"reflect"
 	"testing"
 )
+
+func TestGetParentTableName(t *testing.T) {
+	tests := []struct {
+		name      string
+		tableName string
+		expected  string
+	}{
+		{
+			name:      "top level table",
+			tableName: "users",
+			expected:  "",
+		},
+		{
+			name:      "child table",
+			tableName: "users.addresses",
+			expected:  "users",
+		},
+		{
+			name:      "grandchild table",
+			tableName: "users.addresses.phones",
+			expected:  "users.addresses",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetParentTableName(tt.tableName)
+			if result != tt.expected {
+				t.Errorf("GetParentTableName(%q) = %q, want %q", tt.tableName, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetAncestorTableNames(t *testing.T) {
+	tests := []struct {
+		name      string
+		tableName string
+		expected  []string
+	}{
+		{
+			name:      "top level table",
+			tableName: "users",
+			expected:  nil,
+		},
+		{
+			name:      "child table",
+			tableName: "users.addresses",
+			expected:  []string{"users"},
+		},
+		{
+			name:      "grandchild table",
+			tableName: "users.addresses.phones",
+			expected:  []string{"users", "users.addresses"},
+		},
+		{
+			name:      "great-grandchild table",
+			tableName: "a.b.c.d",
+			expected:  []string{"a", "a.b", "a.b.c"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetAncestorTableNames(tt.tableName)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("GetAncestorTableNames(%q) = %v, want %v", tt.tableName, result, tt.expected)
+			}
+		})
+	}
+}
 
 func TestParsePrimaryKeysFromDDL(t *testing.T) {
 	tests := []struct {
