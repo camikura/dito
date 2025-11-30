@@ -80,6 +80,11 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Connection dialog takes precedence
+	if m.ConnectionDialogVisible {
+		return handleConnectionDialogKeys(m, msg)
+	}
+
 	// SQL Editor dialog takes precedence
 	if m.SQLEditorVisible {
 		return handleSQLEditorKeys(m, msg)
@@ -105,6 +110,8 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	// Pane-specific keys
 	switch m.CurrentPane {
+	case FocusPaneConnection:
+		return handleConnectionKeys(m, msg)
 	case FocusPaneTables:
 		return handleTablesKeys(m, msg)
 	case FocusPaneSchema:
@@ -118,6 +125,160 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+func handleConnectionKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		// Open connection setup dialog
+		m.ConnectionDialogVisible = true
+		m.ConnectionDialogField = 0
+		// Initialize with current values or defaults
+		if m.EditEndpoint == "" {
+			m.EditEndpoint = "localhost"
+		}
+		if m.EditPort == "" {
+			m.EditPort = "8080"
+		}
+		m.EditCursorPos = ui.RuneLen(m.EditEndpoint)
+		return m, nil
+
+	case "ctrl+d":
+		// Disconnect
+		if m.Connected {
+			m.Connected = false
+			m.NosqlClient = nil
+			m.Tables = []string{}
+			m.SelectedTable = -1
+			m.CursorTable = 0
+			m.TableDetails = make(map[string]*db.TableDetailsResult)
+			m.TableData = make(map[string]*db.TableDataResult)
+			m.ConnectionMsg = ""
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Helper to check if current field is a text field
+	isTextField := m.ConnectionDialogField == 0 || m.ConnectionDialogField == 1
+
+	// Helper to move to field and set cursor position
+	moveToField := func(field int) {
+		m.ConnectionDialogField = field
+		if field == 0 {
+			m.EditCursorPos = ui.RuneLen(m.EditEndpoint)
+		} else if field == 1 {
+			m.EditCursorPos = ui.RuneLen(m.EditPort)
+		}
+	}
+
+	switch msg.Type {
+	case tea.KeyEsc:
+		// Close dialog
+		m.ConnectionDialogVisible = false
+		return m, nil
+
+	case tea.KeyEnter:
+		if m.ConnectionDialogField == 2 {
+			// Connect button - attempt connection
+			m.ConnectionDialogVisible = false
+			m.Endpoint = m.EditEndpoint + ":" + m.EditPort
+			return m, db.Connect(m.EditEndpoint, m.EditPort, false)
+		}
+		// On text fields, Enter moves to next field
+		moveToField((m.ConnectionDialogField + 1) % 3)
+		return m, nil
+
+	case tea.KeyTab:
+		moveToField((m.ConnectionDialogField + 1) % 3)
+		return m, nil
+
+	case tea.KeyShiftTab:
+		moveToField((m.ConnectionDialogField + 2) % 3)
+		return m, nil
+
+	case tea.KeyUp:
+		if m.ConnectionDialogField > 0 {
+			moveToField(m.ConnectionDialogField - 1)
+		}
+		return m, nil
+
+	case tea.KeyDown:
+		if m.ConnectionDialogField < 2 {
+			moveToField(m.ConnectionDialogField + 1)
+		}
+		return m, nil
+
+	case tea.KeyBackspace:
+		if isTextField {
+			if m.ConnectionDialogField == 0 {
+				m.EditEndpoint, m.EditCursorPos = ui.Backspace(m.EditEndpoint, m.EditCursorPos)
+			} else {
+				m.EditPort, m.EditCursorPos = ui.Backspace(m.EditPort, m.EditCursorPos)
+			}
+		}
+		return m, nil
+
+	case tea.KeyDelete:
+		if isTextField {
+			if m.ConnectionDialogField == 0 {
+				m.EditEndpoint = ui.DeleteAt(m.EditEndpoint, m.EditCursorPos)
+			} else {
+				m.EditPort = ui.DeleteAt(m.EditPort, m.EditCursorPos)
+			}
+		}
+		return m, nil
+
+	case tea.KeyLeft:
+		if isTextField && m.EditCursorPos > 0 {
+			m.EditCursorPos--
+		}
+		return m, nil
+
+	case tea.KeyRight:
+		if isTextField {
+			maxPos := ui.RuneLen(m.EditEndpoint)
+			if m.ConnectionDialogField == 1 {
+				maxPos = ui.RuneLen(m.EditPort)
+			}
+			if m.EditCursorPos < maxPos {
+				m.EditCursorPos++
+			}
+		}
+		return m, nil
+
+	case tea.KeyHome:
+		if isTextField {
+			m.EditCursorPos = 0
+		}
+		return m, nil
+
+	case tea.KeyEnd:
+		if isTextField {
+			if m.ConnectionDialogField == 0 {
+				m.EditCursorPos = ui.RuneLen(m.EditEndpoint)
+			} else {
+				m.EditCursorPos = ui.RuneLen(m.EditPort)
+			}
+		}
+		return m, nil
+
+	case tea.KeyRunes:
+		if isTextField {
+			char := string(msg.Runes)
+			if m.ConnectionDialogField == 0 {
+				m.EditEndpoint, m.EditCursorPos = ui.InsertWithCursor(m.EditEndpoint, m.EditCursorPos, char)
+			} else {
+				m.EditPort, m.EditCursorPos = ui.InsertWithCursor(m.EditPort, m.EditCursorPos, char)
+			}
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
 func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	visibleLines := m.TablesHeight // Tables pane visible height (dynamic)
 
@@ -125,18 +286,10 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "up", "k":
 		if m.CursorTable > 0 {
 			m.CursorTable--
-			m.SelectedTable = m.CursorTable // Move selection with cursor
-			m.SchemaScrollOffset = 0 // Reset scroll when changing tables
 
 			// Adjust scroll offset to keep cursor visible
 			if m.CursorTable < m.TablesScrollOffset {
 				m.TablesScrollOffset = m.CursorTable
-			}
-
-			// Auto-update schema for table under cursor
-			if m.CursorTable < len(m.Tables) {
-				tableName := m.Tables[m.CursorTable]
-				return m, db.FetchTableDetails(m.NosqlClient, tableName)
 			}
 		}
 		return m, nil
@@ -144,24 +297,16 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "down", "j":
 		if m.CursorTable < len(m.Tables)-1 {
 			m.CursorTable++
-			m.SelectedTable = m.CursorTable // Move selection with cursor
-			m.SchemaScrollOffset = 0 // Reset scroll when changing tables
 
 			// Adjust scroll offset to keep cursor visible
 			if m.CursorTable >= m.TablesScrollOffset+visibleLines {
 				m.TablesScrollOffset = m.CursorTable - visibleLines + 1
 			}
-
-			// Auto-update schema for table under cursor
-			if m.CursorTable < len(m.Tables) {
-				tableName := m.Tables[m.CursorTable]
-				return m, db.FetchTableDetails(m.NosqlClient, tableName)
-			}
 		}
 		return m, nil
 
 	case "enter":
-		// Select table and load data
+		// Select table and load data (only on Enter)
 		if m.CursorTable < len(m.Tables) {
 			m.SelectedTable = m.CursorTable
 			tableName := m.Tables[m.SelectedTable]
@@ -170,13 +315,22 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.CurrentSQL = "SELECT * FROM " + tableName
 			m.CustomSQL = false
 
-			// Reset data scrolling state
+			// Reset data scrolling state and schema scroll
 			m.SelectedDataRow = 0
 			m.ViewportOffset = 0
 			m.HorizontalOffset = 0
+			m.SchemaScrollOffset = 0
 
 			// Move focus to Data pane for immediate interaction
 			m.CurrentPane = FocusPaneData
+
+			// Fetch schema and data together
+			var cmds []tea.Cmd
+
+			// Fetch schema if not already loaded
+			if _, exists := m.TableDetails[tableName]; !exists {
+				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
+			}
 
 			// Get primary keys from schema if available
 			var primaryKeys []string
@@ -185,7 +339,9 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 
 			// Load table data (100 rows with ORDER BY PK)
-			return m, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys)
+			cmds = append(cmds, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys))
+
+			return m, tea.Batch(cmds...)
 		}
 		return m, nil
 	}
@@ -194,11 +350,22 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	// Determine which table schema is displayed (same logic as view)
+	var schemaTableName string
+	if m.CustomSQL && m.CurrentSQL != "" {
+		extractedName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		schemaTableName = m.FindTableName(extractedName)
+		if schemaTableName == "" && extractedName != "" {
+			schemaTableName = extractedName
+		}
+	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		schemaTableName = m.Tables[m.SelectedTable]
+	}
+
 	// Calculate max scroll offset based on content
 	var maxScroll int
-	if len(m.Tables) > 0 && m.CursorTable < len(m.Tables) {
-		tableName := m.Tables[m.CursorTable]
-		if details, exists := m.TableDetails[tableName]; exists && details != nil {
+	if schemaTableName != "" {
+		if details, exists := m.TableDetails[schemaTableName]; exists && details != nil {
 			// Count content lines
 			lineCount := 1 // "Columns:"
 			if details.Schema.DDL != "" {
@@ -243,7 +410,7 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		// Open SQL editor dialog
 		m.SQLEditorVisible = true
 		m.EditSQL = m.CurrentSQL
-		m.SQLCursorPos = len(m.EditSQL)
+		m.SQLCursorPos = ui.RuneLen(m.EditSQL)
 		return m, nil
 	}
 
@@ -382,21 +549,33 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case "esc":
 		// Reset to default SQL mode (only when custom SQL is active)
-		if m.CustomSQL && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-			tableName := m.Tables[m.SelectedTable]
+		if m.CustomSQL {
+			// Restore previous selection
+			if m.PreviousSelectedTable >= 0 && m.PreviousSelectedTable < len(m.Tables) {
+				m.SelectedTable = m.PreviousSelectedTable
+			}
+			m.PreviousSelectedTable = -1
+
 			m.CustomSQL = false
 			m.ColumnOrder = nil
-			m.CurrentSQL = "SELECT * FROM " + tableName
 			m.SelectedDataRow = 0
 			m.ViewportOffset = 0
 			m.HorizontalOffset = 0
+			m.SchemaErrorMsg = ""
+			m.DataErrorMsg = ""
 
-			// Reload data with default SQL
-			var primaryKeys []string
-			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
-				primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+			// Reload data with default SQL if a table is selected
+			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+				tableName := m.Tables[m.SelectedTable]
+				m.CurrentSQL = "SELECT * FROM " + tableName
+
+				var primaryKeys []string
+				if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+					primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+				}
+				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
 			}
-			return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+			m.CurrentSQL = ""
 		}
 		return m, nil
 	}
@@ -418,15 +597,45 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.CurrentSQL = m.EditSQL
 		m.CustomSQL = true
 
+		// Save current selection before custom SQL
+		m.PreviousSelectedTable = m.SelectedTable
+
 		// Reset data state
 		m.SelectedDataRow = 0
 		m.ViewportOffset = 0
 		m.HorizontalOffset = 0
+		m.SchemaScrollOffset = 0
 
-		// Get current table name
-		if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-			tableName := m.Tables[m.SelectedTable]
-			return m, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.EditSQL, ui.DefaultFetchSize)
+		// Extract table name from SQL for schema display
+		extractedName := ui.ExtractTableNameFromSQL(m.EditSQL)
+		// Find exact table name from tables list (case-insensitive match)
+		tableName := m.FindTableName(extractedName)
+		// Update SelectedTable if table is in the list
+		tableIndex := m.FindTableIndex(extractedName)
+		if tableIndex >= 0 {
+			m.SelectedTable = tableIndex
+		}
+		// Use extracted name if not found in tables list (for child tables etc.)
+		if tableName == "" && extractedName != "" {
+			tableName = extractedName
+		}
+		// Fall back to selected table if no table name in SQL
+		if tableName == "" && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+			tableName = m.Tables[m.SelectedTable]
+		}
+
+		if tableName != "" {
+			var cmds []tea.Cmd
+
+			// Fetch schema (always try, even for unknown tables to get error)
+			if _, exists := m.TableDetails[tableName]; !exists {
+				cmds = append(cmds, db.FetchTableDetails(m.NosqlClient, tableName))
+			}
+
+			// Execute custom SQL
+			cmds = append(cmds, db.ExecuteCustomSQL(m.NosqlClient, tableName, m.EditSQL, ui.DefaultFetchSize))
+
+			return m, tea.Batch(cmds...)
 		}
 		return m, nil
 
@@ -450,7 +659,7 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyRight:
-		if m.SQLCursorPos < len(m.EditSQL) {
+		if m.SQLCursorPos < ui.RuneLen(m.EditSQL) {
 			m.SQLCursorPos++
 		}
 		return m, nil
@@ -460,7 +669,7 @@ func handleSQLEditorKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyEnd, tea.KeyCtrlE:
-		m.SQLCursorPos = len(m.EditSQL)
+		m.SQLCursorPos = ui.RuneLen(m.EditSQL)
 		return m, nil
 
 	case tea.KeySpace:
@@ -534,9 +743,7 @@ func handleTableListResult(m Model, msg db.TableListResult) (Model, tea.Cmd) {
 	m.Tables = sortTablesForTree(msg.Tables)
 	if len(m.Tables) > 0 {
 		m.CursorTable = 0
-		m.SelectedTable = 0 // Initialize selection to first table
-		// Fetch details for first table
-		return m, db.FetchTableDetails(m.NosqlClient, m.Tables[0])
+		// SelectedTable stays at -1 until user presses Enter
 	}
 
 	return m, nil
@@ -592,20 +799,25 @@ func sortTablesForTree(tables []string) []string {
 
 func handleTableDetailsResult(m Model, msg db.TableDetailsResult) (Model, tea.Cmd) {
 	if msg.Err != nil {
-		// TODO: Show error
+		m.SchemaErrorMsg = msg.Err.Error()
 		return m, nil
 	}
 
+	// Clear any previous error
+	m.SchemaErrorMsg = ""
 	m.TableDetails[msg.TableName] = &msg
 	return m, nil
 }
 
 func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 	if msg.Err != nil {
-		// TODO: Show error
 		m.LoadingData = false
+		m.DataErrorMsg = msg.Err.Error()
 		return m, nil
 	}
+
+	// Clear any previous error
+	m.DataErrorMsg = ""
 
 	// If this is an append operation (additional data fetch), merge with existing data
 	if msg.IsAppend {

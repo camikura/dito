@@ -31,9 +31,9 @@ func RenderView(m Model) string {
 	}
 
 	// Layout configuration
+	// Left pane renders with borders included in leftPaneContentWidth
 	leftPaneContentWidth := ui.LeftPaneContentWidth
-	leftPaneActualWidth := leftPaneContentWidth + ui.LeftPaneBorderWidth
-	rightPaneActualWidth := m.Width - leftPaneActualWidth + 1 // +1 to use full width
+	rightPaneActualWidth := m.Width - leftPaneContentWidth
 
 	// Render connection pane first to get its actual height
 	connectionPane := renderConnectionPane(m, leftPaneContentWidth)
@@ -87,28 +87,9 @@ func RenderView(m Model) string {
 	// Join left and right panes horizontally
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanes, dataPane)
 
-	// Footer (changes based on focused pane)
-	var footerContent string
-	switch m.CurrentPane {
-	case FocusPaneConnection:
-		footerContent = "Switch Pane: tab"
-	case FocusPaneTables:
-		footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
-	case FocusPaneSQL:
-		footerContent = "Switch Pane: tab | Edit: <enter>"
-	case FocusPaneData:
-		if m.CustomSQL {
-			footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc"
-		} else {
-			footerContent = "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
-		}
-	}
-
-	footerPadding := m.Width - len(footerContent) - len("Dito") - 1
-	if footerPadding < 0 {
-		footerPadding = 0
-	}
-	footerContent += strings.Repeat(" ", footerPadding) + "Dito"
+	// Footer
+	footerHelp := getFooterHelp(m)
+	footerContent := buildFooterContent(footerHelp, m.Width)
 
 	// Assemble final output
 	var result strings.Builder
@@ -116,6 +97,11 @@ func RenderView(m Model) string {
 	result.WriteString(footerContent)
 
 	baseView := result.String()
+
+	// Overlay connection dialog if visible
+	if m.ConnectionDialogVisible {
+		return renderConnectionDialog(m)
+	}
 
 	// Overlay SQL editor dialog if visible
 	if m.SQLEditorVisible {
@@ -147,15 +133,21 @@ func renderConnectionPane(m Model, width int) string {
 		// Apply green color to checkmark
 		checkmark := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGreen)).Render("✓")
 		titleText = titleStyle.Render(" Connection ") + checkmark + " "
-		// " Connection ✓ " = 1 + 10 + 1 + 1 + 1 = 14 display chars
+		// " Connection " + "✓" + " " = 12 + 1 + 1 = 14 display chars
 		titleDisplayWidth = 14
 	} else {
-		titleText = titleStyle.Render(" Connection ") + " "
-		// " Connection " = 1 + 10 + 1 = 12 display chars
+		titleText = titleStyle.Render(" Connection ")
+		// " Connection " = 12 display chars
 		titleDisplayWidth = 12
 	}
 
-	title := borderStyle.Render("╭─") + titleText + borderStyle.Render(strings.Repeat("─", width-titleDisplayWidth-3)+"╮")
+	// Title line: ╭─ + titleText + ─...─ + ╮
+	// Total width = width, so dashes = width - 2(╭╮) - 1(─ after ╭) - titleDisplayWidth
+	dashesLen := width - 3 - titleDisplayWidth
+	if dashesLen < 0 {
+		dashesLen = 0
+	}
+	title := borderStyle.Render("╭─") + titleText + borderStyle.Render(strings.Repeat("─", dashesLen)+"╮")
 
 	content := "(not configured)"
 	if m.ConnectionMsg != "" {
@@ -214,11 +206,24 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	// Prepare content lines with tree structure
 	type tableLineInfo struct {
 		text       string
-		isSelected bool
+		isSelected bool // * marker (Enter pressed)
+		isCursor   bool // cursor position (up/down navigation)
 	}
+
+	// Determine if selection marker should be shown
+	// Hide * when custom SQL targets a table not in the list
+	showSelectionMarker := true
+	if m.CustomSQL && m.CurrentSQL != "" {
+		extractedName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		if extractedName != "" && m.FindTableName(extractedName) == "" {
+			// Custom SQL targets a table not in the list
+			showSelectionMarker = false
+		}
+	}
+
 	var contentLines []tableLineInfo
 	if len(m.Tables) == 0 {
-		contentLines = []tableLineInfo{{text: "No tables", isSelected: false}}
+		contentLines = []tableLineInfo{{text: "No tables", isSelected: false, isCursor: false}}
 	} else {
 		// Render each table with tree structure
 		for i, tableName := range m.Tables {
@@ -231,9 +236,9 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 				displayName = tableName[dotIndex+1:]
 			}
 
-			// Add selection marker (* for selected table, always visible)
+			// Add selection marker (* for selected table via Enter)
 			var prefix string
-			isSelected := i == m.SelectedTable
+			isSelected := showSelectionMarker && i == m.SelectedTable
 			if isSelected {
 				prefix = "* "
 			} else {
@@ -243,6 +248,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 			contentLines = append(contentLines, tableLineInfo{
 				text:       prefix + indent + displayName,
 				isSelected: isSelected,
+				isCursor:   i == m.CursorTable,
 			})
 		}
 	}
@@ -252,23 +258,30 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
 	// Styles for text color
-	selectedTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")) // White for selected
-	unselectedTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")) // Gray for unselected
+	selectedTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))       // White for selected (*)
+	cursorTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))      // Blue for cursor (focused)
+	normalTextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))         // Gray for normal
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
 	// Render content lines (fill allocated height with content or empty lines)
+	isFocused := m.CurrentPane == FocusPaneTables
 	for i := 0; i < height; i++ {
 		contentIndex := i + m.TablesScrollOffset
 		if contentIndex < len(contentLines) {
 			lineInfo := contentLines[contentIndex]
-			// Apply color based on selection
+			// Apply color based on state
 			var styledText string
-			if lineInfo.isSelected {
+			if isFocused && lineInfo.isCursor {
+				// Cursor position when focused: blue text
+				styledText = cursorTextStyle.Render(lineInfo.text)
+			} else if lineInfo.isSelected {
+				// Selected table (*): white text
 				styledText = selectedTextStyle.Render(lineInfo.text)
 			} else {
-				styledText = unselectedTextStyle.Render(lineInfo.text)
+				// Normal: gray text
+				styledText = normalTextStyle.Render(lineInfo.text)
 			}
 			// Calculate padding (based on original text length, not styled)
 			paddingLen := width - len(lineInfo.text) - 2
@@ -294,11 +307,25 @@ func renderSchemaPane(m Model, width int) string {
 }
 
 func renderSchemaPaneWithHeight(m Model, width int, height int) string {
+	// Determine which table to show schema for
+	// Use SelectedTable, or extract from custom SQL if applicable
+	var schemaTableName string
+	if m.CustomSQL && m.CurrentSQL != "" {
+		// Extract table name from custom SQL and find exact match from tables list
+		extractedName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		schemaTableName = m.FindTableName(extractedName)
+		// Use extracted name if not found in tables list
+		if schemaTableName == "" && extractedName != "" {
+			schemaTableName = extractedName
+		}
+	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		schemaTableName = m.Tables[m.SelectedTable]
+	}
+
 	// Title includes table name if available
 	titleText := " Schema "
-	if len(m.Tables) > 0 && m.CursorTable < len(m.Tables) {
-		tableName := m.Tables[m.CursorTable]
-		titleText = " Schema (" + tableName + ") "
+	if schemaTableName != "" {
+		titleText = " Schema (" + schemaTableName + ") "
 	}
 
 	// Schema pane can be focused for scrolling
@@ -312,11 +339,22 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 
 	// Prepare content lines
 	var contentLines []string
-	if len(m.Tables) == 0 || m.CursorTable >= len(m.Tables) {
-		contentLines = []string{"Select a table"}
+	var schemaError string
+	if m.SchemaErrorMsg != "" {
+		schemaError = m.SchemaErrorMsg
+	}
+	if schemaTableName == "" {
+		if m.CustomSQL && m.CurrentSQL != "" {
+			// Custom SQL with table not found in tables list
+			contentLines = []string{"No schema"}
+		} else {
+			contentLines = []string{"Select a table"}
+		}
+	} else if schemaError != "" {
+		// Show error message
+		contentLines = []string{schemaError}
 	} else {
-		tableName := m.Tables[m.CursorTable]
-		details, exists := m.TableDetails[tableName]
+		details, exists := m.TableDetails[schemaTableName]
 		if !exists || details == nil {
 			contentLines = []string{"Loading..."}
 		} else {
@@ -477,7 +515,7 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 				line = content + strings.Repeat(" ", paddingLen)
 			}
 		} else {
-			// Other content (like "Select a table", "Loading...")
+			// Other content (like "Select a table", "Loading...", error messages)
 			if len(content) > width-2 {
 				content = content[:width-5] + "..."
 			}
@@ -485,7 +523,14 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 			if paddingLen < 0 {
 				paddingLen = 0
 			}
-			line = content + strings.Repeat(" ", paddingLen)
+			// Use red for errors, gray for other messages
+			if schemaError != "" && content == schemaError {
+				errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6666"))
+				line = errorStyle.Render(content) + strings.Repeat(" ", paddingLen)
+			} else {
+				grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+				line = grayStyle.Render(content) + strings.Repeat(" ", paddingLen)
+			}
 			}
 			result.WriteString(leftBorder + line + rightBorder + "\n")
 		} else {
@@ -523,37 +568,34 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	styledTitle := titleStyle.Render(titleText)
 	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", width-len(titleText)-3) + "╮")
 
-	content := ""
+	// Split SQL into lines
+	var sqlLines []string
 	if m.CurrentSQL != "" {
-		content = m.CurrentSQL
-		// Truncate if too long
-		if len(content) > width-2 {
-			content = content[:width-5] + "..."
-		}
+		sqlLines = strings.Split(m.CurrentSQL, "\n")
 	}
 
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
-	// Calculate padding, ensuring it's not negative (no left/right padding)
-	paddingLen := width - len(content) - 2
-	if paddingLen < 0 {
-		paddingLen = 0
-	}
-	contentPadded := content + strings.Repeat(" ", paddingLen)
-
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
-	// Render SQL content with dynamic height (fill with empty lines to use allocated space)
+	// Render SQL content with dynamic height
 	for i := 0; i < height; i++ {
-		if i == 0 {
-			result.WriteString(leftBorder + contentPadded + rightBorder + "\n")
-		} else {
-			emptyLine := strings.Repeat(" ", width-2)
-			result.WriteString(leftBorder + emptyLine + rightBorder + "\n")
+		var line string
+		if i < len(sqlLines) {
+			line = sqlLines[i]
+			// Truncate if too long
+			if len(line) > width-2 {
+				line = line[:width-5] + "..."
+			}
 		}
+		paddingLen := width - len(line) - 2
+		if paddingLen < 0 {
+			paddingLen = 0
+		}
+		result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 	}
 	result.WriteString(bottomBorder)
 
@@ -572,10 +614,18 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(titleColor))
 
 	// Build title with table name if available
+	// For custom SQL, show extracted table name even if not in tables list
+	var dataTableName string
+	if m.CustomSQL && m.CurrentSQL != "" {
+		// Use extracted name directly (may include child table like orders.addresses)
+		dataTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
+	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		dataTableName = m.Tables[m.SelectedTable]
+	}
+
 	var titleText string
-	if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-		tableName := m.Tables[m.SelectedTable]
-		titleText = fmt.Sprintf(" Data (%s) ", tableName)
+	if dataTableName != "" {
+		titleText = fmt.Sprintf(" Data (%s) ", dataTableName)
 	} else {
 		titleText = " Data "
 	}
@@ -601,11 +651,21 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	// Track scroll info for bottom border
 	var totalContentWidth, viewportWidth int
 
+	// Determine which table's data to display
+	// For custom SQL, use the extracted table name; otherwise use SelectedTable
+	var dataLookupTableName string
+	if m.CustomSQL && m.CurrentSQL != "" {
+		dataLookupTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
+	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+		dataLookupTableName = m.Tables[m.SelectedTable]
+	}
+
 	// Prepare content
-	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+	if dataLookupTableName == "" {
 		// No table selected
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 		for i := 0; i < contentLines; i++ {
-			line := "No data"
+			line := "Select a table"
 			if i > 0 {
 				line = ""
 			}
@@ -613,12 +673,37 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 			if paddingLen < 0 {
 				paddingLen = 0
 			}
-			result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+			styledLine := line
+			if line != "" {
+				styledLine = grayStyle.Render(line)
+			}
+			result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 		}
 	} else {
-		tableName := m.Tables[m.SelectedTable]
-		data, exists := m.TableData[tableName]
-		if !exists || data == nil {
+		data, exists := m.TableData[dataLookupTableName]
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6666"))
+		if m.DataErrorMsg != "" {
+			// Show error message
+			errMsg := m.DataErrorMsg
+			maxLen := width - 4
+			if len(errMsg) > maxLen {
+				errMsg = errMsg[:maxLen-3] + "..."
+			}
+			for i := 0; i < contentLines; i++ {
+				line := ""
+				styledLine := ""
+				if i == 0 {
+					line = errMsg
+					styledLine = errorStyle.Render(line)
+				}
+				paddingLen := width - len(line) - 2
+				if paddingLen < 0 {
+					paddingLen = 0
+				}
+				result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+			}
+		} else if !exists || data == nil {
 			// No data loaded yet
 			message := "No data"
 			if m.LoadingData {
@@ -626,31 +711,35 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 			}
 			for i := 0; i < contentLines; i++ {
 				line := ""
+				styledLine := ""
 				if i == 0 {
 					line = message
+					styledLine = grayStyle.Render(line)
 				}
 				paddingLen := width - len(line) - 2
 				if paddingLen < 0 {
 					paddingLen = 0
 				}
-				result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+				result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 			}
 		} else if len(data.Rows) == 0 {
 			// No rows in result
 			for i := 0; i < contentLines; i++ {
-				line := "No rows"
-				if i > 0 {
-					line = ""
+				line := ""
+				styledLine := ""
+				if i == 0 {
+					line = "No rows"
+					styledLine = grayStyle.Render(line)
 				}
 				paddingLen := width - len(line) - 2
 				if paddingLen < 0 {
 					paddingLen = 0
 				}
-				result.WriteString(leftBorder + line + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
+				result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 			}
 		} else {
 			// Render grid view and get scroll info
-			gridContent, scrollInfo := renderGridViewWithScrollInfo(m, data, width, contentLines, leftBorder, borderStyle)
+			gridContent, scrollInfo := renderGridViewWithScrollInfo(m, dataLookupTableName, data, width, contentLines, leftBorder, borderStyle)
 			result.WriteString(gridContent)
 			totalContentWidth = scrollInfo.totalWidth
 			viewportWidth = scrollInfo.viewportWidth
@@ -690,9 +779,8 @@ func renderBottomBorderWithScrollbar(borderStyle lipgloss.Style, width int, tota
 }
 
 // renderGridViewWithScrollInfo renders the data grid and returns scroll information
-func renderGridViewWithScrollInfo(m Model, data *db.TableDataResult, width int, contentLines int, leftBorder string, borderStyle lipgloss.Style) (string, scrollInfo) {
+func renderGridViewWithScrollInfo(m Model, tableName string, data *db.TableDataResult, width int, contentLines int, leftBorder string, borderStyle lipgloss.Style) (string, scrollInfo) {
 	// Get column names in schema definition order
-	tableName := m.Tables[m.SelectedTable]
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
 	// Get column types from schema
@@ -828,6 +916,8 @@ func renderSQLEditorDialog(m Model) string {
 
 	// Border style
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
+	cursorStyleNarrow := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
+	cursorStyleWide := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color(ColorPrimary))
 
 	// Build dialog
 	var dialog strings.Builder
@@ -838,30 +928,30 @@ func renderSQLEditorDialog(m Model) string {
 	title := titleStyle.Render(titleText)
 	titleLen := len([]rune(titleText))
 
-	// Top border: ╭ + title + ─...─ + ╮
-	dashesLen := dialogWidth - 2 - titleLen
+	// Top border: ╭─ + title + ─...─ + ╮
+	dashesLen := dialogWidth - 3 - titleLen
 	if dashesLen < 0 {
 		dashesLen = 0
 	}
-	dialog.WriteString(borderStyle.Render("╭"))
+	dialog.WriteString(borderStyle.Render("╭─"))
 	dialog.WriteString(title)
 	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dashesLen)))
 	dialog.WriteString(borderStyle.Render("╮"))
 	dialog.WriteString("\n")
 
-	// Parse SQL into lines and calculate cursor position
+	// Parse SQL into lines and calculate cursor position (rune-based)
 	sqlLines := strings.Split(m.EditSQL, "\n")
 	cursorLine := 0
-	cursorCol := m.SQLCursorPos
+	cursorCol := 0
 	currentPos := 0
 	for i, line := range sqlLines {
-		lineLen := len(line) + 1 // +1 for newline
-		if currentPos+lineLen > m.SQLCursorPos {
+		lineRuneLen := len([]rune(line)) + 1 // +1 for newline
+		if currentPos+lineRuneLen > m.SQLCursorPos {
 			cursorLine = i
 			cursorCol = m.SQLCursorPos - currentPos
 			break
 		}
-		currentPos += lineLen
+		currentPos += lineRuneLen
 	}
 
 	// Render SQL content with cursor
@@ -872,24 +962,41 @@ func renderSQLEditorDialog(m Model) string {
 		var lineContent string
 		if i < len(sqlLines) {
 			line := sqlLines[i]
+			lineRunes := []rune(line)
+			lineDisplayWidth := lipgloss.Width(line)
+
 			if i == cursorLine {
-				// Insert cursor indicator
-				if cursorCol <= len(line) {
-					lineContent = line[:cursorCol] + "_" + line[cursorCol:]
+				// Render line with cursor
+				if cursorCol < len(lineRunes) {
+					beforeCursor := string(lineRunes[:cursorCol])
+					cursorChar := string(lineRunes[cursorCol])
+					cursorCharWidth := lipgloss.Width(cursorChar)
+					afterCursor := string(lineRunes[cursorCol+1:])
+
+					var cursorBlock string
+					if cursorCharWidth >= 2 {
+						cursorBlock = cursorStyleWide.Render(cursorChar)
+					} else {
+						cursorBlock = cursorStyleNarrow.Render(cursorChar)
+					}
+					lineContent = beforeCursor + cursorBlock + afterCursor
 				} else {
-					lineContent = line + "_"
+					// Cursor at end of line
+					lineContent = line + cursorStyleNarrow.Render(" ")
+					lineDisplayWidth++ // Account for cursor space
 				}
 			} else {
 				lineContent = line
 			}
-		}
 
-		// Pad or truncate to fit content width
-		visibleLen := len([]rune(lineContent))
-		if visibleLen < contentWidth {
-			lineContent += strings.Repeat(" ", contentWidth-visibleLen)
-		} else if visibleLen > contentWidth {
-			lineContent = string([]rune(lineContent)[:contentWidth])
+			// Pad to fit content width
+			padding := contentWidth - lineDisplayWidth
+			if padding > 0 {
+				lineContent += strings.Repeat(" ", padding)
+			}
+		} else {
+			// Empty line
+			lineContent = strings.Repeat(" ", contentWidth)
 		}
 
 		dialog.WriteString(lineContent)
@@ -932,4 +1039,213 @@ func renderSQLEditorDialog(m Model) string {
 		lipgloss.Center,
 		dialog.String(),
 	)
+}
+
+// renderConnectionDialog renders the connection setup dialog
+func renderConnectionDialog(m Model) string {
+	dialogWidth := 60
+
+	// Border style
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorLabel))
+	cursorStyleNarrow := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
+	cursorStyleWide := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color(ColorPrimary))
+
+	var dialog strings.Builder
+
+	// Title
+	titleText := " Connection Setup "
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true)
+	title := titleStyle.Render(titleText)
+	titleLen := len([]rune(titleText))
+
+	// Title line: ╭─ + title + ─...─ + ╮
+	// dialogWidth = 1(╭) + 1(─) + titleLen + dashesLen + 1(╮)
+	dashesLen := dialogWidth - 3 - titleLen
+	if dashesLen < 0 {
+		dashesLen = 0
+	}
+	dialog.WriteString(borderStyle.Render("╭─"))
+	dialog.WriteString(title)
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dashesLen)))
+	dialog.WriteString(borderStyle.Render("╮"))
+	dialog.WriteString("\n")
+
+	// Content width (between left border+space and space+right border)
+	contentWidth := dialogWidth - 4
+
+	// Helper function to render a field line with fixed width
+	renderFieldLine := func(label string, value string, fieldIndex int, cursorPos int) string {
+		var line strings.Builder
+		line.WriteString(borderStyle.Render("│"))
+		line.WriteString(" ")
+
+		// Calculate label part: "Label: "
+		labelPart := label + ": "
+		labelLen := len(labelPart)
+
+		// Value area width
+		valueAreaWidth := contentWidth - labelLen
+		if valueAreaWidth < 1 {
+			valueAreaWidth = 1
+		}
+
+		// Convert value to runes for proper multi-byte character handling
+		valueRunes := []rune(value)
+		valueDisplayWidth := lipgloss.Width(value)
+
+		// Build value display
+		var valueDisplay string
+		if m.ConnectionDialogField == fieldIndex {
+			// Focused text field: cursor only (no background)
+			if cursorPos < len(valueRunes) {
+				beforeCursor := string(valueRunes[:cursorPos])
+				cursorChar := string(valueRunes[cursorPos])
+				cursorCharWidth := lipgloss.Width(cursorChar)
+				afterCursor := string(valueRunes[cursorPos+1:])
+				padding := valueAreaWidth - valueDisplayWidth
+				if padding < 0 {
+					padding = 0
+				}
+				// Use different cursor style for narrow (width=1) vs wide (width>=2) characters
+				var cursorBlock string
+				if cursorCharWidth >= 2 {
+					cursorBlock = cursorStyleWide.Render(cursorChar)
+				} else {
+					cursorBlock = cursorStyleNarrow.Render(cursorChar)
+				}
+				valueDisplay = beforeCursor + cursorBlock + afterCursor + strings.Repeat(" ", padding)
+			} else {
+				// Cursor at end
+				padding := valueAreaWidth - valueDisplayWidth - 1
+				if padding < 0 {
+					padding = 0
+				}
+				valueDisplay = value + cursorStyleNarrow.Render(" ") + strings.Repeat(" ", padding)
+			}
+		} else {
+			// Not focused: plain value with padding
+			padding := valueAreaWidth - valueDisplayWidth
+			if padding < 0 {
+				padding = 0
+			}
+			valueDisplay = value + strings.Repeat(" ", padding)
+		}
+
+		line.WriteString(labelStyle.Render(labelPart))
+		line.WriteString(valueDisplay)
+		line.WriteString(" ")
+		line.WriteString(borderStyle.Render("│"))
+		return line.String()
+	}
+
+	// Empty line
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(strings.Repeat(" ", dialogWidth-2))
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Endpoint field
+	dialog.WriteString(renderFieldLine("Endpoint", m.EditEndpoint, 0, m.EditCursorPos))
+	dialog.WriteString("\n")
+
+	// Port field
+	dialog.WriteString(renderFieldLine("Port", m.EditPort, 1, m.EditCursorPos))
+	dialog.WriteString("\n")
+
+	// Empty line
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(strings.Repeat(" ", dialogWidth-2))
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Connect button
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(" ")
+	buttonText := "[ Connect ]"
+	buttonPadding := (contentWidth - len(buttonText)) / 2
+	if m.ConnectionDialogField == 2 {
+		// Selected button: blue background
+		selectedButtonStyle := lipgloss.NewStyle().Background(lipgloss.Color(ColorPrimary)).Foreground(lipgloss.Color("#000000"))
+		dialog.WriteString(strings.Repeat(" ", buttonPadding))
+		dialog.WriteString(selectedButtonStyle.Render(buttonText))
+		dialog.WriteString(strings.Repeat(" ", contentWidth-buttonPadding-len(buttonText)))
+	} else {
+		dialog.WriteString(strings.Repeat(" ", buttonPadding))
+		dialog.WriteString(buttonText)
+		dialog.WriteString(strings.Repeat(" ", contentWidth-buttonPadding-len(buttonText)))
+	}
+	dialog.WriteString(" ")
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Empty line
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(strings.Repeat(" ", dialogWidth-2))
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Help text
+	helpText := "Navigate: tab/↑/↓ | Connect: enter | Close: esc"
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
+	helpDisplayWidth := lipgloss.Width(helpText)
+	helpPadding := contentWidth - helpDisplayWidth
+	if helpPadding < 0 {
+		helpPadding = 0
+	}
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString(" ")
+	dialog.WriteString(helpStyle.Render(helpText))
+	dialog.WriteString(strings.Repeat(" ", helpPadding))
+	dialog.WriteString(" ")
+	dialog.WriteString(borderStyle.Render("│"))
+	dialog.WriteString("\n")
+
+	// Bottom border
+	dialog.WriteString(borderStyle.Render("╰"))
+	dialog.WriteString(borderStyle.Render(strings.Repeat("─", dialogWidth-2)))
+	dialog.WriteString(borderStyle.Render("╯"))
+
+	// Center the dialog
+	return lipgloss.Place(
+		m.Width,
+		m.Height,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog.String(),
+	)
+}
+
+// getFooterHelp returns the footer help text based on the current pane and state
+func getFooterHelp(m Model) string {
+	switch m.CurrentPane {
+	case FocusPaneConnection:
+		if m.Connected {
+			return "Switch Pane: tab | Disconnect: ctrl+d"
+		}
+		return "Switch Pane: tab | Connect: <enter>"
+	case FocusPaneTables:
+		return "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
+	case FocusPaneSQL:
+		return "Switch Pane: tab | Edit: <enter>"
+	case FocusPaneData:
+		if m.CustomSQL {
+			return "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc"
+		}
+		return "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
+	}
+	return ""
+}
+
+// buildFooterContent builds the footer content string with proper padding
+// Format: " {help} {padding} Dito "
+func buildFooterContent(footerHelp string, width int) string {
+	appName := "Dito"
+	footerHelpWidth := lipgloss.Width(footerHelp)
+	// 1 left + 1 right of help + 1 right of Dito = 3
+	footerPadding := width - footerHelpWidth - len(appName) - 3
+	if footerPadding < 0 {
+		footerPadding = 0
+	}
+	return " " + footerHelp + " " + strings.Repeat(" ", footerPadding) + appName + " "
 }
