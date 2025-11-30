@@ -57,3 +57,12 @@ var (
 	StyleSeparator = lipgloss.NewStyle().Foreground(ColorGrayDark)
 	StyleBorder    = lipgloss.NewStyle().Foreground(ColorPrimary)
 )
+
+// Text input cursor styles (unified across the app)
+// Uses reverse video (white background, black text) for visibility
+var (
+	// CursorNarrow is for single-width characters (ASCII, half-width)
+	CursorNarrow = lipgloss.NewStyle().Reverse(true)
+	// CursorWide is for double-width characters (CJK, full-width)
+	CursorWide = lipgloss.NewStyle().Reverse(true)
+)
