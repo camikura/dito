@@ -14,7 +14,7 @@ type RecordDetailConfig struct {
 	Height       int                    // Dialog height (0 = auto 80% of screen)
 	ScrollOffset int                    // Current scroll position
 	Title        string                 // Dialog title (default: "Record Details")
-	BorderColor  string                 // Border color (default: "#00D9FF")
+	BorderColor  string                 // Border color (default: ColorPrimaryHex)
 	Padding      int                    // Inner padding (default: 1)
 }
 
@@ -35,7 +35,7 @@ func NewRecordDetail(config RecordDetailConfig) *RecordDetail {
 		config.Title = " Record Details "
 	}
 	if config.BorderColor == "" {
-		config.BorderColor = "#00D9FF"
+		config.BorderColor = ColorPrimaryHex
 	}
 	if config.Padding == 0 {
 		config.Padding = 1
