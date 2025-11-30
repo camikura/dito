@@ -25,12 +25,12 @@ func TestGetFooterHelp(t *testing.T) {
 		{
 			name:     "Tables pane",
 			model:    Model{CurrentPane: FocusPaneTables},
-			expected: "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>",
+			expected: "Select: <enter>",
 		},
 		{
 			name:     "SQL pane",
 			model:    Model{CurrentPane: FocusPaneSQL},
-			expected: "Execute: ctrl+r | Switch Pane: tab",
+			expected: "Execute: ctrl+r",
 		},
 		{
 			name:     "Schema pane",
@@ -40,12 +40,12 @@ func TestGetFooterHelp(t *testing.T) {
 		{
 			name:     "Data pane normal",
 			model:    Model{CurrentPane: FocusPaneData, CustomSQL: false},
-			expected: "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>",
+			expected: "Detail: <enter>",
 		},
 		{
 			name:     "Data pane custom SQL",
 			model:    Model{CurrentPane: FocusPaneData, CustomSQL: true},
-			expected: "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc",
+			expected: "Detail: <enter> | Reset: esc",
 		},
 	}
 
@@ -67,7 +67,7 @@ func TestBuildFooterContent(t *testing.T) {
 	}{
 		{
 			name:       "Connection not connected",
-			footerHelp: "Switch Pane: tab | Connect: <enter>",
+			footerHelp: "Setup: <enter>",
 			width:      120,
 		},
 		{
@@ -76,23 +76,23 @@ func TestBuildFooterContent(t *testing.T) {
 			width:      120,
 		},
 		{
-			name:       "Tables pane with arrows",
-			footerHelp: "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>",
+			name:       "Tables pane",
+			footerHelp: "Select: <enter>",
 			width:      120,
 		},
 		{
 			name:       "Data pane custom SQL",
-			footerHelp: "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc",
+			footerHelp: "Detail: <enter> | Reset: esc",
 			width:      120,
 		},
 		{
 			name:       "Narrow width",
-			footerHelp: "Switch Pane: tab | Connect: <enter>",
+			footerHelp: "Setup: <enter>",
 			width:      80,
 		},
 		{
 			name:       "Very narrow width",
-			footerHelp: "Switch Pane: tab | Connect: <enter>",
+			footerHelp: "Setup: <enter>",
 			width:      50,
 		},
 	}
@@ -126,8 +126,8 @@ func TestBuildFooterContent(t *testing.T) {
 
 func TestBuildFooterContentNarrowWidth(t *testing.T) {
 	// When width is too narrow, padding should be 0 (not negative)
-	footerHelp := "Switch Pane: tab | Connect: <enter>"
-	width := 30 // Too narrow for the content
+	footerHelp := "Setup: <enter>"
+	width := 15 // Too narrow for the content
 
 	result := buildFooterContent(footerHelp, width)
 

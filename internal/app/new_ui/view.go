@@ -1110,14 +1110,14 @@ func getFooterHelp(m Model) string {
 		}
 		return "Setup: <enter>"
 	case FocusPaneTables:
-		return "Navigate: ↑/↓ | Switch Pane: tab | Select: <enter>"
+		return "Select: <enter>"
 	case FocusPaneSQL:
-		return "Execute: ctrl+r | Switch Pane: tab"
+		return "Execute: ctrl+r"
 	case FocusPaneData:
 		if m.CustomSQL {
-			return "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter> | Reset: esc"
+			return "Detail: <enter> | Reset: esc"
 		}
-		return "Navigate: ↑/↓ | Switch Pane: tab | Detail: <enter>"
+		return "Detail: <enter>"
 	}
 	return ""
 }
