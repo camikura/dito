@@ -426,69 +426,89 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	}
 
-	// Calculate viewport rows (Data pane visible height - borders)
-	// For Data pane: Height is specified by totalHeight parameter
-	dataPaneHeight := m.Height - 1 - m.ConnectionPaneHeight - m.TablesHeight - m.SchemaHeight - m.SQLHeight - 6
-	if dataPaneHeight < 3 {
-		dataPaneHeight = 3
+	// Calculate visible lines for data rows
+	// Data pane structure: title(1) + content lines + bottom(1)
+	// Content lines = header(1) + separator(1) + data rows
+	// contentLines = m.Height - 1(footer) - 2(title+bottom) = m.Height - 3
+	contentLines := m.Height - 3
+	if contentLines < 5 {
+		contentLines = 5
 	}
-	contentLines := dataPaneHeight - 2 // Subtract top and bottom borders
-	viewportRows := contentLines - 2   // Subtract header and separator
-	if viewportRows < 1 {
-		viewportRows = 1
+	// Data visible lines = content lines - 2 (header + separator)
+	dataVisibleLines := contentLines - 2
+	if dataVisibleLines < 1 {
+		dataVisibleLines = 1
 	}
+
+	// Calculate max horizontal offset
+	maxHorizontalOffset := calculateMaxHorizontalOffset(m)
 
 	switch msg.String() {
 	case "up", "k":
 		if m.SelectedDataRow > 0 {
 			m.SelectedDataRow--
 
-			// Adjust viewport to keep selected row visible
-			// Always keep selected row in the center when possible
-			centerOffset := m.SelectedDataRow - viewportRows/2
-			if centerOffset < 0 {
-				centerOffset = 0
+			// Calculate middle position of visible area
+			middlePosition := dataVisibleLines / 2
+
+			// Calculate maximum viewport offset
+			maxViewportOffset := totalRows - dataVisibleLines
+			if maxViewportOffset < 0 {
+				maxViewportOffset = 0
 			}
-			// Ensure we don't scroll past the end
-			maxOffset := totalRows - viewportRows
-			if maxOffset < 0 {
-				maxOffset = 0
+
+			// Scrolling logic (symmetric to down):
+			// When above middle, keep cursor at middle by adjusting viewport
+			// But never exceed maxViewportOffset (when at bottom)
+			// When at or below middle, viewport stays at 0
+			if m.SelectedDataRow > middlePosition {
+				// Still above middle - keep cursor at middle
+				m.ViewportOffset = m.SelectedDataRow - middlePosition
+				// But don't exceed max offset
+				if m.ViewportOffset > maxViewportOffset {
+					m.ViewportOffset = maxViewportOffset
+				}
+			} else {
+				// At or below middle - viewport is 0
+				m.ViewportOffset = 0
 			}
-			if centerOffset > maxOffset {
-				centerOffset = maxOffset
-			}
-			m.ViewportOffset = centerOffset
 		}
 		return m, nil
 
 	case "down", "j":
-		if m.SelectedDataRow < totalRows-1 {
+		if totalRows > 0 && m.SelectedDataRow < totalRows-1 {
 			m.SelectedDataRow++
 
-			// Adjust viewport to keep selected row visible
-			// Always keep selected row in the center when possible
-			centerOffset := m.SelectedDataRow - viewportRows/2
-			if centerOffset < 0 {
-				centerOffset = 0
-			}
-			// Ensure we don't scroll past the end
-			maxOffset := totalRows - viewportRows
-			if maxOffset < 0 {
-				maxOffset = 0
-			}
-			if centerOffset > maxOffset {
-				centerOffset = maxOffset
-			}
-			m.ViewportOffset = centerOffset
+			// Calculate middle position of visible area
+			middlePosition := dataVisibleLines / 2
 
-			// Trigger additional data loading when near the end
-			remainingRows := totalRows - m.SelectedDataRow - 1
+			// Calculate maximum viewport offset (when last row is at bottom of screen)
+			maxViewportOffset := totalRows - dataVisibleLines
+			if maxViewportOffset < 0 {
+				maxViewportOffset = 0
+			}
+
+			// Scrolling logic:
+			// 1. First: cursor moves to middle (no scroll, VP stays 0)
+			// 2. Middle: cursor stays at middle, viewport scrolls
+			// 3. End: viewport stops at max, cursor moves to bottom
+			if m.SelectedDataRow > middlePosition && m.ViewportOffset < maxViewportOffset {
+				// Cursor has passed middle position and we can still scroll
+				// Keep cursor at middle by adjusting viewport
+				m.ViewportOffset = m.SelectedDataRow - middlePosition
+				if m.ViewportOffset > maxViewportOffset {
+					m.ViewportOffset = maxViewportOffset
+				}
+			}
+
+			// Check if we need to fetch more data
 			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
 				tableName := m.Tables[m.SelectedTable]
 				if data, exists := m.TableData[tableName]; exists && data != nil {
+					remainingRows := totalRows - m.SelectedDataRow - 1
 					if remainingRows <= ui.FetchMoreThreshold && data.HasMore && !m.LoadingData && data.LastPKValues != nil {
 						m.LoadingData = true
-						// Get primary keys from schema
+						// Get PRIMARY KEYs from schema
 						var primaryKeys []string
 						if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
 							primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
@@ -507,8 +527,6 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case "right", "l":
-		// Calculate max horizontal offset dynamically
-		maxHorizontalOffset := calculateMaxHorizontalOffset(m)
 		if m.HorizontalOffset < maxHorizontalOffset {
 			m.HorizontalOffset++
 		}
