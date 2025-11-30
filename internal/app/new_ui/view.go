@@ -1085,8 +1085,8 @@ func renderConnectionDialog(m Model) string {
 	dialog.WriteString(borderStyle.Render("│"))
 	dialog.WriteString("\n")
 
-	// Help text
-	helpText := "Navigate: tab/up/down | Connect: enter | Close: esc"
+	// Help text (must fit in contentWidth = 46 chars)
+	helpText := "tab/up/down: move | enter: ok | esc: close"
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHelp))
 	helpPadding := contentWidth - len(helpText)
 	if helpPadding < 0 {
