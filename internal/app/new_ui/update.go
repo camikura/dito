@@ -371,6 +371,26 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.EditSQL = m.CurrentSQL
 		m.SQLCursorPos = len(m.EditSQL)
 		return m, nil
+
+	case "esc":
+		// Reset to default SQL mode (only when custom SQL is active)
+		if m.CustomSQL && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+			tableName := m.Tables[m.SelectedTable]
+			m.CustomSQL = false
+			m.ColumnOrder = nil
+			m.CurrentSQL = "SELECT * FROM " + tableName
+			m.SelectedDataRow = 0
+			m.ViewportOffset = 0
+			m.HorizontalOffset = 0
+
+			// Reload data with default SQL
+			var primaryKeys []string
+			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+				primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+			}
+			return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+		}
+		return m, nil
 	}
 
 	return m, nil
