@@ -8,7 +8,6 @@ import (
 
 	"github.com/camikura/dito/internal/db"
 	"github.com/camikura/dito/internal/ui"
-	"github.com/camikura/dito/internal/views"
 )
 
 // Update handles messages and updates the model
@@ -309,7 +308,7 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
 				// Schema available - fetch data with ORDER BY
 				ddl := details.Schema.DDL
-				primaryKeys := views.ParsePrimaryKeysFromDDL(ddl)
+				primaryKeys := ui.ParsePrimaryKeysFromDDL(ddl)
 				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
 				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 				return m, db.FetchTableData(m.NosqlClient, tableName, 100, primaryKeys)
@@ -347,8 +346,8 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			// Count content lines
 			lineCount := 1 // "Columns:"
 			if details.Schema.DDL != "" {
-				primaryKeys := views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-				columns := views.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+				primaryKeys := ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+				columns := ui.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
 				lineCount += len(columns)
 			}
 			lineCount += 2 // Empty line + "Indexes:"
@@ -674,7 +673,7 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 					// Get PRIMARY KEYs from schema
 					var primaryKeys []string
 					if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
-						primaryKeys = views.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+						primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
 					}
 					return m, db.FetchMoreTableData(m.NosqlClient, tableName, 100, primaryKeys, data.LastPKValues)
 				}
@@ -735,7 +734,7 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				var primaryKeys []string
 				if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
 					ddl = details.Schema.DDL
-					primaryKeys = views.ParsePrimaryKeysFromDDL(ddl)
+					primaryKeys = ui.ParsePrimaryKeysFromDDL(ddl)
 				}
 
 				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
@@ -878,7 +877,7 @@ func handleTableDetailsResult(m Model, msg db.TableDetailsResult) (Model, tea.Cm
 		tableName := m.Tables[m.SelectedTable]
 		if tableName == msg.TableName && msg.Schema != nil {
 			// Update SQL with ORDER BY
-			primaryKeys := views.ParsePrimaryKeysFromDDL(msg.Schema.DDL)
+			primaryKeys := ui.ParsePrimaryKeysFromDDL(msg.Schema.DDL)
 			m.CurrentSQL = buildDefaultSQL(tableName, msg.Schema.DDL)
 			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
 			// Now fetch data with proper ORDER BY
@@ -1037,7 +1036,7 @@ func calculateRecordDetailMaxScroll(m Model) int {
 func buildDefaultSQL(tableName string, ddl string) string {
 	sql := "SELECT * FROM " + tableName
 	if ddl != "" {
-		primaryKeys := views.ParsePrimaryKeysFromDDL(ddl)
+		primaryKeys := ui.ParsePrimaryKeysFromDDL(ddl)
 		if len(primaryKeys) > 0 {
 			sql += " ORDER BY " + strings.Join(primaryKeys, ", ")
 		}
