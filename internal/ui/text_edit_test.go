@@ -106,3 +106,103 @@ func TestInsertWithCursor(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractTableNameFromSQL(t *testing.T) {
+	tests := []struct {
+		name     string
+		sql      string
+		expected string
+	}{
+		{"simple select", "SELECT * FROM users", "users"},
+		{"select with columns", "SELECT id, name FROM products", "products"},
+		{"lowercase from", "select * from orders", "orders"},
+		{"mixed case", "SELECT * From Users", "Users"},
+		{"with namespace", "SELECT * FROM ns.tablename", "ns.tablename"},
+		{"with where", "SELECT * FROM users WHERE id = 1", "users"},
+		{"with join", "SELECT * FROM users JOIN orders", "users"},
+		{"multiline", "SELECT *\nFROM users\nWHERE id = 1", "users"},
+		{"extra spaces", "SELECT  *  FROM   users", "users"},
+		{"no from clause", "SELECT 1", ""},
+		{"empty string", "", ""},
+		{"only select", "SELECT *", ""},
+		{"from at end", "SELECT * FROM", ""},
+		{"table with underscore", "SELECT * FROM user_accounts", "user_accounts"},
+		{"table with numbers", "SELECT * FROM table123", "table123"},
+		{"child table", "SELECT * FROM orders.items", "orders.items"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ExtractTableNameFromSQL(tt.sql)
+			if result != tt.expected {
+				t.Errorf("ExtractTableNameFromSQL(%q) = %q, want %q", tt.sql, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRuneLen(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		expected int
+	}{
+		{"empty", "", 0},
+		{"ascii", "hello", 5},
+		{"japanese", "こんにちは", 5},
+		{"mixed", "hello世界", 7},
+		{"emoji", "👍", 1},
+		{"multiple emoji", "👍👎", 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := RuneLen(tt.text)
+			if result != tt.expected {
+				t.Errorf("RuneLen(%q) = %d, want %d", tt.text, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestMultibyteOperations(t *testing.T) {
+	// Test InsertAt with Japanese characters
+	t.Run("InsertAt with Japanese", func(t *testing.T) {
+		result := InsertAt("こんにちは", 2, "X")
+		expected := "こんXにちは"
+		if result != expected {
+			t.Errorf("InsertAt with Japanese = %q, want %q", result, expected)
+		}
+	})
+
+	// Test DeleteAt with Japanese characters
+	t.Run("DeleteAt with Japanese", func(t *testing.T) {
+		result := DeleteAt("こんにちは", 2)
+		expected := "こんちは"
+		if result != expected {
+			t.Errorf("DeleteAt with Japanese = %q, want %q", result, expected)
+		}
+	})
+
+	// Test Backspace with Japanese characters
+	t.Run("Backspace with Japanese", func(t *testing.T) {
+		resultTxt, resultPos := Backspace("こんにちは", 3)
+		expectedTxt := "こんちは"
+		expectedPos := 2
+		if resultTxt != expectedTxt || resultPos != expectedPos {
+			t.Errorf("Backspace with Japanese = (%q, %d), want (%q, %d)",
+				resultTxt, resultPos, expectedTxt, expectedPos)
+		}
+	})
+
+	// Test InsertWithCursor with Japanese characters
+	t.Run("InsertWithCursor with Japanese", func(t *testing.T) {
+		resultTxt, resultPos := InsertWithCursor("こんにちは", 2, "世界")
+		expectedTxt := "こん世界にちは"
+		expectedPos := 4
+		if resultTxt != expectedTxt || resultPos != expectedPos {
+			t.Errorf("InsertWithCursor with Japanese = (%q, %d), want (%q, %d)",
+				resultTxt, resultPos, expectedTxt, expectedPos)
+		}
+	})
+}
