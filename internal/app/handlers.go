@@ -179,7 +179,8 @@ func handleConnectionDialogKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
-	visibleLines := m.TablesHeight // Tables pane visible height (dynamic)
+	// Calculate tables pane height using the same logic as view.go
+	visibleLines := calculateTablesHeight(m)
 
 	switch msg.String() {
 	case "up", "k":
