@@ -71,6 +71,9 @@ type Model struct {
 	RecordDetailVisible bool
 	RecordDetailScroll  int // Scroll offset for record detail dialog
 
+	// Data scrolling state
+	KeepCursorAtBottom bool // After data append, keep cursor at bottom until next scroll
+
 	// SQL cursor position (for inline editing)
 	SQLCursorPos int
 
