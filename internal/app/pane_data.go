@@ -34,8 +34,25 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	} else {
 		titleText = " Data "
 	}
+
+	// Truncate title if too long (leave room for borders: ╭─ ... ─╮)
+	maxTitleLen := width - 3
+	if ui.RuneLen(titleText) > maxTitleLen {
+		// Truncate table name within title
+		maxTableNameLen := maxTitleLen - ui.RuneLen(" Data (...) ")
+		if maxTableNameLen > 3 {
+			titleText = " Data (" + ui.TruncateString(dataTableName, maxTableNameLen) + ") "
+		} else {
+			titleText = " Data "
+		}
+	}
+
+	dashCount := width - ui.RuneLen(titleText) - 3
+	if dashCount < 0 {
+		dashCount = 0
+	}
 	styledTitle := titleStyle.Render(titleText)
-	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", width-len(titleText)-3) + "╮")
+	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", dashCount) + "╮")
 
 	// Data pane should match left panes height
 	// Total height = totalHeight (m.Height passed in)
