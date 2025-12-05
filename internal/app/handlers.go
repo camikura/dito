@@ -271,47 +271,14 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Calculate schema pane height using the same logic as view.go
+	// Calculate schema pane height and content line count
 	schemaHeight := calculateSchemaHeight(m)
+	lineCount := calculateSchemaContentLineCount(m, schemaTableName)
 
-	// Calculate max scroll (dynamic based on content)
-	maxScroll := 0
-	if details, exists := m.TableDetails[schemaTableName]; exists && details != nil {
-		// Count content lines (must match pane_tables.go rendering logic)
-		lineCount := 1 // "Columns:"
-
-		// Count inherited primary key columns from ancestors
-		ancestors := ui.GetAncestorTableNames(schemaTableName)
-		for _, ancestorName := range ancestors {
-			if ancestorDetails, ancestorExists := m.TableDetails[ancestorName]; ancestorExists && ancestorDetails != nil && ancestorDetails.Schema != nil && ancestorDetails.Schema.DDL != "" {
-				ancestorPKs := ui.ParsePrimaryKeysFromDDL(ancestorDetails.Schema.DDL)
-				ancestorCols := ui.ParseColumnsFromDDL(ancestorDetails.Schema.DDL, ancestorPKs)
-				for _, col := range ancestorCols {
-					if col.IsPrimaryKey {
-						lineCount++
-					}
-				}
-			}
-		}
-
-		// Count this table's own columns
-		if details.Schema.DDL != "" {
-			primaryKeys := ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-			columns := ui.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
-			lineCount += len(columns)
-		}
-
-		lineCount += 2 // Empty line + "Indexes:"
-		lineCount += len(details.Indexes)
-		if len(details.Indexes) == 0 {
-			lineCount++ // "(none)" line
-		}
-
-		// Max scroll = total lines - visible lines (dynamic)
-		maxScroll = lineCount - schemaHeight
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
+	// Max scroll = total lines - visible lines
+	maxScroll := lineCount - schemaHeight
+	if maxScroll < 0 {
+		maxScroll = 0
 	}
 
 	switch msg.String() {
@@ -391,54 +358,65 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyEnter:
 		// Insert newline
 		m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, "\n")
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyBackspace:
 		m.CurrentSQL, m.SQLCursorPos = ui.Backspace(m.CurrentSQL, m.SQLCursorPos)
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyDelete:
 		m.CurrentSQL = ui.DeleteAt(m.CurrentSQL, m.SQLCursorPos)
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyLeft:
 		if m.SQLCursorPos > 0 {
 			m.SQLCursorPos--
+			m.SQLScrollOffset = updateSQLScrollOffset(m)
 		}
 		return m, nil
 
 	case tea.KeyRight:
 		if m.SQLCursorPos < ui.RuneLen(m.CurrentSQL) {
 			m.SQLCursorPos++
+			m.SQLScrollOffset = updateSQLScrollOffset(m)
 		}
 		return m, nil
 
 	case tea.KeyUp:
 		// Move cursor up one line
 		m.SQLCursorPos = moveCursorUpInText(m.CurrentSQL, m.SQLCursorPos)
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyDown:
 		// Move cursor down one line
 		m.SQLCursorPos = moveCursorDownInText(m.CurrentSQL, m.SQLCursorPos)
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyHome, tea.KeyCtrlA:
 		m.SQLCursorPos = 0
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyEnd, tea.KeyCtrlE:
 		m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeySpace:
 		m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, " ")
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyRunes:
 		for _, r := range msg.Runes {
 			m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, string(r))
 		}
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 	}
 
