@@ -642,3 +642,54 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	return m, nil
 }
+
+// handleMouseClick handles mouse click events for pane selection
+func handleMouseClick(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
+	// Only handle left click (button press)
+	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {
+		return m, nil
+	}
+
+	// Ignore if dialogs are visible
+	if m.ConnectionDialogVisible || m.RecordDetailVisible {
+		return m, nil
+	}
+
+	x, y := msg.X, msg.Y
+
+	// Calculate pane boundaries
+	leftPaneWidth := ui.LeftPaneContentWidth
+
+	// If click is in the right pane (Data pane)
+	if x >= leftPaneWidth {
+		m.CurrentPane = FocusPaneData
+		return m, nil
+	}
+
+	// Click is in the left pane area
+	// Need to calculate vertical boundaries for each pane
+	// Connection pane is at the top, height varies but typically 5 lines
+	connectionHeight := m.ConnectionPaneHeight
+	if connectionHeight == 0 {
+		connectionHeight = 5
+	}
+
+	// Calculate pane boundaries (including borders)
+	connectionEnd := connectionHeight
+	tablesEnd := connectionEnd + m.TablesHeight + 2    // +2 for borders
+	schemaEnd := tablesEnd + m.SchemaHeight + 2        // +2 for borders
+	sqlEnd := schemaEnd + m.SQLHeight + 2              // +2 for borders
+
+	// Determine which pane was clicked based on Y position
+	if y < connectionEnd {
+		m.CurrentPane = FocusPaneConnection
+	} else if y < tablesEnd {
+		m.CurrentPane = FocusPaneTables
+	} else if y < schemaEnd {
+		m.CurrentPane = FocusPaneSchema
+	} else if y < sqlEnd {
+		m.CurrentPane = FocusPaneSQL
+	}
+
+	return m, nil
+}
