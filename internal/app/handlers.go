@@ -519,6 +519,29 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if totalRows > 0 {
 			m.SelectedDataRow = totalRows - 1
 			m.ViewportOffset = maxViewportOffset
+
+			// Check if we need to fetch more data
+			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+				tableName := m.Tables[m.SelectedTable]
+				if data, exists := m.TableData[tableName]; exists && data != nil {
+					if data.HasMore && !m.LoadingData {
+						// Custom SQL uses OFFSET pagination
+						if data.IsCustomSQL && data.CurrentSQL != "" {
+							m.LoadingData = true
+							return m, db.FetchMoreCustomSQL(m.NosqlClient, tableName, data.CurrentSQL, ui.DefaultFetchSize, data.Offset)
+						}
+						// Standard queries use PRIMARY KEY cursor pagination
+						if data.LastPKValues != nil {
+							m.LoadingData = true
+							var primaryKeys []string
+							if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+								primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+							}
+							return m, db.FetchMoreTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
+						}
+					}
+				}
+			}
 		}
 		return m, nil
 	}
