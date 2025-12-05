@@ -177,3 +177,37 @@ func buildDefaultSQL(tableName string, ddl string) string {
 	}
 	return sql
 }
+
+// calculateSchemaHeight calculates the schema pane height using the same logic as view.go
+func calculateSchemaHeight(m Model) int {
+	// Render connection pane and count its actual lines (same as view.go)
+	connectionPane := renderConnectionPane(m, ui.LeftPaneContentWidth)
+	connectionPaneHeight := strings.Count(connectionPane, "\n") + 1
+
+	availableHeight := m.Height - 1 - connectionPaneHeight - 6
+	partHeight := availableHeight / ui.PaneHeightTotalParts
+
+	tablesHeight := partHeight * ui.PaneHeightTablesParts
+	schemaHeight := partHeight * ui.PaneHeightSchemaParts
+	sqlHeight := partHeight * ui.PaneHeightSQLParts
+
+	remainder := availableHeight % ui.PaneHeightTotalParts
+	ui.DistributeSpace(remainder, &tablesHeight, &schemaHeight, &sqlHeight)
+
+	if tablesHeight < 3 {
+		tablesHeight = 3
+	}
+	if schemaHeight < 3 {
+		schemaHeight = 3
+	}
+	if sqlHeight < 2 {
+		sqlHeight = 2
+	}
+
+	usedHeight := tablesHeight + schemaHeight + sqlHeight
+	if usedHeight < availableHeight {
+		ui.DistributeSpace(availableHeight-usedHeight, &tablesHeight, &schemaHeight, &sqlHeight)
+	}
+
+	return schemaHeight
+}
