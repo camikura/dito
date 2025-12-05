@@ -576,17 +576,19 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if totalRows > 0 && m.SelectedDataRow < totalRows-1 {
 			m.SelectedDataRow++
 
+			// Calculate cursor position on screen (0-based from top of data area)
+			cursorScreenPos := m.SelectedDataRow - m.ViewportOffset
+
 			// Calculate middle position of visible area
 			middlePosition := dataVisibleLines / 2
 
 			// Scrolling logic:
-			// 1. First: cursor moves to middle (no scroll, VP stays 0)
-			// 2. Middle: cursor stays at middle, viewport scrolls
-			// 3. End: viewport stops at max, cursor moves to bottom
-			if m.SelectedDataRow > middlePosition && m.ViewportOffset < maxViewportOffset {
+			// If cursor is at or below middle of screen, scroll to keep it there
+			// If cursor is above middle (e.g., after data append), don't jump to middle
+			if cursorScreenPos > middlePosition && m.ViewportOffset < maxViewportOffset {
 				// Cursor has passed middle position and we can still scroll
-				// Keep cursor at middle by adjusting viewport
-				m.ViewportOffset = m.SelectedDataRow - middlePosition
+				// Scroll by 1 to keep cursor at same screen position
+				m.ViewportOffset++
 				if m.ViewportOffset > maxViewportOffset {
 					m.ViewportOffset = maxViewportOffset
 				}
