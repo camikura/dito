@@ -512,7 +512,7 @@ func TestHandleTablesKeys(t *testing.T) {
 		m.CursorTable = 0
 		m.TablesHeight = 10
 
-		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
 		if newModel.CursorTable != 1 {
 			t.Errorf("CursorTable = %d, want 1", newModel.CursorTable)
@@ -525,7 +525,7 @@ func TestHandleTablesKeys(t *testing.T) {
 		m.CursorTable = 2
 		m.TablesHeight = 10
 
-		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
 		if newModel.CursorTable != 1 {
 			t.Errorf("CursorTable = %d, want 1", newModel.CursorTable)
@@ -1240,26 +1240,26 @@ func TestHandleTablesKeysAdditional(t *testing.T) {
 		}
 	})
 
-	t.Run("j key moves down", func(t *testing.T) {
+	t.Run("Down arrow moves down", func(t *testing.T) {
 		m := InitialModel()
 		m.Tables = []string{"users", "products"}
 		m.CursorTable = 0
 		m.TablesHeight = 10
 
-		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
 		if newModel.CursorTable != 1 {
 			t.Errorf("CursorTable = %d, want 1", newModel.CursorTable)
 		}
 	})
 
-	t.Run("k key moves up", func(t *testing.T) {
+	t.Run("Up arrow moves up", func(t *testing.T) {
 		m := InitialModel()
 		m.Tables = []string{"users", "products"}
 		m.CursorTable = 1
 		m.TablesHeight = 10
 
-		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
 		if newModel.CursorTable != 0 {
 			t.Errorf("CursorTable = %d, want 0", newModel.CursorTable)
@@ -1282,13 +1282,13 @@ func TestHandleSchemaKeysAdditional(t *testing.T) {
 		}
 	})
 
-	t.Run("k key scrolls up", func(t *testing.T) {
+	t.Run("Up arrow scrolls up", func(t *testing.T) {
 		m := InitialModel()
 		m.Tables = []string{"users"}
 		m.SelectedTable = 0
 		m.SchemaScrollOffset = 2
 
-		newModel, _ := handleSchemaKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+		newModel, _ := handleSchemaKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
 		if newModel.SchemaScrollOffset != 1 {
 			t.Errorf("SchemaScrollOffset = %d, want 1", newModel.SchemaScrollOffset)
@@ -1309,12 +1309,12 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 		}
 	})
 
-	t.Run("h key scrolls left", func(t *testing.T) {
+	t.Run("Left arrow scrolls left", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
 		m.HorizontalOffset = 5
 
-		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
 
 		if newModel.HorizontalOffset != 4 {
 			t.Errorf("HorizontalOffset = %d, want 4", newModel.HorizontalOffset)
@@ -1355,7 +1355,7 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 		}
 	})
 
-	t.Run("j key moves down", func(t *testing.T) {
+	t.Run("Down arrow moves down", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
 		m.Tables = []string{"users"}
@@ -1370,14 +1370,14 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 			},
 		}
 
-		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
 		if newModel.SelectedDataRow != 1 {
 			t.Errorf("SelectedDataRow = %d, want 1", newModel.SelectedDataRow)
 		}
 	})
 
-	t.Run("k key moves up", func(t *testing.T) {
+	t.Run("Up arrow moves up", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
 		m.Tables = []string{"users"}
@@ -1392,7 +1392,7 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 			},
 		}
 
-		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
 		if newModel.SelectedDataRow != 0 {
 			t.Errorf("SelectedDataRow = %d, want 0", newModel.SelectedDataRow)
@@ -1414,7 +1414,7 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 }
 
 func TestHandleRecordDetailKeysAdditional(t *testing.T) {
-	t.Run("j key scrolls down", func(t *testing.T) {
+	t.Run("Down arrow scrolls down", func(t *testing.T) {
 		m := InitialModel()
 		m.RecordDetailVisible = true
 		m.RecordDetailScroll = 0
@@ -1431,19 +1431,19 @@ func TestHandleRecordDetailKeysAdditional(t *testing.T) {
 			"users": {Rows: []map[string]interface{}{row}},
 		}
 
-		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
 		if newModel.RecordDetailScroll != 1 {
 			t.Errorf("RecordDetailScroll = %d, want 1", newModel.RecordDetailScroll)
 		}
 	})
 
-	t.Run("k key scrolls up", func(t *testing.T) {
+	t.Run("Up arrow scrolls up", func(t *testing.T) {
 		m := InitialModel()
 		m.RecordDetailVisible = true
 		m.RecordDetailScroll = 5
 
-		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
 		if newModel.RecordDetailScroll != 4 {
 			t.Errorf("RecordDetailScroll = %d, want 4", newModel.RecordDetailScroll)

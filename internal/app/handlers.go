@@ -182,8 +182,29 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Calculate tables pane height using the same logic as view.go
 	visibleLines := calculateTablesHeight(m)
 
+	// Handle M-< and M-> (Alt+Shift+, and Alt+Shift+.)
+	// On Mac, these produce special characters: ¯ (175) and ˘ (728)
 	switch msg.String() {
-	case "up", "k":
+	case "alt+<", "¯":
+		// Jump to first table
+		m.CursorTable = 0
+		m.TablesScrollOffset = 0
+		return m, nil
+
+	case "alt+>", "˘":
+		// Jump to last table
+		if len(m.Tables) > 0 {
+			m.CursorTable = len(m.Tables) - 1
+			// Adjust scroll offset to show cursor
+			if m.CursorTable >= visibleLines {
+				m.TablesScrollOffset = m.CursorTable - visibleLines + 1
+			}
+		}
+		return m, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyUp, tea.KeyCtrlP:
 		if m.CursorTable > 0 {
 			m.CursorTable--
 
@@ -194,7 +215,7 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "down", "j":
+	case tea.KeyDown, tea.KeyCtrlN:
 		if m.CursorTable < len(m.Tables)-1 {
 			m.CursorTable++
 
@@ -205,7 +226,7 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "enter":
+	case tea.KeyEnter:
 		// Select table and load data (only on Enter)
 		if m.CursorTable < len(m.Tables) {
 			m.SelectedTable = m.CursorTable
@@ -281,14 +302,28 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		maxScroll = 0
 	}
 
+	// Handle M-< and M-> (Alt+Shift+, and Alt+Shift+.)
+	// On Mac, these produce special characters: ¯ (175) and ˘ (728)
 	switch msg.String() {
-	case "up", "k":
+	case "alt+<", "¯":
+		// Scroll to top
+		m.SchemaScrollOffset = 0
+		return m, nil
+
+	case "alt+>", "˘":
+		// Scroll to bottom
+		m.SchemaScrollOffset = maxScroll
+		return m, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyUp, tea.KeyCtrlP:
 		if m.SchemaScrollOffset > 0 {
 			m.SchemaScrollOffset--
 		}
 		return m, nil
 
-	case "down", "j":
+	case tea.KeyDown, tea.KeyCtrlN:
 		if m.SchemaScrollOffset < maxScroll {
 			m.SchemaScrollOffset++
 		}
@@ -464,62 +499,90 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Calculate max horizontal offset
 	maxHorizontalOffset := calculateMaxHorizontalOffset(m)
 
+	// Calculate maximum viewport offset
+	maxViewportOffset := totalRows - dataVisibleLines
+	if maxViewportOffset < 0 {
+		maxViewportOffset = 0
+	}
+
+	// Handle M-< and M-> (Alt+Shift+, and Alt+Shift+.)
+	// On Mac, these produce special characters: ¯ (175) and ˘ (728)
 	switch msg.String() {
-	case "up", "k":
+	case "alt+<", "¯":
+		// Jump to first row
+		m.SelectedDataRow = 0
+		m.ViewportOffset = 0
+		return m, nil
+
+	case "alt+>", "˘":
+		// Jump to last row, keeping cursor at center of screen (VS Code style)
+		if totalRows > 0 {
+			m.SelectedDataRow = totalRows - 1
+
+			// Calculate middle position of visible area
+			middlePosition := dataVisibleLines / 2
+
+			// Set viewport so cursor appears at center
+			// This leaves empty space below if at end of data
+			m.ViewportOffset = m.SelectedDataRow - middlePosition
+			if m.ViewportOffset < 0 {
+				m.ViewportOffset = 0
+			}
+
+			// Check if we need to fetch more data
+			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
+				tableName := m.Tables[m.SelectedTable]
+				if data, exists := m.TableData[tableName]; exists && data != nil {
+					if data.HasMore && !m.LoadingData {
+						// Custom SQL uses OFFSET pagination
+						if data.IsCustomSQL && data.CurrentSQL != "" {
+							m.LoadingData = true
+							return m, db.FetchMoreCustomSQL(m.NosqlClient, tableName, data.CurrentSQL, ui.DefaultFetchSize, data.Offset)
+						}
+						// Standard queries use PRIMARY KEY cursor pagination
+						if data.LastPKValues != nil {
+							m.LoadingData = true
+							var primaryKeys []string
+							if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
+								primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+							}
+							return m, db.FetchMoreTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
+						}
+					}
+				}
+			}
+		}
+		return m, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyUp, tea.KeyCtrlP:
 		if m.SelectedDataRow > 0 {
 			m.SelectedDataRow--
 
 			// Calculate middle position of visible area
 			middlePosition := dataVisibleLines / 2
 
-			// Calculate maximum viewport offset
-			maxViewportOffset := totalRows - dataVisibleLines
-			if maxViewportOffset < 0 {
-				maxViewportOffset = 0
-			}
-
-			// Scrolling logic (symmetric to down):
-			// When above middle, keep cursor at middle by adjusting viewport
-			// But never exceed maxViewportOffset (when at bottom)
-			// When at or below middle, viewport stays at 0
+			// Scrolling logic: keep cursor at middle of screen (VS Code style)
 			if m.SelectedDataRow > middlePosition {
-				// Still above middle - keep cursor at middle
 				m.ViewportOffset = m.SelectedDataRow - middlePosition
-				// But don't exceed max offset
-				if m.ViewportOffset > maxViewportOffset {
-					m.ViewportOffset = maxViewportOffset
-				}
 			} else {
-				// At or below middle - viewport is 0
 				m.ViewportOffset = 0
 			}
 		}
 		return m, nil
 
-	case "down", "j":
+	case tea.KeyDown, tea.KeyCtrlN:
 		if totalRows > 0 && m.SelectedDataRow < totalRows-1 {
 			m.SelectedDataRow++
 
 			// Calculate middle position of visible area
 			middlePosition := dataVisibleLines / 2
 
-			// Calculate maximum viewport offset (when last row is at bottom of screen)
-			maxViewportOffset := totalRows - dataVisibleLines
-			if maxViewportOffset < 0 {
-				maxViewportOffset = 0
-			}
-
-			// Scrolling logic:
-			// 1. First: cursor moves to middle (no scroll, VP stays 0)
-			// 2. Middle: cursor stays at middle, viewport scrolls
-			// 3. End: viewport stops at max, cursor moves to bottom
-			if m.SelectedDataRow > middlePosition && m.ViewportOffset < maxViewportOffset {
-				// Cursor has passed middle position and we can still scroll
-				// Keep cursor at middle by adjusting viewport
+			// Scrolling logic: keep cursor at middle of screen (VS Code style)
+			// This allows scrolling past the last row to show empty space below
+			if m.SelectedDataRow > middlePosition {
 				m.ViewportOffset = m.SelectedDataRow - middlePosition
-				if m.ViewportOffset > maxViewportOffset {
-					m.ViewportOffset = maxViewportOffset
-				}
 			}
 
 			// Check if we need to fetch more data
@@ -548,19 +611,19 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "left", "h":
+	case tea.KeyLeft, tea.KeyCtrlB:
 		if m.HorizontalOffset > 0 {
 			m.HorizontalOffset--
 		}
 		return m, nil
 
-	case "right", "l":
+	case tea.KeyRight, tea.KeyCtrlF:
 		if m.HorizontalOffset < maxHorizontalOffset {
 			m.HorizontalOffset++
 		}
 		return m, nil
 
-	case "enter":
+	case tea.KeyEnter:
 		// Show record detail dialog
 		if totalRows > 0 && m.SelectedDataRow < totalRows {
 			m.RecordDetailVisible = true
@@ -568,7 +631,7 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "esc":
+	case tea.KeyEscape:
 		// Reset to default SQL (only if custom SQL is active)
 		if m.CustomSQL {
 			m.CustomSQL = false
@@ -598,6 +661,16 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.SQLCursorPos = 0
 		}
 		return m, nil
+
+	case tea.KeyCtrlA:
+		// Scroll to leftmost
+		m.HorizontalOffset = 0
+		return m, nil
+
+	case tea.KeyCtrlE:
+		// Scroll to rightmost
+		m.HorizontalOffset = maxHorizontalOffset
+		return m, nil
 	}
 
 	return m, nil
@@ -607,36 +680,36 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Calculate max scroll for record detail
 	maxScroll := calculateRecordDetailMaxScroll(m)
 
-	switch msg.String() {
-	case "ctrl+c":
+	switch msg.Type {
+	case tea.KeyCtrlC:
 		return m, tea.Quit
 
-	case "esc":
+	case tea.KeyEscape:
 		m.RecordDetailVisible = false
 		m.RecordDetailScroll = 0
 		return m, nil
 
-	case "up", "k":
+	case tea.KeyUp, tea.KeyCtrlP:
 		if m.RecordDetailScroll > 0 {
 			m.RecordDetailScroll--
 		}
 		return m, nil
 
-	case "down", "j":
+	case tea.KeyDown, tea.KeyCtrlN:
 		if m.RecordDetailScroll < maxScroll {
 			m.RecordDetailScroll++
 		}
 		return m, nil
 
-	case "home":
+	case tea.KeyHome:
 		m.RecordDetailScroll = 0
 		return m, nil
 
-	case "end":
+	case tea.KeyEnd:
 		m.RecordDetailScroll = maxScroll
 		return m, nil
 
-	case "pgup":
+	case tea.KeyPgUp:
 		// Scroll up by page
 		m.RecordDetailScroll -= ui.PageScrollAmount
 		if m.RecordDetailScroll < 0 {
@@ -644,7 +717,7 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "pgdown":
+	case tea.KeyPgDown:
 		// Scroll down by page
 		m.RecordDetailScroll += ui.PageScrollAmount
 		if m.RecordDetailScroll > maxScroll {

@@ -139,6 +139,8 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 			existingData.LastPKValues = msg.LastPKValues
 			existingData.HasMore = msg.HasMore
 			existingData.Offset = msg.Offset
+			// Viewport offset stays unchanged - cursor remains at center
+			// and new data appears below in the previously empty space
 		}
 	} else {
 		// Store new data
