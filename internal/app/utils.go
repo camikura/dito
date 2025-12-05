@@ -51,6 +51,47 @@ func moveCursorUpInText(text string, cursorPos int) int {
 	return newPos
 }
 
+// moveCursorToLineStart moves cursor to the beginning of the current line (Emacs Ctrl+A)
+func moveCursorToLineStart(text string, cursorPos int) int {
+	lines := strings.Split(text, "\n")
+	if len(lines) <= 1 {
+		return 0 // Single line, go to start
+	}
+
+	// Find current line start
+	currentPos := 0
+	for _, line := range lines {
+		lineLen := len([]rune(line)) + 1 // +1 for newline
+		if currentPos+lineLen > cursorPos {
+			return currentPos // Return start of current line
+		}
+		currentPos += lineLen
+	}
+
+	return currentPos // Fallback
+}
+
+// moveCursorToLineEnd moves cursor to the end of the current line (Emacs Ctrl+E)
+func moveCursorToLineEnd(text string, cursorPos int) int {
+	lines := strings.Split(text, "\n")
+	if len(lines) <= 1 {
+		return len([]rune(text)) // Single line, go to end
+	}
+
+	// Find current line end
+	currentPos := 0
+	for _, line := range lines {
+		lineLen := len([]rune(line)) + 1 // +1 for newline
+		if currentPos+lineLen > cursorPos {
+			// End of line is before the newline character
+			return currentPos + len([]rune(line))
+		}
+		currentPos += lineLen
+	}
+
+	return len([]rune(text)) // Fallback
+}
+
 // moveCursorDownInText moves cursor down one line in multi-line text
 func moveCursorDownInText(text string, cursorPos int) int {
 	lines := strings.Split(text, "\n")
