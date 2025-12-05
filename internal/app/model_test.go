@@ -13,43 +13,43 @@ func TestInitialModel(t *testing.T) {
 	}
 
 	// Check not connected
-	if model.Connected {
-		t.Error("InitialModel() Connected should be false")
+	if model.Connection.Connected {
+		t.Error("InitialModel() Connection.Connected should be false")
 	}
 
 	// Check tables is empty slice
-	if model.Tables == nil {
-		t.Error("InitialModel() Tables should not be nil")
+	if model.Tables.Tables == nil {
+		t.Error("InitialModel() Tables.Tables should not be nil")
 	}
-	if len(model.Tables) != 0 {
-		t.Errorf("InitialModel() Tables length = %d, want 0", len(model.Tables))
+	if len(model.Tables.Tables) != 0 {
+		t.Errorf("InitialModel() Tables.Tables length = %d, want 0", len(model.Tables.Tables))
 	}
 
 	// Check selection indices
-	if model.SelectedTable != -1 {
-		t.Errorf("InitialModel() SelectedTable = %d, want -1", model.SelectedTable)
+	if model.Tables.SelectedTable != -1 {
+		t.Errorf("InitialModel() Tables.SelectedTable = %d, want -1", model.Tables.SelectedTable)
 	}
-	if model.CursorTable != 0 {
-		t.Errorf("InitialModel() CursorTable = %d, want 0", model.CursorTable)
+	if model.Tables.CursorTable != 0 {
+		t.Errorf("InitialModel() Tables.CursorTable = %d, want 0", model.Tables.CursorTable)
 	}
-	if model.PreviousSelectedTable != -1 {
-		t.Errorf("InitialModel() PreviousSelectedTable = %d, want -1", model.PreviousSelectedTable)
+	if model.SQL.PreviousSelectedTable != -1 {
+		t.Errorf("InitialModel() SQL.PreviousSelectedTable = %d, want -1", model.SQL.PreviousSelectedTable)
 	}
 
 	// Check maps are initialized
-	if model.TableDetails == nil {
-		t.Error("InitialModel() TableDetails map should be initialized")
+	if model.Schema.TableDetails == nil {
+		t.Error("InitialModel() Schema.TableDetails map should be initialized")
 	}
-	if model.TableData == nil {
-		t.Error("InitialModel() TableData map should be initialized")
+	if model.Data.TableData == nil {
+		t.Error("InitialModel() Data.TableData map should be initialized")
 	}
 
 	// Check SQL state
-	if model.CurrentSQL != "" {
-		t.Errorf("InitialModel() CurrentSQL = %q, want empty", model.CurrentSQL)
+	if model.SQL.CurrentSQL != "" {
+		t.Errorf("InitialModel() SQL.CurrentSQL = %q, want empty", model.SQL.CurrentSQL)
 	}
-	if model.CustomSQL {
-		t.Error("InitialModel() CustomSQL should be false")
+	if model.SQL.CustomSQL {
+		t.Error("InitialModel() SQL.CustomSQL should be false")
 	}
 }
 
@@ -103,7 +103,7 @@ func TestPrevPane(t *testing.T) {
 
 func TestFindTableName(t *testing.T) {
 	m := Model{
-		Tables: []string{"Users", "Products", "Orders", "users.addresses"},
+		Tables: TablesState{Tables: []string{"Users", "Products", "Orders", "users.addresses"}},
 	}
 
 	tests := []struct {
@@ -133,7 +133,7 @@ func TestFindTableName(t *testing.T) {
 }
 
 func TestFindTableName_EmptyTables(t *testing.T) {
-	m := Model{Tables: []string{}}
+	m := Model{Tables: TablesState{Tables: []string{}}}
 
 	result := m.FindTableName("users")
 	if result != "" {
@@ -143,7 +143,7 @@ func TestFindTableName_EmptyTables(t *testing.T) {
 
 func TestFindTableIndex(t *testing.T) {
 	m := Model{
-		Tables: []string{"Users", "Products", "Orders", "users.addresses"},
+		Tables: TablesState{Tables: []string{"Users", "Products", "Orders", "users.addresses"}},
 	}
 
 	tests := []struct {
@@ -173,7 +173,7 @@ func TestFindTableIndex(t *testing.T) {
 }
 
 func TestFindTableIndex_EmptyTables(t *testing.T) {
-	m := Model{Tables: []string{}}
+	m := Model{Tables: TablesState{Tables: []string{}}}
 
 	result := m.FindTableIndex("users")
 	if result != -1 {

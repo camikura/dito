@@ -14,12 +14,12 @@ func TestGetFooterHelp(t *testing.T) {
 	}{
 		{
 			name:     "Connection pane not connected",
-			model:    Model{CurrentPane: FocusPaneConnection, Connected: false},
+			model:    Model{CurrentPane: FocusPaneConnection, Connection: ConnectionState{Connected: false}},
 			expected: "Setup: <enter>",
 		},
 		{
 			name:     "Connection pane connected",
-			model:    Model{CurrentPane: FocusPaneConnection, Connected: true},
+			model:    Model{CurrentPane: FocusPaneConnection, Connection: ConnectionState{Connected: true}},
 			expected: "Disconnect: ctrl+d",
 		},
 		{
@@ -39,22 +39,22 @@ func TestGetFooterHelp(t *testing.T) {
 		},
 		{
 			name:     "Data pane normal",
-			model:    Model{CurrentPane: FocusPaneData, CustomSQL: false},
+			model:    Model{CurrentPane: FocusPaneData, SQL: SQLState{CustomSQL: false}},
 			expected: "Copy: ctrl+c | Detail: <enter>",
 		},
 		{
 			name:     "Data pane custom SQL",
-			model:    Model{CurrentPane: FocusPaneData, CustomSQL: true},
+			model:    Model{CurrentPane: FocusPaneData, SQL: SQLState{CustomSQL: true}},
 			expected: "Copy: ctrl+c | Detail: <enter> | Reset: esc",
 		},
 		{
 			name:     "Copy message shown",
-			model:    Model{CurrentPane: FocusPaneData, CopyMessage: "Copied to clipboard"},
+			model:    Model{CurrentPane: FocusPaneData, UI: UIState{CopyMessage: "Copied to clipboard"}},
 			expected: "Copied to clipboard",
 		},
 		{
 			name:     "Quit confirmation shown",
-			model:    Model{CurrentPane: FocusPaneData, QuitConfirmation: true},
+			model:    Model{CurrentPane: FocusPaneData, UI: UIState{QuitConfirmation: true}},
 			expected: "Press ctrl+q again to quit",
 		},
 	}
@@ -159,8 +159,8 @@ func TestBuildFooterContentNarrowWidth(t *testing.T) {
 func TestRenderViewMinimumSize(t *testing.T) {
 	t.Run("zero width returns loading", func(t *testing.T) {
 		m := InitialModel()
-		m.Width = 0
-		m.Height = 30
+		m.Window.Width = 0
+		m.Window.Height = 30
 
 		result := RenderView(m)
 
@@ -171,8 +171,8 @@ func TestRenderViewMinimumSize(t *testing.T) {
 
 	t.Run("narrow width returns message", func(t *testing.T) {
 		m := InitialModel()
-		m.Width = 30 // Too narrow
-		m.Height = 30
+		m.Window.Width = 30 // Too narrow
+		m.Window.Height = 30
 
 		result := RenderView(m)
 
@@ -183,8 +183,8 @@ func TestRenderViewMinimumSize(t *testing.T) {
 
 	t.Run("short height returns message", func(t *testing.T) {
 		m := InitialModel()
-		m.Width = 120
-		m.Height = 15 // Too short (< 20)
+		m.Window.Width = 120
+		m.Window.Height = 15 // Too short (< 20)
 
 		result := RenderView(m)
 
@@ -195,8 +195,8 @@ func TestRenderViewMinimumSize(t *testing.T) {
 
 	t.Run("minimum valid size renders without crash", func(t *testing.T) {
 		m := InitialModel()
-		m.Width = 70  // Just above minimum
-		m.Height = 25 // Just above minimum (>= 20)
+		m.Window.Width = 70  // Just above minimum
+		m.Window.Height = 25 // Just above minimum (>= 20)
 
 		// Should not panic
 		result := RenderView(m)
@@ -212,12 +212,12 @@ func TestFooterWidthConsistency(t *testing.T) {
 	width := 120
 
 	paneStates := []Model{
-		{CurrentPane: FocusPaneConnection, Connected: false},
-		{CurrentPane: FocusPaneConnection, Connected: true},
+		{CurrentPane: FocusPaneConnection, Connection: ConnectionState{Connected: false}},
+		{CurrentPane: FocusPaneConnection, Connection: ConnectionState{Connected: true}},
 		{CurrentPane: FocusPaneTables},
 		{CurrentPane: FocusPaneSQL},
-		{CurrentPane: FocusPaneData, CustomSQL: false},
-		{CurrentPane: FocusPaneData, CustomSQL: true},
+		{CurrentPane: FocusPaneData, SQL: SQLState{CustomSQL: false}},
+		{CurrentPane: FocusPaneData, SQL: SQLState{CustomSQL: true}},
 	}
 
 	for _, m := range paneStates {

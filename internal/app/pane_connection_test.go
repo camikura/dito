@@ -8,8 +8,8 @@ import (
 func TestRenderConnectionPane(t *testing.T) {
 	t.Run("not connected shows not configured", func(t *testing.T) {
 		m := InitialModel()
-		m.Connected = false
-		m.Endpoint = ""
+		m.Connection.Connected = false
+		m.Connection.Endpoint = ""
 
 		result := renderConnectionPane(m, 30)
 
@@ -20,8 +20,8 @@ func TestRenderConnectionPane(t *testing.T) {
 
 	t.Run("connected shows endpoint", func(t *testing.T) {
 		m := InitialModel()
-		m.Connected = true
-		m.Endpoint = "localhost:8080"
+		m.Connection.Connected = true
+		m.Connection.Endpoint = "localhost:8080"
 
 		result := renderConnectionPane(m, 30)
 
@@ -35,7 +35,7 @@ func TestRenderConnectionPane(t *testing.T) {
 
 	t.Run("shows error message when present", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionMsg = "Connection failed"
+		m.Connection.Message = "Connection failed"
 
 		result := renderConnectionPane(m, 30)
 
@@ -46,7 +46,7 @@ func TestRenderConnectionPane(t *testing.T) {
 
 	t.Run("truncates long error message", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionMsg = "This is a very long error message that should be truncated"
+		m.Connection.Message = "This is a very long error message that should be truncated"
 
 		result := renderConnectionPane(m, 30)
 

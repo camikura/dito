@@ -12,7 +12,7 @@ import (
 func TestRenderDataPane(t *testing.T) {
 	t.Run("no table selected shows message", func(t *testing.T) {
 		m := InitialModel()
-		m.SelectedTable = -1
+		m.Tables.SelectedTable = -1
 
 		result := renderDataPane(m, 60, 20)
 
@@ -23,10 +23,10 @@ func TestRenderDataPane(t *testing.T) {
 
 	t.Run("shows loading message", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.LoadingData = true
-		m.TableData = make(map[string]*db.TableDataResult)
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.LoadingData = true
+		m.Data.TableData = make(map[string]*db.TableDataResult)
 
 		result := renderDataPane(m, 60, 20)
 
@@ -37,9 +37,9 @@ func TestRenderDataPane(t *testing.T) {
 
 	t.Run("shows no rows message", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.TableData = map[string]*db.TableDataResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {Rows: []map[string]interface{}{}},
 		}
 
@@ -52,9 +52,9 @@ func TestRenderDataPane(t *testing.T) {
 
 	t.Run("shows error message", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.DataErrorMsg = "Query failed"
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.ErrorMsg = "Query failed"
 
 		result := renderDataPane(m, 60, 20)
 
@@ -65,9 +65,9 @@ func TestRenderDataPane(t *testing.T) {
 
 	t.Run("shows table name in title", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.TableData = map[string]*db.TableDataResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {Rows: []map[string]interface{}{}},
 		}
 
@@ -80,11 +80,11 @@ func TestRenderDataPane(t *testing.T) {
 
 	t.Run("renders data rows", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.Width = 80
-		m.Height = 30
-		m.TableData = map[string]*db.TableDataResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Window.Width = 80
+		m.Window.Height = 30
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {
 				Rows: []map[string]interface{}{
 					{"id": 1, "name": "Alice"},
@@ -92,7 +92,7 @@ func TestRenderDataPane(t *testing.T) {
 				},
 			},
 		}
-		m.TableDetails = map[string]*db.TableDetailsResult{
+		m.Schema.TableDetails = map[string]*db.TableDetailsResult{
 			"users": {TableName: "users"},
 		}
 
@@ -106,10 +106,10 @@ func TestRenderDataPane(t *testing.T) {
 
 	t.Run("custom SQL shows extracted table name", func(t *testing.T) {
 		m := InitialModel()
-		m.CustomSQL = true
-		m.CurrentSQL = "SELECT * FROM products"
-		m.Tables = []string{"users", "products"}
-		m.TableData = map[string]*db.TableDataResult{
+		m.SQL.CustomSQL = true
+		m.SQL.CurrentSQL = "SELECT * FROM products"
+		m.Tables.Tables = []string{"users", "products"}
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"products": {Rows: []map[string]interface{}{}},
 		}
 
@@ -145,7 +145,7 @@ func TestRenderBottomBorderWithScrollbar(t *testing.T) {
 func TestGetColumnTypes(t *testing.T) {
 	t.Run("returns empty map when no schema", func(t *testing.T) {
 		m := InitialModel()
-		m.TableDetails = make(map[string]*db.TableDetailsResult)
+		m.Schema.TableDetails = make(map[string]*db.TableDetailsResult)
 
 		result := getColumnTypes(m, "users", []string{"id", "name"})
 

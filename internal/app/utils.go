@@ -141,7 +141,7 @@ func moveCursorDownInText(text string, cursorPos int) int {
 // shouldFetch indicates whether the threshold condition is met (e.g., remaining rows <= threshold).
 // Returns nil if no fetch is needed.
 func fetchMoreDataIfNeeded(m Model, shouldFetch bool) tea.Cmd {
-	if m.LoadingData {
+	if m.Data.LoadingData {
 		return nil
 	}
 
@@ -161,7 +161,7 @@ func fetchMoreDataIfNeeded(m Model, shouldFetch bool) tea.Cmd {
 
 	// Custom SQL uses OFFSET pagination
 	if data.IsCustomSQL && data.CurrentSQL != "" {
-		return db.FetchMoreCustomSQL(m.NosqlClient, tableName, data.CurrentSQL, ui.DefaultFetchSize, data.Offset)
+		return db.FetchMoreCustomSQL(m.Connection.NosqlClient, tableName, data.CurrentSQL, ui.DefaultFetchSize, data.Offset)
 	}
 
 	// Standard queries use PRIMARY KEY cursor pagination
@@ -170,7 +170,7 @@ func fetchMoreDataIfNeeded(m Model, shouldFetch bool) tea.Cmd {
 		if details := m.GetSelectedTableDetails(); details != nil && details.Schema != nil && details.Schema.DDL != "" {
 			primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
 		}
-		return db.FetchMoreTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
+		return db.FetchMoreTableData(m.Connection.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
 	}
 
 	return nil
@@ -197,7 +197,7 @@ func calculateMaxHorizontalOffset(m Model) int {
 
 	// Calculate viewport width (right pane width - borders)
 	leftPaneContentWidth := ui.LeftPaneContentWidth
-	rightPaneWidth := m.Width - leftPaneContentWidth - 2 // -2 for borders
+	rightPaneWidth := m.Window.Width - leftPaneContentWidth - 2 // -2 for borders
 
 	// Max offset is total width minus viewport width
 	maxOffset := totalWidth - rightPaneWidth
@@ -216,18 +216,18 @@ func calculateRecordDetailMaxScroll(m Model) int {
 	}
 
 	data := m.GetSelectedTableData()
-	if data == nil || m.SelectedDataRow >= len(data.Rows) {
+	if data == nil || m.Data.SelectedDataRow >= len(data.Rows) {
 		return 0
 	}
 
-	row := data.Rows[m.SelectedDataRow]
+	row := data.Rows[m.Data.SelectedDataRow]
 
 	// Get columns in order
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
 	// Calculate dialog dimensions (must match dialogs.go)
-	dialogWidth := m.Width * ui.DialogSizeRatio / ui.DialogSizeDivisor
-	dialogHeight := m.Height * ui.DialogSizeRatio / ui.DialogSizeDivisor
+	dialogWidth := m.Window.Width * ui.DialogSizeRatio / ui.DialogSizeDivisor
+	dialogHeight := m.Window.Height * ui.DialogSizeRatio / ui.DialogSizeDivisor
 	contentWidth := dialogWidth - 2 // borders
 	innerWidth := contentWidth - 2  // padding (1 on each side)
 	contentHeight := dialogHeight - 2
@@ -268,7 +268,7 @@ func calculatePaneHeights(m Model) (tablesHeight, schemaHeight, sqlHeight int) {
 	connectionPane := renderConnectionPane(m, ui.LeftPaneContentWidth)
 	connectionPaneHeight := strings.Count(connectionPane, "\n") + 1
 
-	availableHeight := m.Height - ui.FooterHeight - connectionPaneHeight - ui.LayoutBorderOverhead
+	availableHeight := m.Window.Height - ui.FooterHeight - connectionPaneHeight - ui.LayoutBorderOverhead
 	partHeight := availableHeight / ui.PaneHeightTotalParts
 
 	tablesHeight = partHeight * ui.PaneHeightTablesParts
@@ -317,7 +317,7 @@ func calculateSQLHeight(m Model) int {
 // calculateSchemaContentLineCount calculates the number of content lines in the schema pane
 // This must match the logic in pane_tables.go renderSchemaPaneWithHeight
 func calculateSchemaContentLineCount(m Model, schemaTableName string) int {
-	details, exists := m.TableDetails[schemaTableName]
+	details, exists := m.Schema.TableDetails[schemaTableName]
 	if !exists || details == nil {
 		return 1 // "Loading..." or similar
 	}
@@ -327,7 +327,7 @@ func calculateSchemaContentLineCount(m Model, schemaTableName string) int {
 	// Count inherited primary key columns from ancestors
 	ancestors := ui.GetAncestorTableNames(schemaTableName)
 	for _, ancestorName := range ancestors {
-		if ancestorDetails, ancestorExists := m.TableDetails[ancestorName]; ancestorExists && ancestorDetails != nil && ancestorDetails.Schema != nil && ancestorDetails.Schema.DDL != "" {
+		if ancestorDetails, ancestorExists := m.Schema.TableDetails[ancestorName]; ancestorExists && ancestorDetails != nil && ancestorDetails.Schema != nil && ancestorDetails.Schema.DDL != "" {
 			ancestorPKs := ui.ParsePrimaryKeysFromDDL(ancestorDetails.Schema.DDL)
 			ancestorCols := ui.ParseColumnsFromDDL(ancestorDetails.Schema.DDL, ancestorPKs)
 			for _, col := range ancestorCols {
@@ -361,7 +361,7 @@ func updateSQLScrollOffset(m Model) int {
 	contentWidth := ui.LeftPaneContentWidth - 2 // Width inside borders
 
 	// Calculate which wrapped line the cursor is on
-	sqlRunes := []rune(m.CurrentSQL)
+	sqlRunes := []rune(m.SQL.CurrentSQL)
 	cursorLineIndex := 0
 
 	if len(sqlRunes) > 0 {
@@ -373,7 +373,7 @@ func updateSQLScrollOffset(m Model) int {
 			charWidth := lipgloss.Width(string(r))
 
 			if r == '\n' {
-				if m.SQLCursorPos >= lineStart && m.SQLCursorPos <= i {
+				if m.SQL.CursorPos >= lineStart && m.SQL.CursorPos <= i {
 					cursorLineIndex = lineCount
 					break
 				}
@@ -381,7 +381,7 @@ func updateSQLScrollOffset(m Model) int {
 				lineStart = i + 1
 				lineWidth = 0
 			} else if lineWidth+charWidth > contentWidth && lineWidth > 0 {
-				if m.SQLCursorPos >= lineStart && m.SQLCursorPos < i {
+				if m.SQL.CursorPos >= lineStart && m.SQL.CursorPos < i {
 					cursorLineIndex = lineCount
 					break
 				}
@@ -394,13 +394,13 @@ func updateSQLScrollOffset(m Model) int {
 		}
 
 		// Check if cursor is in the last segment
-		if m.SQLCursorPos >= lineStart {
+		if m.SQL.CursorPos >= lineStart {
 			cursorLineIndex = lineCount
 		}
 	}
 
 	// Adjust scroll offset to keep cursor visible
-	scrollOffset := m.SQLScrollOffset
+	scrollOffset := m.SQL.ScrollOffset
 	if cursorLineIndex < scrollOffset {
 		scrollOffset = cursorLineIndex
 	} else if cursorLineIndex >= scrollOffset+sqlHeight {

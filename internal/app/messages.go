@@ -13,16 +13,16 @@ import (
 func handleConnectionResult(m Model, msg db.ConnectionResult) (Model, tea.Cmd) {
 	if msg.Err != nil {
 		// Connection failed
-		m.Connected = false
-		m.ConnectionMsg = msg.Err.Error()
+		m.Connection.Connected = false
+		m.Connection.Message = msg.Err.Error()
 		return m, nil
 	}
 
 	// Connection successful
-	m.Connected = true
-	m.NosqlClient = msg.Client
-	m.Endpoint = msg.Endpoint
-	m.ConnectionMsg = ""
+	m.Connection.Connected = true
+	m.Connection.NosqlClient = msg.Client
+	m.Connection.Endpoint = msg.Endpoint
+	m.Connection.Message = ""
 
 	// Fetch table list
 	return m, db.FetchTables(msg.Client)
@@ -35,9 +35,9 @@ func handleTableListResult(m Model, msg db.TableListResult) (Model, tea.Cmd) {
 	}
 
 	// Sort tables for tree display (parents before children)
-	m.Tables = sortTablesForTree(msg.Tables)
-	if len(m.Tables) > 0 {
-		m.CursorTable = 0
+	m.Tables.Tables = sortTablesForTree(msg.Tables)
+	if len(m.Tables.Tables) > 0 {
+		m.Tables.CursorTable = 0
 		// SelectedTable stays at -1 until user presses Enter
 	}
 
@@ -95,25 +95,25 @@ func sortTablesForTree(tables []string) []string {
 
 func handleTableDetailsResult(m Model, msg db.TableDetailsResult) (Model, tea.Cmd) {
 	if msg.Err != nil {
-		m.SchemaErrorMsg = msg.Err.Error()
-		m.LoadingData = false
+		m.Schema.ErrorMsg = msg.Err.Error()
+		m.Data.LoadingData = false
 		return m, nil
 	}
 
 	// Clear any previous error
-	m.SchemaErrorMsg = ""
-	m.TableDetails[msg.TableName] = &msg
+	m.Schema.ErrorMsg = ""
+	m.Schema.TableDetails[msg.TableName] = &msg
 
 	// If this is the selected table and we're waiting for data, fetch it now
-	if m.LoadingData && !m.CustomSQL && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-		tableName := m.Tables[m.SelectedTable]
+	if m.Data.LoadingData && !m.SQL.CustomSQL && m.Tables.SelectedTable >= 0 && m.Tables.SelectedTable < len(m.Tables.Tables) {
+		tableName := m.Tables.Tables[m.Tables.SelectedTable]
 		if tableName == msg.TableName && msg.Schema != nil {
 			// Update SQL with ORDER BY
 			primaryKeys := ui.ParsePrimaryKeysFromDDL(msg.Schema.DDL)
-			m.CurrentSQL = buildDefaultSQL(tableName, msg.Schema.DDL)
-			m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+			m.SQL.CurrentSQL = buildDefaultSQL(tableName, msg.Schema.DDL)
+			m.SQL.CursorPos = ui.RuneLen(m.SQL.CurrentSQL)
 			// Now fetch data with proper ORDER BY
-			return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+			return m, db.FetchTableData(m.Connection.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
 		}
 	}
 
@@ -122,17 +122,17 @@ func handleTableDetailsResult(m Model, msg db.TableDetailsResult) (Model, tea.Cm
 
 func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 	if msg.Err != nil {
-		m.LoadingData = false
-		m.DataErrorMsg = msg.Err.Error()
+		m.Data.LoadingData = false
+		m.Data.ErrorMsg = msg.Err.Error()
 		return m, nil
 	}
 
 	// Clear any previous error
-	m.DataErrorMsg = ""
+	m.Data.ErrorMsg = ""
 
 	// If this is an append operation (additional data fetch), merge with existing data
 	if msg.IsAppend {
-		if existingData, exists := m.TableData[msg.TableName]; exists && existingData != nil {
+		if existingData, exists := m.Data.TableData[msg.TableName]; exists && existingData != nil {
 			// Append new rows to existing rows
 			existingData.Rows = append(existingData.Rows, msg.Rows...)
 			// Update pagination info
@@ -144,7 +144,7 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 		}
 	} else {
 		// Store new data
-		m.TableData[msg.TableName] = &db.TableDataResult{
+		m.Data.TableData[msg.TableName] = &db.TableDataResult{
 			TableName:    msg.TableName,
 			Rows:         msg.Rows,
 			LastPKValues: msg.LastPKValues,
@@ -156,6 +156,6 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 		}
 	}
 
-	m.LoadingData = false
+	m.Data.LoadingData = false
 	return m, nil
 }

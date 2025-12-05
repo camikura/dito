@@ -16,7 +16,7 @@ func renderConnectionPane(m Model, width int) string {
 
 	var titleText string
 	var titleDisplayWidth int
-	if m.Connected {
+	if m.Connection.Connected {
 		checkmark := ui.StyleCheckmark.Render("✓")
 		titleText = titleStyle.Render(" Connection ") + checkmark + " "
 		titleDisplayWidth = 14
@@ -34,14 +34,14 @@ func renderConnectionPane(m Model, width int) string {
 	title := borderStyle.Render("╭─") + titleText + borderStyle.Render(strings.Repeat("─", dashesLen)+"╮")
 
 	content := "(not configured)"
-	if m.ConnectionMsg != "" {
+	if m.Connection.Message != "" {
 		// Show error message if connection failed
-		content = m.ConnectionMsg
+		content = m.Connection.Message
 		if len(content) > width-4 {
 			content = content[:width-7] + "..."
 		}
-	} else if m.Endpoint != "" {
-		content = m.Endpoint
+	} else if m.Connection.Endpoint != "" {
+		content = m.Connection.Endpoint
 	}
 
 	// Pad content to width (no left/right padding)
