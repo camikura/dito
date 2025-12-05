@@ -57,10 +57,12 @@ jobs:
       - name: Create archive
         run: |
           ARCHIVE_NAME=dito-${{ steps.version.outputs.VERSION }}-${{ matrix.suffix }}
+          mkdir -p bin
+          mv dito${{ matrix.ext }} bin/
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            zip ${ARCHIVE_NAME}.zip dito${{ matrix.ext }}
+            zip -r ${ARCHIVE_NAME}.zip bin/
           else
-            tar czf ${ARCHIVE_NAME}.tar.gz dito${{ matrix.ext }}
+            tar czf ${ARCHIVE_NAME}.tar.gz bin/
           fi
 
       - name: Upload artifact
