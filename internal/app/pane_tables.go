@@ -26,8 +26,12 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	}
 	titleText += " "
 
+	dashCount := width - ui.RuneLen(titleText) - 3
+	if dashCount < 0 {
+		dashCount = 0
+	}
 	styledTitle := titleStyle.Render(titleText)
-	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", width-len(titleText)-3) + "╮")
+	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", dashCount) + "╮")
 
 	// Prepare content lines with tree structure
 	type tableLineInfo struct {
@@ -159,9 +163,9 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 
 	// Truncate title if too long (leave room for borders: ╭─ ... ─╮)
 	maxTitleLen := width - 3
-	if len(titleText) > maxTitleLen {
+	if ui.RuneLen(titleText) > maxTitleLen {
 		// Truncate table name within title
-		maxTableNameLen := maxTitleLen - len(" Schema (...) ")
+		maxTableNameLen := maxTitleLen - ui.RuneLen(" Schema (...) ")
 		if maxTableNameLen > 3 {
 			titleText = " Schema (" + ui.TruncateString(schemaTableName, maxTableNameLen) + ") "
 		} else {
@@ -171,14 +175,17 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 
 	// Schema pane can be focused for scrolling
 	borderStyle := ui.StyleBorderInactive
+	titleStyle := ui.StyleTitleInactive
 	if m.CurrentPane == FocusPaneSchema {
 		borderStyle = ui.StyleBorderActive
+		titleStyle = ui.StyleTitleActive
 	}
-	dashCount := width - len(titleText) - 3
+	dashCount := width - ui.RuneLen(titleText) - 3
 	if dashCount < 0 {
 		dashCount = 0
 	}
-	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", dashCount) + "╮")
+	styledTitle := titleStyle.Render(titleText)
+	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", dashCount) + "╮")
 
 	// Prepare content lines
 	var contentLines []string

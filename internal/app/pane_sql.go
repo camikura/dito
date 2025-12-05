@@ -26,8 +26,12 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	if m.CustomSQL {
 		titleText = " SQL [Custom] "
 	}
+	dashCount := width - ui.RuneLen(titleText) - 3
+	if dashCount < 0 {
+		dashCount = 0
+	}
 	styledTitle := titleStyle.Render(titleText)
-	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", width-len(titleText)-3) + "╮")
+	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", dashCount) + "╮")
 
 	leftBorder := borderStyle.Render("│")
 	rightBorder := borderStyle.Render("│")
