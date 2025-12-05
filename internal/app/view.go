@@ -108,6 +108,16 @@ func RenderView(m Model) string {
 
 // getFooterHelp returns the footer help text based on the current pane and state
 func getFooterHelp(m Model) string {
+	// Show quit confirmation message if pending
+	if m.QuitConfirmation {
+		return "Press ctrl+q again to quit"
+	}
+
+	// Show copy message if present
+	if m.CopyMessage != "" {
+		return m.CopyMessage
+	}
+
 	switch m.CurrentPane {
 	case FocusPaneConnection:
 		if m.Connected {
@@ -120,9 +130,9 @@ func getFooterHelp(m Model) string {
 		return "Execute: ctrl+r"
 	case FocusPaneData:
 		if m.CustomSQL {
-			return "Detail: <enter> | Reset: esc"
+			return "Copy: ctrl+c | Detail: <enter> | Reset: esc"
 		}
-		return "Detail: <enter>"
+		return "Copy: ctrl+c | Detail: <enter>"
 	}
 	return ""
 }

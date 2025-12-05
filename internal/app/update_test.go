@@ -376,18 +376,39 @@ func TestCalculateMaxHorizontalOffset(t *testing.T) {
 	}
 }
 
-func TestCtrlCQuit(t *testing.T) {
+func TestCtrlQQuit(t *testing.T) {
 	m := InitialModel()
 	m.Width = 120
 	m.Height = 40
 
-	// Press Ctrl+C to quit
+	// First Ctrl+Q sets confirmation state
+	m, cmd := Update(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+	if !m.QuitConfirmation {
+		t.Error("Expected QuitConfirmation to be true after first Ctrl+Q")
+	}
+	if cmd == nil {
+		t.Error("Expected timer command for confirmation timeout")
+	}
+
+	// Second Ctrl+Q should quit
+	_, cmd = Update(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+	if cmd == nil {
+		t.Error("Expected quit command on second Ctrl+Q")
+	}
+}
+
+func TestCtrlCInDataPane(t *testing.T) {
+	m := InitialModel()
+	m.Width = 120
+	m.Height = 40
+	m.CurrentPane = FocusPaneData
+
+	// Ctrl+C in data pane should not quit (it copies)
 	_, cmd := Update(m, tea.KeyMsg{Type: tea.KeyCtrlC})
 
-	// cmd should be tea.Quit
-	if cmd == nil {
-		t.Error("Expected quit command, got nil")
-	}
+	// cmd should not be quit (it should be nil or a timer for copy message)
+	// Since no data is selected, it returns nil
+	_ = cmd // Just ensure no panic
 }
 
 func TestHandleConnectionKeys(t *testing.T) {

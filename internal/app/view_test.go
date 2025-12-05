@@ -40,12 +40,22 @@ func TestGetFooterHelp(t *testing.T) {
 		{
 			name:     "Data pane normal",
 			model:    Model{CurrentPane: FocusPaneData, CustomSQL: false},
-			expected: "Detail: <enter>",
+			expected: "Copy: ctrl+c | Detail: <enter>",
 		},
 		{
 			name:     "Data pane custom SQL",
 			model:    Model{CurrentPane: FocusPaneData, CustomSQL: true},
-			expected: "Detail: <enter> | Reset: esc",
+			expected: "Copy: ctrl+c | Detail: <enter> | Reset: esc",
+		},
+		{
+			name:     "Copy message shown",
+			model:    Model{CurrentPane: FocusPaneData, CopyMessage: "Copied to clipboard"},
+			expected: "Copied to clipboard",
+		},
+		{
+			name:     "Quit confirmation shown",
+			model:    Model{CurrentPane: FocusPaneData, QuitConfirmation: true},
+			expected: "Press ctrl+q again to quit",
 		},
 	}
 

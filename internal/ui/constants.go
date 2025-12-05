@@ -1,5 +1,7 @@
 package ui
 
+import "time"
+
 // Layout constants
 const (
 	// LeftPaneContentWidth is the content width for left panes (excluding borders).
@@ -46,4 +48,13 @@ const (
 const (
 	// PageScrollAmount is the number of lines to scroll for page up/down.
 	PageScrollAmount = 10
+)
+
+// Message duration constants
+const (
+	// CopyMessageDuration is how long to show copy success/failure message.
+	CopyMessageDuration = 2 * time.Second
+
+	// QuitConfirmationTimeout is how long quit confirmation remains active.
+	QuitConfirmationTimeout = 3 * time.Second
 )

@@ -73,6 +73,14 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 
 	case db.TableDataResult:
 		return handleTableDataResult(m, msg)
+
+	case clearCopyMessageMsg:
+		m.CopyMessage = ""
+		return m, nil
+
+	case clearQuitConfirmationMsg:
+		m.QuitConfirmation = false
+		return m, nil
 	}
 
 	return m, nil
