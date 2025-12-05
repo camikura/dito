@@ -22,7 +22,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 
 	titleText := " Tables"
 	if len(m.Tables) > 0 {
-		titleText += " (" + string(rune(len(m.Tables)+48)) + ")"
+		titleText += fmt.Sprintf(" (%d)", len(m.Tables))
 	}
 	titleText += " "
 
@@ -52,6 +52,9 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 		contentLines = []tableLineInfo{{text: "No tables", isSelected: false, isCursor: false}}
 	} else {
 		// Render each table with tree structure
+		// Calculate available width for table name (excluding borders)
+		availableWidth := width - 2 // -2 for left and right borders
+
 		for i, tableName := range m.Tables {
 			// Determine indentation based on '.' separator
 			indent := ""
@@ -71,8 +74,16 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 				prefix = "  "
 			}
 
+			// Truncate if too long
+			fullText := prefix + indent + displayName
+			maxTextWidth := availableWidth
+			if ui.RuneLen(fullText) > maxTextWidth {
+				// Truncate with ellipsis
+				fullText = ui.TruncateString(fullText, maxTextWidth)
+			}
+
 			contentLines = append(contentLines, tableLineInfo{
-				text:       prefix + indent + displayName,
+				text:       fullText,
 				isSelected: isSelected,
 				isCursor:   i == m.CursorTable,
 			})
@@ -101,8 +112,8 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 			} else {
 				styledText = ui.StyleTableNormal.Render(lineInfo.text)
 			}
-			// Calculate padding (based on original text length, not styled)
-			paddingLen := width - len(lineInfo.text) - 2
+			// Calculate padding (based on rune length for correct display width)
+			paddingLen := width - ui.RuneLen(lineInfo.text) - 2
 			if paddingLen < 0 {
 				paddingLen = 0
 			}

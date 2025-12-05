@@ -405,6 +405,26 @@ INSERT INTO nested_json VALUES (6, "Complex structure", {"company": {"name": "Te
 INSERT INTO nested_json VALUES (7, "Long strings in nested", {"article": {"title": "Understanding Database Design Patterns for Modern Applications", "author": {"name": "Dr. Jane Smith", "bio": "Dr. Jane Smith is a renowned database architect with over 20 years of experience in designing scalable systems for Fortune 500 companies. She has authored multiple books on database optimization and speaks regularly at international conferences."}, "content": {"introduction": "In this comprehensive guide, we will explore the fundamental principles of database design that every software engineer should understand. From normalization to denormalization, from ACID compliance to eventual consistency, we cover it all.", "sections": [{"title": "Chapter 1: The Basics", "body": "Database design is both an art and a science. It requires understanding not just the technical aspects but also the business requirements and user behavior patterns that will drive the system."}, {"title": "Chapter 2: Advanced Patterns", "body": "Once you have mastered the basics, it is time to explore advanced patterns such as event sourcing, CQRS, and materialized views. These patterns can significantly improve performance and maintainability of your applications."}], "conclusion": "By following the principles outlined in this guide, you will be well-equipped to design databases that are both performant and maintainable. Remember that the best database design is one that evolves with your application needs."}}});
 INSERT INTO nested_json VALUES (8, "Array with long items", {"logs": [{"timestamp": "2024-01-15T10:30:00Z", "level": "ERROR", "message": "Failed to connect to database server at db.example.com:5432. Connection timed out after 30 seconds. Please check network connectivity and firewall rules.", "stacktrace": "at ConnectionPool.getConnection(ConnectionPool.java:142) at DatabaseService.query(DatabaseService.java:89) at UserRepository.findById(UserRepository.java:45)"}, {"timestamp": "2024-01-15T10:30:05Z", "level": "WARN", "message": "Retrying database connection. Attempt 2 of 5. Previous error: Connection refused. The server may be overloaded or temporarily unavailable.", "context": {"retry_count": 2, "max_retries": 5, "backoff_ms": 1000}}, {"timestamp": "2024-01-15T10:30:10Z", "level": "INFO", "message": "Successfully established database connection after 2 retry attempts. Connection pool initialized with 10 connections. Average connection time: 250ms."}]});
 
+-- Test table with very long name (over 40 characters)
+CREATE TABLE IF NOT EXISTS this_is_a_very_long_table_name_that_should_definitely_overflow_the_tables_pane_width (
+    id INTEGER,
+    name STRING,
+    PRIMARY KEY(id)
+);
+
+INSERT INTO this_is_a_very_long_table_name_that_should_definitely_overflow_the_tables_pane_width VALUES (1, "Test data 1");
+INSERT INTO this_is_a_very_long_table_name_that_should_definitely_overflow_the_tables_pane_width VALUES (2, "Test data 2");
+
+-- Child table with very long name
+CREATE TABLE IF NOT EXISTS this_is_a_very_long_table_name_that_should_definitely_overflow_the_tables_pane_width.also_a_very_long_child_table_name_for_testing (
+    child_id INTEGER,
+    value STRING,
+    PRIMARY KEY(child_id)
+);
+
+INSERT INTO this_is_a_very_long_table_name_that_should_definitely_overflow_the_tables_pane_width.also_a_very_long_child_table_name_for_testing VALUES (1, 1, "Child 1");
+INSERT INTO this_is_a_very_long_table_name_that_should_definitely_overflow_the_tables_pane_width.also_a_very_long_child_table_name_for_testing VALUES (1, 2, "Child 2");
+
 -- Index creation
 CREATE INDEX IF NOT EXISTS email_idx ON users (email);
 CREATE INDEX IF NOT EXISTS name_idx ON users (name);
