@@ -56,12 +56,12 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 		availableWidth := width - 2 // -2 for left and right borders
 
 		for i, tableName := range m.Tables {
-			// Determine indentation based on '.' separator
-			indent := ""
+			// Determine indentation based on nesting level (count of '.' separators)
+			nestLevel := strings.Count(tableName, ".")
+			indent := strings.Repeat(" ", nestLevel)
 			displayName := tableName
 			if dotIndex := strings.LastIndex(tableName, "."); dotIndex != -1 {
-				// Child table - indent and show only the child part
-				indent = " "
+				// Child table - show only the last part of the name
 				displayName = tableName[dotIndex+1:]
 			}
 
@@ -157,12 +157,28 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 		titleText = " Schema (" + schemaTableName + ") "
 	}
 
+	// Truncate title if too long (leave room for borders: ╭─ ... ─╮)
+	maxTitleLen := width - 3
+	if len(titleText) > maxTitleLen {
+		// Truncate table name within title
+		maxTableNameLen := maxTitleLen - len(" Schema (...) ")
+		if maxTableNameLen > 3 {
+			titleText = " Schema (" + ui.TruncateString(schemaTableName, maxTableNameLen) + ") "
+		} else {
+			titleText = " Schema "
+		}
+	}
+
 	// Schema pane can be focused for scrolling
 	borderStyle := ui.StyleBorderInactive
 	if m.CurrentPane == FocusPaneSchema {
 		borderStyle = ui.StyleBorderActive
 	}
-	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", width-len(titleText)-3) + "╮")
+	dashCount := width - len(titleText) - 3
+	if dashCount < 0 {
+		dashCount = 0
+	}
+	title := borderStyle.Render("╭─" + titleText + strings.Repeat("─", dashCount) + "╮")
 
 	// Prepare content lines
 	var contentLines []string

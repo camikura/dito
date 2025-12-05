@@ -425,6 +425,49 @@ CREATE TABLE IF NOT EXISTS this_is_a_very_long_table_name_that_should_definitely
 INSERT INTO this_is_a_very_long_table_name_that_should_definitely_overflow_the_tables_pane_width.also_a_very_long_child_table_name_for_testing VALUES (1, 1, "Child 1");
 INSERT INTO this_is_a_very_long_table_name_that_should_definitely_overflow_the_tables_pane_width.also_a_very_long_child_table_name_for_testing VALUES (1, 2, "Child 2");
 
+-- Test table with deep nesting (4 levels)
+CREATE TABLE IF NOT EXISTS level1 (
+    id1 INTEGER,
+    name STRING,
+    PRIMARY KEY(id1)
+);
+
+CREATE TABLE IF NOT EXISTS level1.level2 (
+    id2 INTEGER,
+    value STRING,
+    PRIMARY KEY(id2)
+);
+
+CREATE TABLE IF NOT EXISTS level1.level2.level3 (
+    id3 INTEGER,
+    data STRING,
+    PRIMARY KEY(id3)
+);
+
+CREATE TABLE IF NOT EXISTS level1.level2.level3.level4 (
+    id4 INTEGER,
+    info STRING,
+    PRIMARY KEY(id4)
+);
+
+CREATE TABLE IF NOT EXISTS level1.level2.level3.level4.level5 (
+    id5 INTEGER,
+    detail STRING,
+    PRIMARY KEY(id5)
+);
+
+INSERT INTO level1 VALUES (1, "Root 1");
+INSERT INTO level1 VALUES (2, "Root 2");
+INSERT INTO level1.level2 VALUES (1, 1, "Child 1-1");
+INSERT INTO level1.level2 VALUES (1, 2, "Child 1-2");
+INSERT INTO level1.level2 VALUES (2, 1, "Child 2-1");
+INSERT INTO level1.level2.level3 VALUES (1, 1, 1, "Grandchild 1-1-1");
+INSERT INTO level1.level2.level3 VALUES (1, 1, 2, "Grandchild 1-1-2");
+INSERT INTO level1.level2.level3.level4 VALUES (1, 1, 1, 1, "Great-grandchild 1-1-1-1");
+INSERT INTO level1.level2.level3.level4 VALUES (1, 1, 1, 2, "Great-grandchild 1-1-1-2");
+INSERT INTO level1.level2.level3.level4.level5 VALUES (1, 1, 1, 1, 1, "Level5 1-1-1-1-1");
+INSERT INTO level1.level2.level3.level4.level5 VALUES (1, 1, 1, 1, 2, "Level5 1-1-1-1-2");
+
 -- Index creation
 CREATE INDEX IF NOT EXISTS email_idx ON users (email);
 CREATE INDEX IF NOT EXISTS name_idx ON users (name);
