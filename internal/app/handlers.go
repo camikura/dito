@@ -1,6 +1,8 @@
 package app
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/camikura/dito/internal/db"
@@ -19,8 +21,22 @@ func handleKeyPress(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
+	case "ctrl+q":
+		// Quit confirmation: first press shows message, second press quits
+		if m.QuitConfirmation {
+			return m, tea.Quit
+		}
+		m.QuitConfirmation = true
+		return m, tea.Tick(ui.QuitConfirmationTimeout, func(_ time.Time) tea.Msg {
+			return clearQuitConfirmationMsg{}
+		})
+
 	case "ctrl+c":
-		return m, tea.Quit
+		// In data pane, Ctrl+C copies selected row
+		if m.CurrentPane == FocusPaneData {
+			return handleDataCopy(m)
+		}
+		return m, nil
 
 	case "tab":
 		// Only allow pane switching when connected
@@ -675,6 +691,47 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	return m, nil
 }
+
+// handleDataCopy copies the selected row to clipboard
+func handleDataCopy(m Model) (Model, tea.Cmd) {
+	// Get selected row data
+	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+		return m, nil
+	}
+
+	tableName := m.Tables[m.SelectedTable]
+	data, exists := m.TableData[tableName]
+	if !exists || data == nil || len(data.Rows) == 0 {
+		return m, nil
+	}
+
+	if m.SelectedDataRow < 0 || m.SelectedDataRow >= len(data.Rows) {
+		return m, nil
+	}
+
+	row := data.Rows[m.SelectedDataRow]
+
+	// Get column order to match display order
+	columnOrder := getColumnsInSchemaOrder(m, tableName, data.Rows)
+
+	err := ui.CopyRowToClipboard(row, columnOrder)
+	if err != nil {
+		m.CopyMessage = "Copy failed: " + err.Error()
+	} else {
+		m.CopyMessage = "Copied to clipboard"
+	}
+
+	// Clear message after a short delay using a timer command
+	return m, tea.Tick(ui.CopyMessageDuration, func(_ time.Time) tea.Msg {
+		return clearCopyMessageMsg{}
+	})
+}
+
+// clearCopyMessageMsg is sent to clear the copy message
+type clearCopyMessageMsg struct{}
+
+// clearQuitConfirmationMsg is sent to clear the quit confirmation state
+type clearQuitConfirmationMsg struct{}
 
 func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Calculate max scroll for record detail

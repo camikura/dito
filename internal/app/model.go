@@ -71,6 +71,10 @@ type Model struct {
 	RecordDetailVisible bool
 	RecordDetailScroll  int // Scroll offset for record detail dialog
 
+	// Status messages
+	CopyMessage      string // Temporary message shown after copy operation
+	QuitConfirmation bool   // Whether quit confirmation is pending
+
 	// SQL cursor position (for inline editing)
 	SQLCursorPos int
 
