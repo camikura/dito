@@ -595,6 +595,9 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	maxScroll := calculateRecordDetailMaxScroll(m)
 
 	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+
 	case "esc":
 		m.RecordDetailVisible = false
 		m.RecordDetailScroll = 0
