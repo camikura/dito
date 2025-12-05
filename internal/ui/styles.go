@@ -44,15 +44,16 @@ var (
 
 // Common text styles
 var (
-	StyleTitle    = lipgloss.NewStyle().Foreground(ColorWhite).Bold(true)
-	StyleNormal   = lipgloss.NewStyle().Foreground(ColorWhite)
-	StyleFocused  = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
-	StyleSelected = lipgloss.NewStyle().Foreground(ColorWhite).Background(ColorPrimaryBg) // Background highlight
-	StyleHeader   = lipgloss.NewStyle().Foreground(ColorHeaderText).Bold(true).Underline(true) // Table header with underline (dark green)
-	StyleLabel    = lipgloss.NewStyle().Foreground(ColorGray)
-	StyleDim      = lipgloss.NewStyle().Foreground(ColorGrayMid) // Dim text for null values
-	StyleSuccess  = lipgloss.NewStyle().Foreground(ColorSuccess)
-	StyleError    = lipgloss.NewStyle().Foreground(ColorError)
+	StyleTitle            = lipgloss.NewStyle().Foreground(ColorWhite).Bold(true)
+	StyleNormal           = lipgloss.NewStyle().Foreground(ColorWhite)
+	StyleFocused          = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
+	StyleSelected         = lipgloss.NewStyle().Foreground(ColorWhite).Background(ColorPrimaryBg)         // Background highlight (focused)
+	StyleSelectedUnfocused = lipgloss.NewStyle().Foreground(ColorWhite).Background(ColorGrayLightBg)      // Background highlight (unfocused)
+	StyleHeader           = lipgloss.NewStyle().Foreground(ColorHeaderText).Bold(true).Underline(true)    // Table header with underline (dark green)
+	StyleLabel            = lipgloss.NewStyle().Foreground(ColorGray)
+	StyleDim              = lipgloss.NewStyle().Foreground(ColorGrayMid) // Dim text for null values
+	StyleSuccess          = lipgloss.NewStyle().Foreground(ColorSuccess)
+	StyleError            = lipgloss.NewStyle().Foreground(ColorError)
 )
 
 // Layout styles

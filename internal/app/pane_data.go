@@ -198,6 +198,7 @@ func renderGridViewWithScrollInfo(m Model, tableName string, data *db.TableDataR
 	grid.SelectedRow = m.SelectedDataRow
 	grid.ShowLoading = m.LoadingData
 	grid.HasMore = data.HasMore
+	grid.IsFocused = m.CurrentPane == FocusPaneData
 
 	// Calculate viewport rows (contentLines minus header and separator)
 	viewportRows := contentLines - 2

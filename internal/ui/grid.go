@@ -31,6 +31,9 @@ type Grid struct {
 	// Loading state
 	ShowLoading bool // Show "Loading..." at the bottom when fetching more data
 	HasMore     bool // Whether there are more rows to fetch
+
+	// Focus state
+	IsFocused bool // Whether the grid has focus (affects selection style)
 }
 
 // GridColumn represents a column definition.
@@ -233,8 +236,13 @@ func (g *Grid) renderRow(row map[string]interface{}, isSelected bool) string {
 		if len(nullPositions) > 0 {
 			scrolledLine = g.applyNullStylingWithSelection(scrolledLine, nullPositions)
 		} else {
+			// Use different background color based on focus state
+			bgColor := ColorPrimaryBg
+			if !g.IsFocused {
+				bgColor = ColorGrayLightBg
+			}
 			scrolledLine = lipgloss.NewStyle().
-				Background(ColorPrimaryBg).
+				Background(bgColor).
 				Foreground(ColorWhite).
 				Render(scrolledLine)
 		}
@@ -295,8 +303,13 @@ func (g *Grid) applyNullStylingWithSelection(line string, nullRegions []nullRegi
 	runes := []rune(line)
 	var result strings.Builder
 
-	selectedStyle := lipgloss.NewStyle().Background(ColorPrimaryBg).Foreground(ColorWhite)
-	selectedNullStyle := lipgloss.NewStyle().Background(ColorPrimaryBg).Foreground(ColorGrayMid)
+	// Use different background color based on focus state
+	bgColor := ColorPrimaryBg
+	if !g.IsFocused {
+		bgColor = ColorGrayLightBg
+	}
+	selectedStyle := lipgloss.NewStyle().Background(bgColor).Foreground(ColorWhite)
+	selectedNullStyle := lipgloss.NewStyle().Background(bgColor).Foreground(ColorGrayMid)
 
 	i := 0
 	for i < len(runes) {
