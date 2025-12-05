@@ -41,14 +41,6 @@ func NewRecordDetail(config RecordDetailConfig) *RecordDetail {
 		config.Padding = 1
 	}
 
-	// Create vertical table and render content
-	vt := VerticalTable{
-		Data: config.Row,
-		Keys: config.Columns,
-	}
-	content := vt.Render()
-	lines := strings.Split(content, "\n")
-
 	// Calculate content dimensions
 	contentWidth := config.Width - 2 // Subtract left/right borders
 	if contentWidth < 1 {
@@ -60,6 +52,15 @@ func NewRecordDetail(config RecordDetailConfig) *RecordDetail {
 	if innerWidth < 1 {
 		innerWidth = 1
 	}
+
+	// Create vertical table and render content with wrapping
+	vt := VerticalTable{
+		Data:     config.Row,
+		Keys:     config.Columns,
+		MaxWidth: innerWidth,
+	}
+	content := vt.Render()
+	lines := strings.Split(content, "\n")
 
 	// Calculate content height (excluding borders)
 	contentHeight := config.Height - 2
