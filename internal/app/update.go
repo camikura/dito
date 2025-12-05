@@ -13,11 +13,11 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 		return handleMouseClick(m, msg)
 
 	case tea.WindowSizeMsg:
-		m.Width = msg.Width
-		m.Height = msg.Height
+		m.Window.Width = msg.Width
+		m.Window.Height = msg.Height
 
 		// Calculate pane heights using shared utility
-		m.TablesHeight, m.SchemaHeight, m.SQLHeight = calculatePaneHeights(m)
+		m.Window.TablesHeight, m.Window.SchemaHeight, m.Window.SQLHeight = calculatePaneHeights(m)
 
 		return m, nil
 
@@ -37,11 +37,11 @@ func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 		return handleTableDataResult(m, msg)
 
 	case clearCopyMessageMsg:
-		m.CopyMessage = ""
+		m.UI.CopyMessage = ""
 		return m, nil
 
 	case clearQuitConfirmationMsg:
-		m.QuitConfirmation = false
+		m.UI.QuitConfirmation = false
 		return m, nil
 	}
 

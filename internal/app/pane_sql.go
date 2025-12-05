@@ -19,7 +19,7 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 
 	// Add [Custom] label if custom SQL is active
 	titleText := " SQL "
-	if m.CustomSQL {
+	if m.SQL.CustomSQL {
 		titleText = " SQL [Custom] "
 	}
 	dashCount := width - ui.RuneLen(titleText) - 3
@@ -41,7 +41,7 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	}
 
 	var wrappedLines []wrappedLine
-	sqlRunes := []rune(m.CurrentSQL)
+	sqlRunes := []rune(m.SQL.CurrentSQL)
 	cursorLineIndex := 0 // Track which wrapped line has the cursor
 
 	if len(sqlRunes) == 0 {
@@ -62,8 +62,8 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 				// End of logical line
 				line := string(sqlRunes[lineStart:i])
 				cursorCol := -1
-				if isFocused && m.SQLCursorPos >= lineStart && m.SQLCursorPos <= i {
-					cursorCol = m.SQLCursorPos - lineStart
+				if isFocused && m.SQL.CursorPos >= lineStart && m.SQL.CursorPos <= i {
+					cursorCol = m.SQL.CursorPos - lineStart
 					cursorLineIndex = len(wrappedLines)
 				}
 				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
@@ -73,8 +73,8 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 				// Wrap line
 				line := string(sqlRunes[lineStart:i])
 				cursorCol := -1
-				if isFocused && m.SQLCursorPos >= lineStart && m.SQLCursorPos < i {
-					cursorCol = m.SQLCursorPos - lineStart
+				if isFocused && m.SQL.CursorPos >= lineStart && m.SQL.CursorPos < i {
+					cursorCol = m.SQL.CursorPos - lineStart
 					cursorLineIndex = len(wrappedLines)
 				}
 				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
@@ -90,8 +90,8 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 			line := string(sqlRunes[lineStart:])
 			lineDisplayWidth := lipgloss.Width(line)
 			cursorCol := -1
-			if isFocused && m.SQLCursorPos >= lineStart {
-				cursorCol = m.SQLCursorPos - lineStart
+			if isFocused && m.SQL.CursorPos >= lineStart {
+				cursorCol = m.SQL.CursorPos - lineStart
 				cursorLineIndex = len(wrappedLines)
 				// If cursor is at end and line is full width, move cursor to next line
 				if cursorCol == len([]rune(line)) && lineDisplayWidth >= contentWidth {
@@ -108,7 +108,7 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	}
 
 	// Calculate scroll offset to keep cursor visible
-	scrollOffset := m.SQLScrollOffset
+	scrollOffset := m.SQL.ScrollOffset
 	if cursorLineIndex < scrollOffset {
 		scrollOffset = cursorLineIndex
 	} else if cursorLineIndex >= scrollOffset+height {

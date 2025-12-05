@@ -21,11 +21,11 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	// Build title with table name if available
 	// For custom SQL, show extracted table name even if not in tables list
 	var dataTableName string
-	if m.CustomSQL && m.CurrentSQL != "" {
+	if m.SQL.CustomSQL && m.SQL.CurrentSQL != "" {
 		// Use extracted name directly (may include child table like orders.addresses)
-		dataTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
-	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-		dataTableName = m.Tables[m.SelectedTable]
+		dataTableName = ui.ExtractTableNameFromSQL(m.SQL.CurrentSQL)
+	} else if m.Tables.SelectedTable >= 0 && m.Tables.SelectedTable < len(m.Tables.Tables) {
+		dataTableName = m.Tables.Tables[m.Tables.SelectedTable]
 	}
 
 	var titleText string
@@ -76,10 +76,10 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	// Determine which table's data to display
 	// For custom SQL, use the extracted table name; otherwise use SelectedTable
 	var dataLookupTableName string
-	if m.CustomSQL && m.CurrentSQL != "" {
-		dataLookupTableName = ui.ExtractTableNameFromSQL(m.CurrentSQL)
-	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-		dataLookupTableName = m.Tables[m.SelectedTable]
+	if m.SQL.CustomSQL && m.SQL.CurrentSQL != "" {
+		dataLookupTableName = ui.ExtractTableNameFromSQL(m.SQL.CurrentSQL)
+	} else if m.Tables.SelectedTable >= 0 && m.Tables.SelectedTable < len(m.Tables.Tables) {
+		dataLookupTableName = m.Tables.Tables[m.Tables.SelectedTable]
 	}
 
 	// Prepare content
@@ -101,10 +101,10 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 			result.WriteString(leftBorder + styledLine + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 		}
 	} else {
-		data, exists := m.TableData[dataLookupTableName]
-		if m.DataErrorMsg != "" {
+		data, exists := m.Data.TableData[dataLookupTableName]
+		if m.Data.ErrorMsg != "" {
 			// Show error message
-			errMsg := m.DataErrorMsg
+			errMsg := m.Data.ErrorMsg
 			maxLen := width - 4
 			if len(errMsg) > maxLen {
 				errMsg = errMsg[:maxLen-3] + "..."
@@ -125,7 +125,7 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 		} else if !exists || data == nil {
 			// No data loaded yet
 			message := "No data"
-			if m.LoadingData {
+			if m.Data.LoadingData {
 				message = "Loading..."
 			}
 			for i := 0; i < contentLines; i++ {
@@ -166,7 +166,7 @@ func renderDataPane(m Model, width int, totalHeight int) string {
 	}
 
 	// Render bottom border with scrollbar
-	bottomBorder := renderBottomBorderWithScrollbar(borderStyle, width, totalContentWidth, viewportWidth, m.HorizontalOffset)
+	bottomBorder := renderBottomBorderWithScrollbar(borderStyle, width, totalContentWidth, viewportWidth, m.Data.HorizontalOffset)
 	result.WriteString(bottomBorder)
 
 	return result.String()
@@ -210,10 +210,10 @@ func renderGridViewWithScrollInfo(m Model, tableName string, data *db.TableDataR
 	grid := ui.NewGrid(columns, columnTypes, data.Rows)
 	grid.Width = contentWidth
 	grid.Height = contentLines
-	grid.HorizontalOffset = m.HorizontalOffset
-	grid.VerticalOffset = m.ViewportOffset
-	grid.SelectedRow = m.SelectedDataRow
-	grid.ShowLoading = m.LoadingData
+	grid.HorizontalOffset = m.Data.HorizontalOffset
+	grid.VerticalOffset = m.Data.ViewportOffset
+	grid.SelectedRow = m.Data.SelectedDataRow
+	grid.ShowLoading = m.Data.LoadingData
 	grid.HasMore = data.HasMore
 	grid.IsFocused = m.CurrentPane == FocusPaneData
 
@@ -229,7 +229,7 @@ func renderGridViewWithScrollInfo(m Model, tableName string, data *db.TableDataR
 		viewportWidth:  contentWidth,
 		totalRows:      len(data.Rows),
 		viewportRows:   viewportRows,
-		verticalOffset: m.ViewportOffset,
+		verticalOffset: m.Data.ViewportOffset,
 	}
 
 	// Create vertical scrollbar
@@ -262,7 +262,7 @@ func renderGridViewWithScrollInfo(m Model, tableName string, data *db.TableDataR
 func getColumnTypes(m Model, tableName string, columns []string) map[string]string {
 	// Get DDL from table details
 	var ddl string
-	if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+	if details, exists := m.Schema.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
 		ddl = details.Schema.DDL
 	}
 

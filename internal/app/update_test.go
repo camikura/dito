@@ -251,17 +251,17 @@ func TestUpdateWindowSize(t *testing.T) {
 	// Send window size message
 	newModel, _ := Update(m, tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	if newModel.Width != 120 {
-		t.Errorf("Width = %d, want 120", newModel.Width)
+	if newModel.Window.Width != 120 {
+		t.Errorf("Width = %d, want 120", newModel.Window.Width)
 	}
-	if newModel.Height != 40 {
-		t.Errorf("Height = %d, want 40", newModel.Height)
+	if newModel.Window.Height != 40 {
+		t.Errorf("Height = %d, want 40", newModel.Window.Height)
 	}
 }
 
 func TestNextPrevPane(t *testing.T) {
 	m := InitialModel()
-	m.Connected = true // Enable pane switching
+	m.Connection.Connected = true // Enable pane switching
 
 	// Test NextPane cycle
 	panes := []FocusPane{
@@ -288,10 +288,10 @@ func TestNextPrevPane(t *testing.T) {
 
 func TestPaneSwitchingDisabledWhenDisconnected(t *testing.T) {
 	m := InitialModel()
-	m.Connected = false
+	m.Connection.Connected = false
 	m.CurrentPane = FocusPaneConnection
-	m.Width = 120
-	m.Height = 40
+	m.Window.Width = 120
+	m.Window.Height = 40
 
 	// Try to switch panes with Tab
 	newModel, _ := Update(m, tea.KeyMsg{Type: tea.KeyTab})
@@ -313,8 +313,7 @@ func TestGetColumnsInSchemaOrder(t *testing.T) {
 		{
 			name: "with custom SQL column order",
 			model: Model{
-				CustomSQL:   true,
-				ColumnOrder: []string{"name", "id", "email"},
+				SQL: SQLState{CustomSQL: true, ColumnOrder: []string{"name", "id", "email"}},
 			},
 			table:    "users",
 			rows:     []map[string]interface{}{{"id": 1, "name": "test", "email": "test@example.com"}},
@@ -323,8 +322,7 @@ func TestGetColumnsInSchemaOrder(t *testing.T) {
 		{
 			name: "without custom SQL - use row keys",
 			model: Model{
-				CustomSQL:   false,
-				ColumnOrder: nil,
+				SQL: SQLState{CustomSQL: false, ColumnOrder: nil},
 			},
 			table:    "users",
 			rows:     []map[string]interface{}{{"id": 1, "name": "test"}},
@@ -351,16 +349,15 @@ func TestCalculateMaxHorizontalOffset(t *testing.T) {
 		{
 			name: "no table selected",
 			model: Model{
-				SelectedTable: -1,
+				Tables: TablesState{SelectedTable: -1},
 			},
 			expected: 0,
 		},
 		{
 			name: "table selected but no data",
 			model: Model{
-				Tables:        []string{"users"},
-				SelectedTable: 0,
-				TableData:     map[string]*db.TableDataResult{},
+				Tables: TablesState{Tables: []string{"users"}, SelectedTable: 0},
+				Data:   DataState{TableData: map[string]*db.TableDataResult{}},
 			},
 			expected: 0,
 		},
@@ -378,12 +375,12 @@ func TestCalculateMaxHorizontalOffset(t *testing.T) {
 
 func TestCtrlQQuit(t *testing.T) {
 	m := InitialModel()
-	m.Width = 120
-	m.Height = 40
+	m.Window.Width = 120
+	m.Window.Height = 40
 
 	// First Ctrl+Q sets confirmation state
 	m, cmd := Update(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
-	if !m.QuitConfirmation {
+	if !m.UI.QuitConfirmation {
 		t.Error("Expected QuitConfirmation to be true after first Ctrl+Q")
 	}
 	if cmd == nil {
@@ -399,8 +396,8 @@ func TestCtrlQQuit(t *testing.T) {
 
 func TestCtrlCInDataPane(t *testing.T) {
 	m := InitialModel()
-	m.Width = 120
-	m.Height = 40
+	m.Window.Width = 120
+	m.Window.Height = 40
 	m.CurrentPane = FocusPaneData
 
 	// Ctrl+C in data pane should not quit (it copies)
@@ -415,36 +412,36 @@ func TestHandleConnectionKeys(t *testing.T) {
 	t.Run("Enter opens connection dialog", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneConnection
-		m.Width = 120
-		m.Height = 40
+		m.Window.Width = 120
+		m.Window.Height = 40
 
 		newModel, _ := handleConnectionKeys(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-		if !newModel.ConnectionDialogVisible {
+		if !newModel.ConnectionDialog.Visible {
 			t.Error("Expected connection dialog to be visible")
 		}
-		if newModel.ConnectionDialogField != 0 {
-			t.Errorf("ConnectionDialogField = %d, want 0", newModel.ConnectionDialogField)
+		if newModel.ConnectionDialog.Field != 0 {
+			t.Errorf("ConnectionDialogField = %d, want 0", newModel.ConnectionDialog.Field)
 		}
 	})
 
 	t.Run("Ctrl+D disconnects", func(t *testing.T) {
 		m := InitialModel()
-		m.Connected = true
+		m.Connection.Connected = true
 		m.CurrentPane = FocusPaneConnection
-		m.Tables = []string{"users", "products"}
-		m.SelectedTable = 1
+		m.Tables.Tables = []string{"users", "products"}
+		m.Tables.SelectedTable = 1
 
 		newModel, _ := handleConnectionKeys(m, tea.KeyMsg{Type: tea.KeyCtrlD})
 
-		if newModel.Connected {
+		if newModel.Connection.Connected {
 			t.Error("Expected to be disconnected")
 		}
-		if len(newModel.Tables) != 0 {
-			t.Errorf("Tables should be cleared, got %v", newModel.Tables)
+		if len(newModel.Tables.Tables) != 0 {
+			t.Errorf("Tables should be cleared, got %v", newModel.Tables.Tables)
 		}
-		if newModel.SelectedTable != -1 {
-			t.Errorf("SelectedTable = %d, want -1", newModel.SelectedTable)
+		if newModel.Tables.SelectedTable != -1 {
+			t.Errorf("SelectedTable = %d, want -1", newModel.Tables.SelectedTable)
 		}
 	})
 }
@@ -452,76 +449,76 @@ func TestHandleConnectionKeys(t *testing.T) {
 func TestHandleConnectionDialogKeys(t *testing.T) {
 	t.Run("Esc closes dialog", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
+		m.ConnectionDialog.Visible = true
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-		if newModel.ConnectionDialogVisible {
+		if newModel.ConnectionDialog.Visible {
 			t.Error("Expected dialog to be closed")
 		}
 	})
 
 	t.Run("Tab switches fields", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 0
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 0
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyTab})
 
-		if newModel.ConnectionDialogField != 1 {
-			t.Errorf("ConnectionDialogField = %d, want 1", newModel.ConnectionDialogField)
+		if newModel.ConnectionDialog.Field != 1 {
+			t.Errorf("ConnectionDialogField = %d, want 1", newModel.ConnectionDialog.Field)
 		}
 	})
 
 	t.Run("Backspace deletes character", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 0
-		m.EditEndpoint = "localhost"
-		m.EditCursorPos = 9
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 0
+		m.ConnectionDialog.EditEndpoint = "localhost"
+		m.ConnectionDialog.EditCursorPos = 9
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyBackspace})
 
-		if newModel.EditEndpoint != "localhos" {
-			t.Errorf("EditEndpoint = %q, want %q", newModel.EditEndpoint, "localhos")
+		if newModel.ConnectionDialog.EditEndpoint != "localhos" {
+			t.Errorf("EditEndpoint = %q, want %q", newModel.ConnectionDialog.EditEndpoint, "localhos")
 		}
 	})
 
 	t.Run("Runes inserts characters", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 0
-		m.EditEndpoint = "local"
-		m.EditCursorPos = 5
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 0
+		m.ConnectionDialog.EditEndpoint = "local"
+		m.ConnectionDialog.EditCursorPos = 5
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 
-		if newModel.EditEndpoint != "localh" {
-			t.Errorf("EditEndpoint = %q, want %q", newModel.EditEndpoint, "localh")
+		if newModel.ConnectionDialog.EditEndpoint != "localh" {
+			t.Errorf("EditEndpoint = %q, want %q", newModel.ConnectionDialog.EditEndpoint, "localh")
 		}
 	})
 
 	t.Run("Left arrow moves cursor", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.EditCursorPos = 5
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.EditCursorPos = 5
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
 
-		if newModel.EditCursorPos != 4 {
-			t.Errorf("EditCursorPos = %d, want 4", newModel.EditCursorPos)
+		if newModel.ConnectionDialog.EditCursorPos != 4 {
+			t.Errorf("EditCursorPos = %d, want 4", newModel.ConnectionDialog.EditCursorPos)
 		}
 	})
 
 	t.Run("Home moves cursor to start", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.EditCursorPos = 5
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.EditCursorPos = 5
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyHome})
 
-		if newModel.EditCursorPos != 0 {
-			t.Errorf("EditCursorPos = %d, want 0", newModel.EditCursorPos)
+		if newModel.ConnectionDialog.EditCursorPos != 0 {
+			t.Errorf("EditCursorPos = %d, want 0", newModel.ConnectionDialog.EditCursorPos)
 		}
 	})
 }
@@ -529,53 +526,53 @@ func TestHandleConnectionDialogKeys(t *testing.T) {
 func TestHandleTablesKeys(t *testing.T) {
 	t.Run("Down arrow moves cursor down", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products", "orders"}
-		m.CursorTable = 0
-		m.TablesHeight = 10
+		m.Tables.Tables = []string{"users", "products", "orders"}
+		m.Tables.CursorTable = 0
+		m.Window.TablesHeight = 10
 
 		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.CursorTable != 1 {
-			t.Errorf("CursorTable = %d, want 1", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 1 {
+			t.Errorf("CursorTable = %d, want 1", newModel.Tables.CursorTable)
 		}
 	})
 
 	t.Run("Up arrow moves cursor up", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products", "orders"}
-		m.CursorTable = 2
-		m.TablesHeight = 10
+		m.Tables.Tables = []string{"users", "products", "orders"}
+		m.Tables.CursorTable = 2
+		m.Window.TablesHeight = 10
 
 		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.CursorTable != 1 {
-			t.Errorf("CursorTable = %d, want 1", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 1 {
+			t.Errorf("CursorTable = %d, want 1", newModel.Tables.CursorTable)
 		}
 	})
 
 	t.Run("Down at bottom stays at bottom", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products"}
-		m.CursorTable = 1
-		m.TablesHeight = 10
+		m.Tables.Tables = []string{"users", "products"}
+		m.Tables.CursorTable = 1
+		m.Window.TablesHeight = 10
 
 		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.CursorTable != 1 {
-			t.Errorf("CursorTable = %d, want 1 (should stay at bottom)", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 1 {
+			t.Errorf("CursorTable = %d, want 1 (should stay at bottom)", newModel.Tables.CursorTable)
 		}
 	})
 
 	t.Run("Up at top stays at top", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products"}
-		m.CursorTable = 0
-		m.TablesHeight = 10
+		m.Tables.Tables = []string{"users", "products"}
+		m.Tables.CursorTable = 0
+		m.Window.TablesHeight = 10
 
 		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.CursorTable != 0 {
-			t.Errorf("CursorTable = %d, want 0 (should stay at top)", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 0 {
+			t.Errorf("CursorTable = %d, want 0 (should stay at top)", newModel.Tables.CursorTable)
 		}
 	})
 }
@@ -583,39 +580,39 @@ func TestHandleTablesKeys(t *testing.T) {
 func TestHandleSchemaKeys(t *testing.T) {
 	t.Run("Up at top stays at top", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SchemaScrollOffset = 0
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Schema.ScrollOffset = 0
 
 		newModel, _ := handleSchemaKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.SchemaScrollOffset != 0 {
-			t.Errorf("SchemaScrollOffset = %d, want 0", newModel.SchemaScrollOffset)
+		if newModel.Schema.ScrollOffset != 0 {
+			t.Errorf("SchemaScrollOffset = %d, want 0", newModel.Schema.ScrollOffset)
 		}
 	})
 
 	t.Run("Up scrolls up when offset > 0", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SchemaScrollOffset = 2
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Schema.ScrollOffset = 2
 
 		newModel, _ := handleSchemaKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.SchemaScrollOffset != 1 {
-			t.Errorf("SchemaScrollOffset = %d, want 1", newModel.SchemaScrollOffset)
+		if newModel.Schema.ScrollOffset != 1 {
+			t.Errorf("SchemaScrollOffset = %d, want 1", newModel.Schema.ScrollOffset)
 		}
 	})
 
 	t.Run("No table selected returns unchanged", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{}
-		m.SelectedTable = -1
+		m.Tables.Tables = []string{}
+		m.Tables.SelectedTable = -1
 
 		newModel, _ := handleSchemaKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.SchemaScrollOffset != 0 {
-			t.Errorf("SchemaScrollOffset = %d, want 0", newModel.SchemaScrollOffset)
+		if newModel.Schema.ScrollOffset != 0 {
+			t.Errorf("SchemaScrollOffset = %d, want 0", newModel.Schema.ScrollOffset)
 		}
 	})
 }
@@ -624,132 +621,132 @@ func TestHandleSQLKeys(t *testing.T) {
 	t.Run("Backspace deletes character", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT * FROM users"
-		m.SQLCursorPos = 19
+		m.SQL.CurrentSQL = "SELECT * FROM users"
+		m.SQL.CursorPos = 19
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyBackspace})
 
-		if newModel.CurrentSQL != "SELECT * FROM user" {
-			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECT * FROM user")
+		if newModel.SQL.CurrentSQL != "SELECT * FROM user" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.SQL.CurrentSQL, "SELECT * FROM user")
 		}
 	})
 
 	t.Run("Enter inserts newline", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT *"
-		m.SQLCursorPos = 8
+		m.SQL.CurrentSQL = "SELECT *"
+		m.SQL.CursorPos = 8
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-		if newModel.CurrentSQL != "SELECT *\n" {
-			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECT *\n")
+		if newModel.SQL.CurrentSQL != "SELECT *\n" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.SQL.CurrentSQL, "SELECT *\n")
 		}
 	})
 
 	t.Run("Left arrow moves cursor left", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT"
-		m.SQLCursorPos = 6
+		m.SQL.CurrentSQL = "SELECT"
+		m.SQL.CursorPos = 6
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
 
-		if newModel.SQLCursorPos != 5 {
-			t.Errorf("SQLCursorPos = %d, want 5", newModel.SQLCursorPos)
+		if newModel.SQL.CursorPos != 5 {
+			t.Errorf("SQLCursorPos = %d, want 5", newModel.SQL.CursorPos)
 		}
 	})
 
 	t.Run("Right arrow moves cursor right", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT"
-		m.SQLCursorPos = 3
+		m.SQL.CurrentSQL = "SELECT"
+		m.SQL.CursorPos = 3
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyRight})
 
-		if newModel.SQLCursorPos != 4 {
-			t.Errorf("SQLCursorPos = %d, want 4", newModel.SQLCursorPos)
+		if newModel.SQL.CursorPos != 4 {
+			t.Errorf("SQLCursorPos = %d, want 4", newModel.SQL.CursorPos)
 		}
 	})
 
 	t.Run("Home moves cursor to start", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT * FROM users"
-		m.SQLCursorPos = 10
+		m.SQL.CurrentSQL = "SELECT * FROM users"
+		m.SQL.CursorPos = 10
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyHome})
 
-		if newModel.SQLCursorPos != 0 {
-			t.Errorf("SQLCursorPos = %d, want 0", newModel.SQLCursorPos)
+		if newModel.SQL.CursorPos != 0 {
+			t.Errorf("SQLCursorPos = %d, want 0", newModel.SQL.CursorPos)
 		}
 	})
 
 	t.Run("End moves cursor to end", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT"
-		m.SQLCursorPos = 0
+		m.SQL.CurrentSQL = "SELECT"
+		m.SQL.CursorPos = 0
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyEnd})
 
-		if newModel.SQLCursorPos != 6 {
-			t.Errorf("SQLCursorPos = %d, want 6", newModel.SQLCursorPos)
+		if newModel.SQL.CursorPos != 6 {
+			t.Errorf("SQLCursorPos = %d, want 6", newModel.SQL.CursorPos)
 		}
 	})
 
 	t.Run("Space inserts space", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT*"
-		m.SQLCursorPos = 6
+		m.SQL.CurrentSQL = "SELECT*"
+		m.SQL.CursorPos = 6
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeySpace})
 
-		if newModel.CurrentSQL != "SELECT *" {
-			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECT *")
+		if newModel.SQL.CurrentSQL != "SELECT *" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.SQL.CurrentSQL, "SELECT *")
 		}
 	})
 
 	t.Run("Runes inserts characters", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT"
-		m.SQLCursorPos = 6
+		m.SQL.CurrentSQL = "SELECT"
+		m.SQL.CursorPos = 6
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
 
-		if newModel.CurrentSQL != "SELECTX" {
-			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECTX")
+		if newModel.SQL.CurrentSQL != "SELECTX" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.SQL.CurrentSQL, "SELECTX")
 		}
 	})
 
 	t.Run("Up arrow moves cursor up in multi-line", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT *\nFROM users"
-		m.SQLCursorPos = 14 // middle of second line
+		m.SQL.CurrentSQL = "SELECT *\nFROM users"
+		m.SQL.CursorPos = 14 // middle of second line
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
 		// Should move to first line at same column or end
-		if newModel.SQLCursorPos >= 9 {
-			t.Errorf("SQLCursorPos = %d, should be less than 9", newModel.SQLCursorPos)
+		if newModel.SQL.CursorPos >= 9 {
+			t.Errorf("SQLCursorPos = %d, should be less than 9", newModel.SQL.CursorPos)
 		}
 	})
 
 	t.Run("Down arrow moves cursor down in multi-line", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT *\nFROM users"
-		m.SQLCursorPos = 4 // middle of first line
+		m.SQL.CurrentSQL = "SELECT *\nFROM users"
+		m.SQL.CursorPos = 4 // middle of first line
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
 		// Should move to second line
-		if newModel.SQLCursorPos < 9 {
-			t.Errorf("SQLCursorPos = %d, should be >= 9", newModel.SQLCursorPos)
+		if newModel.SQL.CursorPos < 9 {
+			t.Errorf("SQLCursorPos = %d, should be >= 9", newModel.SQL.CursorPos)
 		}
 	})
 }
@@ -758,11 +755,11 @@ func TestHandleDataKeys(t *testing.T) {
 	t.Run("Down arrow moves selection down", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SelectedDataRow = 0
-		m.Height = 40
-		m.TableData = map[string]*db.TableDataResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.SelectedDataRow = 0
+		m.Window.Height = 40
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {
 				Rows: []map[string]interface{}{
 					{"id": 1}, {"id": 2}, {"id": 3},
@@ -772,19 +769,19 @@ func TestHandleDataKeys(t *testing.T) {
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.SelectedDataRow != 1 {
-			t.Errorf("SelectedDataRow = %d, want 1", newModel.SelectedDataRow)
+		if newModel.Data.SelectedDataRow != 1 {
+			t.Errorf("SelectedDataRow = %d, want 1", newModel.Data.SelectedDataRow)
 		}
 	})
 
 	t.Run("Up arrow moves selection up", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SelectedDataRow = 2
-		m.Height = 40
-		m.TableData = map[string]*db.TableDataResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.SelectedDataRow = 2
+		m.Window.Height = 40
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {
 				Rows: []map[string]interface{}{
 					{"id": 1}, {"id": 2}, {"id": 3},
@@ -794,42 +791,42 @@ func TestHandleDataKeys(t *testing.T) {
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.SelectedDataRow != 1 {
-			t.Errorf("SelectedDataRow = %d, want 1", newModel.SelectedDataRow)
+		if newModel.Data.SelectedDataRow != 1 {
+			t.Errorf("SelectedDataRow = %d, want 1", newModel.Data.SelectedDataRow)
 		}
 	})
 
 	t.Run("Left arrow scrolls left", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.HorizontalOffset = 5
+		m.Data.HorizontalOffset = 5
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
 
-		if newModel.HorizontalOffset != 4 {
-			t.Errorf("HorizontalOffset = %d, want 4", newModel.HorizontalOffset)
+		if newModel.Data.HorizontalOffset != 4 {
+			t.Errorf("HorizontalOffset = %d, want 4", newModel.Data.HorizontalOffset)
 		}
 	})
 
 	t.Run("Left at 0 stays at 0", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.HorizontalOffset = 0
+		m.Data.HorizontalOffset = 0
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
 
-		if newModel.HorizontalOffset != 0 {
-			t.Errorf("HorizontalOffset = %d, want 0", newModel.HorizontalOffset)
+		if newModel.Data.HorizontalOffset != 0 {
+			t.Errorf("HorizontalOffset = %d, want 0", newModel.Data.HorizontalOffset)
 		}
 	})
 
 	t.Run("Enter opens record detail", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SelectedDataRow = 0
-		m.TableData = map[string]*db.TableDataResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.SelectedDataRow = 0
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {
 				Rows: []map[string]interface{}{{"id": 1}},
 			},
@@ -837,7 +834,7 @@ func TestHandleDataKeys(t *testing.T) {
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-		if !newModel.RecordDetailVisible {
+		if !newModel.RecordDetail.Visible {
 			t.Error("Expected record detail to be visible")
 		}
 	})
@@ -845,21 +842,21 @@ func TestHandleDataKeys(t *testing.T) {
 	t.Run("Esc resets custom SQL", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.CustomSQL = true
-		m.ColumnOrder = []string{"name", "id"}
-		m.SelectedDataRow = 5
-		m.ViewportOffset = 3
+		m.SQL.CustomSQL = true
+		m.SQL.ColumnOrder = []string{"name", "id"}
+		m.Data.SelectedDataRow = 5
+		m.Data.ViewportOffset = 3
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-		if newModel.CustomSQL {
+		if newModel.SQL.CustomSQL {
 			t.Error("Expected CustomSQL to be false")
 		}
-		if newModel.ColumnOrder != nil {
+		if newModel.SQL.ColumnOrder != nil {
 			t.Error("Expected ColumnOrder to be nil")
 		}
-		if newModel.SelectedDataRow != 0 {
-			t.Errorf("SelectedDataRow = %d, want 0", newModel.SelectedDataRow)
+		if newModel.Data.SelectedDataRow != 0 {
+			t.Errorf("SelectedDataRow = %d, want 0", newModel.Data.SelectedDataRow)
 		}
 	})
 }
@@ -867,34 +864,34 @@ func TestHandleDataKeys(t *testing.T) {
 func TestHandleRecordDetailKeys(t *testing.T) {
 	t.Run("Esc closes dialog", func(t *testing.T) {
 		m := InitialModel()
-		m.RecordDetailVisible = true
-		m.RecordDetailScroll = 5
+		m.RecordDetail.Visible = true
+		m.RecordDetail.ScrollOffset = 5
 
 		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-		if newModel.RecordDetailVisible {
+		if newModel.RecordDetail.Visible {
 			t.Error("Expected record detail to be closed")
 		}
-		if newModel.RecordDetailScroll != 0 {
-			t.Errorf("RecordDetailScroll = %d, want 0", newModel.RecordDetailScroll)
+		if newModel.RecordDetail.ScrollOffset != 0 {
+			t.Errorf("RecordDetailScroll = %d, want 0", newModel.RecordDetail.ScrollOffset)
 		}
 	})
 
 	t.Run("Down scrolls down when maxScroll > 0", func(t *testing.T) {
 		m := InitialModel()
-		m.RecordDetailVisible = true
-		m.RecordDetailScroll = 0
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SelectedDataRow = 0
-		m.Height = 10 // Small height to ensure maxScroll > 0
+		m.RecordDetail.Visible = true
+		m.RecordDetail.ScrollOffset = 0
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.SelectedDataRow = 0
+		m.Window.Height = 10 // Small height to ensure maxScroll > 0
 
 		// Create a row with many fields to exceed visible height
 		row := make(map[string]interface{})
 		for i := 0; i < 20; i++ {
 			row[string(rune('a'+i))] = i
 		}
-		m.TableData = map[string]*db.TableDataResult{
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {
 				Rows: []map[string]interface{}{row},
 			},
@@ -902,32 +899,32 @@ func TestHandleRecordDetailKeys(t *testing.T) {
 
 		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.RecordDetailScroll != 1 {
-			t.Errorf("RecordDetailScroll = %d, want 1", newModel.RecordDetailScroll)
+		if newModel.RecordDetail.ScrollOffset != 1 {
+			t.Errorf("RecordDetailScroll = %d, want 1", newModel.RecordDetail.ScrollOffset)
 		}
 	})
 
 	t.Run("Up scrolls up", func(t *testing.T) {
 		m := InitialModel()
-		m.RecordDetailVisible = true
-		m.RecordDetailScroll = 3
+		m.RecordDetail.Visible = true
+		m.RecordDetail.ScrollOffset = 3
 
 		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.RecordDetailScroll != 2 {
-			t.Errorf("RecordDetailScroll = %d, want 2", newModel.RecordDetailScroll)
+		if newModel.RecordDetail.ScrollOffset != 2 {
+			t.Errorf("RecordDetailScroll = %d, want 2", newModel.RecordDetail.ScrollOffset)
 		}
 	})
 
 	t.Run("Home scrolls to top", func(t *testing.T) {
 		m := InitialModel()
-		m.RecordDetailVisible = true
-		m.RecordDetailScroll = 10
+		m.RecordDetail.Visible = true
+		m.RecordDetail.ScrollOffset = 10
 
 		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyHome})
 
-		if newModel.RecordDetailScroll != 0 {
-			t.Errorf("RecordDetailScroll = %d, want 0", newModel.RecordDetailScroll)
+		if newModel.RecordDetail.ScrollOffset != 0 {
+			t.Errorf("RecordDetailScroll = %d, want 0", newModel.RecordDetail.ScrollOffset)
 		}
 	})
 }
@@ -941,11 +938,11 @@ func TestHandleTableListResult(t *testing.T) {
 		})
 
 		expected := []string{"products", "users", "users.phones"}
-		if !reflect.DeepEqual(newModel.Tables, expected) {
-			t.Errorf("Tables = %v, want %v", newModel.Tables, expected)
+		if !reflect.DeepEqual(newModel.Tables.Tables, expected) {
+			t.Errorf("Tables = %v, want %v", newModel.Tables.Tables, expected)
 		}
-		if newModel.CursorTable != 0 {
-			t.Errorf("CursorTable = %d, want 0", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 0 {
+			t.Errorf("CursorTable = %d, want 0", newModel.Tables.CursorTable)
 		}
 	})
 
@@ -956,7 +953,7 @@ func TestHandleTableListResult(t *testing.T) {
 			Err: errors.New("test error"),
 		})
 
-		if len(newModel.Tables) != 0 {
+		if len(newModel.Tables.Tables) != 0 {
 			t.Errorf("Tables should be empty on error")
 		}
 	})
@@ -965,7 +962,7 @@ func TestHandleTableListResult(t *testing.T) {
 func TestHandleTableDataResult(t *testing.T) {
 	t.Run("success stores data", func(t *testing.T) {
 		m := InitialModel()
-		m.LoadingData = true
+		m.Data.LoadingData = true
 
 		rows := []map[string]interface{}{
 			{"id": 1, "name": "test"},
@@ -977,10 +974,10 @@ func TestHandleTableDataResult(t *testing.T) {
 			HasMore:   true,
 		})
 
-		if newModel.LoadingData {
+		if newModel.Data.LoadingData {
 			t.Error("Expected LoadingData to be false")
 		}
-		data := newModel.TableData["users"]
+		data := newModel.Data.TableData["users"]
 		if data == nil {
 			t.Fatal("Expected table data to exist")
 		}
@@ -994,8 +991,8 @@ func TestHandleTableDataResult(t *testing.T) {
 
 	t.Run("append merges data", func(t *testing.T) {
 		m := InitialModel()
-		m.LoadingData = true
-		m.TableData = map[string]*db.TableDataResult{
+		m.Data.LoadingData = true
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {
 				Rows: []map[string]interface{}{{"id": 1}},
 			},
@@ -1007,7 +1004,7 @@ func TestHandleTableDataResult(t *testing.T) {
 			IsAppend:  true,
 		})
 
-		data := newModel.TableData["users"]
+		data := newModel.Data.TableData["users"]
 		if len(data.Rows) != 2 {
 			t.Errorf("Rows count = %d, want 2", len(data.Rows))
 		}
@@ -1015,16 +1012,16 @@ func TestHandleTableDataResult(t *testing.T) {
 
 	t.Run("error clears loading state", func(t *testing.T) {
 		m := InitialModel()
-		m.LoadingData = true
+		m.Data.LoadingData = true
 
 		newModel, _ := handleTableDataResult(m, db.TableDataResult{
 			Err: errors.New("test error"),
 		})
 
-		if newModel.LoadingData {
+		if newModel.Data.LoadingData {
 			t.Error("Expected LoadingData to be false")
 		}
-		if newModel.DataErrorMsg == "" {
+		if newModel.Data.ErrorMsg == "" {
 			t.Error("Expected DataErrorMsg to be set")
 		}
 	})
@@ -1038,10 +1035,10 @@ func TestHandleConnectionResult(t *testing.T) {
 			Err: errors.New("connection failed"),
 		})
 
-		if newModel.Connected {
+		if newModel.Connection.Connected {
 			t.Error("Expected Connected to be false")
 		}
-		if newModel.ConnectionMsg == "" {
+		if newModel.Connection.Message == "" {
 			t.Error("Expected ConnectionMsg to be set")
 		}
 	})
@@ -1050,7 +1047,7 @@ func TestHandleConnectionResult(t *testing.T) {
 func TestCalculateRecordDetailMaxScroll(t *testing.T) {
 	t.Run("no table selected returns 0", func(t *testing.T) {
 		m := InitialModel()
-		m.SelectedTable = -1
+		m.Tables.SelectedTable = -1
 
 		result := calculateRecordDetailMaxScroll(m)
 
@@ -1061,9 +1058,9 @@ func TestCalculateRecordDetailMaxScroll(t *testing.T) {
 
 	t.Run("no data returns 0", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.TableData = map[string]*db.TableDataResult{}
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.TableData = map[string]*db.TableDataResult{}
 
 		result := calculateRecordDetailMaxScroll(m)
 
@@ -1076,16 +1073,16 @@ func TestCalculateRecordDetailMaxScroll(t *testing.T) {
 func TestHandleTableDetailsResult(t *testing.T) {
 	t.Run("error sets schema error message", func(t *testing.T) {
 		m := InitialModel()
-		m.LoadingData = true
+		m.Data.LoadingData = true
 
 		newModel, cmd := handleTableDetailsResult(m, db.TableDetailsResult{
 			Err: errors.New("failed to fetch schema"),
 		})
 
-		if newModel.SchemaErrorMsg == "" {
+		if newModel.Schema.ErrorMsg == "" {
 			t.Error("Expected SchemaErrorMsg to be set")
 		}
-		if newModel.LoadingData {
+		if newModel.Data.LoadingData {
 			t.Error("Expected LoadingData to be false")
 		}
 		if cmd != nil {
@@ -1095,31 +1092,31 @@ func TestHandleTableDetailsResult(t *testing.T) {
 
 	t.Run("success stores table details", func(t *testing.T) {
 		m := InitialModel()
-		m.TableDetails = make(map[string]*db.TableDetailsResult)
+		m.Schema.TableDetails = make(map[string]*db.TableDetailsResult)
 
 		newModel, _ := handleTableDetailsResult(m, db.TableDetailsResult{
 			TableName: "users",
 		})
 
-		if newModel.SchemaErrorMsg != "" {
-			t.Errorf("SchemaErrorMsg should be empty, got %q", newModel.SchemaErrorMsg)
+		if newModel.Schema.ErrorMsg != "" {
+			t.Errorf("SchemaErrorMsg should be empty, got %q", newModel.Schema.ErrorMsg)
 		}
-		if newModel.TableDetails["users"] == nil {
+		if newModel.Schema.TableDetails["users"] == nil {
 			t.Error("Expected table details to be stored")
 		}
 	})
 
 	t.Run("success clears previous error", func(t *testing.T) {
 		m := InitialModel()
-		m.SchemaErrorMsg = "previous error"
-		m.TableDetails = make(map[string]*db.TableDetailsResult)
+		m.Schema.ErrorMsg = "previous error"
+		m.Schema.TableDetails = make(map[string]*db.TableDetailsResult)
 
 		newModel, _ := handleTableDetailsResult(m, db.TableDetailsResult{
 			TableName: "users",
 		})
 
-		if newModel.SchemaErrorMsg != "" {
-			t.Errorf("SchemaErrorMsg should be cleared, got %q", newModel.SchemaErrorMsg)
+		if newModel.Schema.ErrorMsg != "" {
+			t.Errorf("SchemaErrorMsg should be cleared, got %q", newModel.Schema.ErrorMsg)
 		}
 	})
 }
@@ -1127,97 +1124,97 @@ func TestHandleTableDetailsResult(t *testing.T) {
 func TestHandleConnectionDialogKeysAdditional(t *testing.T) {
 	t.Run("Right arrow moves cursor right within text", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 0
-		m.EditEndpoint = "localhost"
-		m.EditCursorPos = 3
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 0
+		m.ConnectionDialog.EditEndpoint = "localhost"
+		m.ConnectionDialog.EditCursorPos = 3
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyRight})
 
-		if newModel.EditCursorPos != 4 {
-			t.Errorf("EditCursorPos = %d, want 4", newModel.EditCursorPos)
+		if newModel.ConnectionDialog.EditCursorPos != 4 {
+			t.Errorf("EditCursorPos = %d, want 4", newModel.ConnectionDialog.EditCursorPos)
 		}
 	})
 
 	t.Run("Right arrow at end stays at end", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 0
-		m.EditEndpoint = "localhost"
-		m.EditCursorPos = 9
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 0
+		m.ConnectionDialog.EditEndpoint = "localhost"
+		m.ConnectionDialog.EditCursorPos = 9
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyRight})
 
-		if newModel.EditCursorPos != 9 {
-			t.Errorf("EditCursorPos = %d, want 9", newModel.EditCursorPos)
+		if newModel.ConnectionDialog.EditCursorPos != 9 {
+			t.Errorf("EditCursorPos = %d, want 9", newModel.ConnectionDialog.EditCursorPos)
 		}
 	})
 
 	t.Run("End moves cursor to end", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 0
-		m.EditEndpoint = "localhost"
-		m.EditCursorPos = 3
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 0
+		m.ConnectionDialog.EditEndpoint = "localhost"
+		m.ConnectionDialog.EditCursorPos = 3
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyEnd})
 
-		if newModel.EditCursorPos != 9 {
-			t.Errorf("EditCursorPos = %d, want 9", newModel.EditCursorPos)
+		if newModel.ConnectionDialog.EditCursorPos != 9 {
+			t.Errorf("EditCursorPos = %d, want 9", newModel.ConnectionDialog.EditCursorPos)
 		}
 	})
 
 	t.Run("Delete removes character at cursor", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 0
-		m.EditEndpoint = "localhost"
-		m.EditCursorPos = 5
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 0
+		m.ConnectionDialog.EditEndpoint = "localhost"
+		m.ConnectionDialog.EditCursorPos = 5
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyDelete})
 
-		if newModel.EditEndpoint != "localost" {
-			t.Errorf("EditEndpoint = %q, want %q", newModel.EditEndpoint, "localost")
+		if newModel.ConnectionDialog.EditEndpoint != "localost" {
+			t.Errorf("EditEndpoint = %q, want %q", newModel.ConnectionDialog.EditEndpoint, "localost")
 		}
 	})
 
 	t.Run("Tab wraps around from last field", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 1 // Port field (last)
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 1 // Port field (last)
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyTab})
 
-		if newModel.ConnectionDialogField != 0 {
-			t.Errorf("ConnectionDialogField = %d, want 0", newModel.ConnectionDialogField)
+		if newModel.ConnectionDialog.Field != 0 {
+			t.Errorf("ConnectionDialogField = %d, want 0", newModel.ConnectionDialog.Field)
 		}
 	})
 
 	t.Run("Editing port field", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 1 // Port field
-		m.EditPort = "8080"
-		m.EditCursorPos = 4
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 1 // Port field
+		m.ConnectionDialog.EditPort = "8080"
+		m.ConnectionDialog.EditCursorPos = 4
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
 
-		if newModel.EditPort != "80801" {
-			t.Errorf("EditPort = %q, want %q", newModel.EditPort, "80801")
+		if newModel.ConnectionDialog.EditPort != "80801" {
+			t.Errorf("EditPort = %q, want %q", newModel.ConnectionDialog.EditPort, "80801")
 		}
 	})
 
 	t.Run("Backspace on port field", func(t *testing.T) {
 		m := InitialModel()
-		m.ConnectionDialogVisible = true
-		m.ConnectionDialogField = 1
-		m.EditPort = "8080"
-		m.EditCursorPos = 4
+		m.ConnectionDialog.Visible = true
+		m.ConnectionDialog.Field = 1
+		m.ConnectionDialog.EditPort = "8080"
+		m.ConnectionDialog.EditCursorPos = 4
 
 		newModel, _ := handleConnectionDialogKeys(m, tea.KeyMsg{Type: tea.KeyBackspace})
 
-		if newModel.EditPort != "808" {
-			t.Errorf("EditPort = %q, want %q", newModel.EditPort, "808")
+		if newModel.ConnectionDialog.EditPort != "808" {
+			t.Errorf("EditPort = %q, want %q", newModel.ConnectionDialog.EditPort, "808")
 		}
 	})
 }
@@ -1225,65 +1222,65 @@ func TestHandleConnectionDialogKeysAdditional(t *testing.T) {
 func TestHandleTablesKeysAdditional(t *testing.T) {
 	t.Run("Empty tables list returns unchanged", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{}
-		m.CursorTable = 0
+		m.Tables.Tables = []string{}
+		m.Tables.CursorTable = 0
 
 		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.CursorTable != 0 {
-			t.Errorf("CursorTable = %d, want 0", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 0 {
+			t.Errorf("CursorTable = %d, want 0", newModel.Tables.CursorTable)
 		}
 	})
 
 	t.Run("Up at top does nothing", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products", "orders"}
-		m.CursorTable = 0
-		m.TablesHeight = 10
+		m.Tables.Tables = []string{"users", "products", "orders"}
+		m.Tables.CursorTable = 0
+		m.Window.TablesHeight = 10
 
 		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.CursorTable != 0 {
-			t.Errorf("CursorTable = %d, want 0", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 0 {
+			t.Errorf("CursorTable = %d, want 0", newModel.Tables.CursorTable)
 		}
 	})
 
 	t.Run("Down at bottom does nothing", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products", "orders"}
-		m.CursorTable = 2
-		m.TablesHeight = 10
+		m.Tables.Tables = []string{"users", "products", "orders"}
+		m.Tables.CursorTable = 2
+		m.Window.TablesHeight = 10
 
 		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.CursorTable != 2 {
-			t.Errorf("CursorTable = %d, want 2", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 2 {
+			t.Errorf("CursorTable = %d, want 2", newModel.Tables.CursorTable)
 		}
 	})
 
 	t.Run("Down arrow moves down", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products"}
-		m.CursorTable = 0
-		m.TablesHeight = 10
+		m.Tables.Tables = []string{"users", "products"}
+		m.Tables.CursorTable = 0
+		m.Window.TablesHeight = 10
 
 		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.CursorTable != 1 {
-			t.Errorf("CursorTable = %d, want 1", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 1 {
+			t.Errorf("CursorTable = %d, want 1", newModel.Tables.CursorTable)
 		}
 	})
 
 	t.Run("Up arrow moves up", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products"}
-		m.CursorTable = 1
-		m.TablesHeight = 10
+		m.Tables.Tables = []string{"users", "products"}
+		m.Tables.CursorTable = 1
+		m.Window.TablesHeight = 10
 
 		newModel, _ := handleTablesKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.CursorTable != 0 {
-			t.Errorf("CursorTable = %d, want 0", newModel.CursorTable)
+		if newModel.Tables.CursorTable != 0 {
+			t.Errorf("CursorTable = %d, want 0", newModel.Tables.CursorTable)
 		}
 	})
 }
@@ -1291,28 +1288,28 @@ func TestHandleTablesKeysAdditional(t *testing.T) {
 func TestHandleSchemaKeysAdditional(t *testing.T) {
 	t.Run("Down without table details does nothing", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SchemaScrollOffset = 0
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Schema.ScrollOffset = 0
 
 		newModel, _ := handleSchemaKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
 		// Without table details, maxScroll is 0, so no scrolling
-		if newModel.SchemaScrollOffset != 0 {
-			t.Errorf("SchemaScrollOffset = %d, want 0", newModel.SchemaScrollOffset)
+		if newModel.Schema.ScrollOffset != 0 {
+			t.Errorf("SchemaScrollOffset = %d, want 0", newModel.Schema.ScrollOffset)
 		}
 	})
 
 	t.Run("Up arrow scrolls up", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SchemaScrollOffset = 2
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Schema.ScrollOffset = 2
 
 		newModel, _ := handleSchemaKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.SchemaScrollOffset != 1 {
-			t.Errorf("SchemaScrollOffset = %d, want 1", newModel.SchemaScrollOffset)
+		if newModel.Schema.ScrollOffset != 1 {
+			t.Errorf("SchemaScrollOffset = %d, want 1", newModel.Schema.ScrollOffset)
 		}
 	})
 }
@@ -1321,46 +1318,46 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 	t.Run("Left arrow scrolls left", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.HorizontalOffset = 5
+		m.Data.HorizontalOffset = 5
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
 
-		if newModel.HorizontalOffset != 4 {
-			t.Errorf("HorizontalOffset = %d, want 4", newModel.HorizontalOffset)
+		if newModel.Data.HorizontalOffset != 4 {
+			t.Errorf("HorizontalOffset = %d, want 4", newModel.Data.HorizontalOffset)
 		}
 	})
 
-	t.Run("Left arrow scrolls left", func(t *testing.T) {
+	t.Run("Left arrow scrolls left second", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.HorizontalOffset = 5
+		m.Data.HorizontalOffset = 5
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
 
-		if newModel.HorizontalOffset != 4 {
-			t.Errorf("HorizontalOffset = %d, want 4", newModel.HorizontalOffset)
+		if newModel.Data.HorizontalOffset != 4 {
+			t.Errorf("HorizontalOffset = %d, want 4", newModel.Data.HorizontalOffset)
 		}
 	})
 
 	t.Run("Left at zero stays at zero", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.HorizontalOffset = 0
+		m.Data.HorizontalOffset = 0
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
 
-		if newModel.HorizontalOffset != 0 {
-			t.Errorf("HorizontalOffset = %d, want 0", newModel.HorizontalOffset)
+		if newModel.Data.HorizontalOffset != 0 {
+			t.Errorf("HorizontalOffset = %d, want 0", newModel.Data.HorizontalOffset)
 		}
 	})
 
 	t.Run("Enter key shows record detail", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SelectedDataRow = 0
-		m.TableData = map[string]*db.TableDataResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.SelectedDataRow = 0
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {
 				Rows: []map[string]interface{}{
 					{"id": 1},
@@ -1371,7 +1368,7 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\r'}})
 
 		// Check if "enter" is handled
-		if newModel.RecordDetailVisible {
+		if newModel.RecordDetail.Visible {
 			// Good, enter was handled
 		}
 	})
@@ -1379,11 +1376,11 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 	t.Run("Down arrow moves down", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SelectedDataRow = 0
-		m.Height = 40
-		m.TableData = map[string]*db.TableDataResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.SelectedDataRow = 0
+		m.Window.Height = 40
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {
 				Rows: []map[string]interface{}{
 					{"id": 1}, {"id": 2},
@@ -1393,19 +1390,19 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.SelectedDataRow != 1 {
-			t.Errorf("SelectedDataRow = %d, want 1", newModel.SelectedDataRow)
+		if newModel.Data.SelectedDataRow != 1 {
+			t.Errorf("SelectedDataRow = %d, want 1", newModel.Data.SelectedDataRow)
 		}
 	})
 
 	t.Run("Up arrow moves up", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SelectedDataRow = 1
-		m.Height = 40
-		m.TableData = map[string]*db.TableDataResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.SelectedDataRow = 1
+		m.Window.Height = 40
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {
 				Rows: []map[string]interface{}{
 					{"id": 1}, {"id": 2},
@@ -1415,21 +1412,21 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.SelectedDataRow != 0 {
-			t.Errorf("SelectedDataRow = %d, want 0", newModel.SelectedDataRow)
+		if newModel.Data.SelectedDataRow != 0 {
+			t.Errorf("SelectedDataRow = %d, want 0", newModel.Data.SelectedDataRow)
 		}
 	})
 
 	t.Run("No table selected returns unchanged", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneData
-		m.SelectedTable = -1
-		m.SelectedDataRow = 0
+		m.Tables.SelectedTable = -1
+		m.Data.SelectedDataRow = 0
 
 		newModel, _ := handleDataKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.SelectedDataRow != 0 {
-			t.Errorf("SelectedDataRow = %d, want 0", newModel.SelectedDataRow)
+		if newModel.Data.SelectedDataRow != 0 {
+			t.Errorf("SelectedDataRow = %d, want 0", newModel.Data.SelectedDataRow)
 		}
 	})
 }
@@ -1437,61 +1434,61 @@ func TestHandleDataKeysAdditional(t *testing.T) {
 func TestHandleRecordDetailKeysAdditional(t *testing.T) {
 	t.Run("Down arrow scrolls down", func(t *testing.T) {
 		m := InitialModel()
-		m.RecordDetailVisible = true
-		m.RecordDetailScroll = 0
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SelectedDataRow = 0
-		m.Height = 10
+		m.RecordDetail.Visible = true
+		m.RecordDetail.ScrollOffset = 0
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.SelectedDataRow = 0
+		m.Window.Height = 10
 
 		row := make(map[string]interface{})
 		for i := 0; i < 20; i++ {
 			row[string(rune('a'+i))] = i
 		}
-		m.TableData = map[string]*db.TableDataResult{
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {Rows: []map[string]interface{}{row}},
 		}
 
 		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyDown})
 
-		if newModel.RecordDetailScroll != 1 {
-			t.Errorf("RecordDetailScroll = %d, want 1", newModel.RecordDetailScroll)
+		if newModel.RecordDetail.ScrollOffset != 1 {
+			t.Errorf("RecordDetailScroll = %d, want 1", newModel.RecordDetail.ScrollOffset)
 		}
 	})
 
 	t.Run("Up arrow scrolls up", func(t *testing.T) {
 		m := InitialModel()
-		m.RecordDetailVisible = true
-		m.RecordDetailScroll = 5
+		m.RecordDetail.Visible = true
+		m.RecordDetail.ScrollOffset = 5
 
 		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyUp})
 
-		if newModel.RecordDetailScroll != 4 {
-			t.Errorf("RecordDetailScroll = %d, want 4", newModel.RecordDetailScroll)
+		if newModel.RecordDetail.ScrollOffset != 4 {
+			t.Errorf("RecordDetailScroll = %d, want 4", newModel.RecordDetail.ScrollOffset)
 		}
 	})
 
 	t.Run("End scrolls to max", func(t *testing.T) {
 		m := InitialModel()
-		m.RecordDetailVisible = true
-		m.RecordDetailScroll = 0
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SelectedDataRow = 0
-		m.Height = 10
+		m.RecordDetail.Visible = true
+		m.RecordDetail.ScrollOffset = 0
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Data.SelectedDataRow = 0
+		m.Window.Height = 10
 
 		row := make(map[string]interface{})
 		for i := 0; i < 30; i++ {
 			row[string(rune('a'+i))] = i
 		}
-		m.TableData = map[string]*db.TableDataResult{
+		m.Data.TableData = map[string]*db.TableDataResult{
 			"users": {Rows: []map[string]interface{}{row}},
 		}
 
 		newModel, _ := handleRecordDetailKeys(m, tea.KeyMsg{Type: tea.KeyEnd})
 
 		// Should scroll to max (but we just check it's > 0)
-		if newModel.RecordDetailScroll == 0 {
+		if newModel.RecordDetail.ScrollOffset == 0 {
 			t.Errorf("RecordDetailScroll should be > 0")
 		}
 	})
@@ -1501,65 +1498,65 @@ func TestHandleSQLKeysAdditional(t *testing.T) {
 	t.Run("Delete removes character at cursor", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT * FROM users"
-		m.SQLCursorPos = 7
+		m.SQL.CurrentSQL = "SELECT * FROM users"
+		m.SQL.CursorPos = 7
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyDelete})
 
-		if newModel.CurrentSQL != "SELECT  FROM users" {
-			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECT  FROM users")
+		if newModel.SQL.CurrentSQL != "SELECT  FROM users" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.SQL.CurrentSQL, "SELECT  FROM users")
 		}
 	})
 
 	t.Run("Delete at end does nothing", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT"
-		m.SQLCursorPos = 6
+		m.SQL.CurrentSQL = "SELECT"
+		m.SQL.CursorPos = 6
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyDelete})
 
-		if newModel.CurrentSQL != "SELECT" {
-			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECT")
+		if newModel.SQL.CurrentSQL != "SELECT" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.SQL.CurrentSQL, "SELECT")
 		}
 	})
 
 	t.Run("Backspace at start does nothing", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT"
-		m.SQLCursorPos = 0
+		m.SQL.CurrentSQL = "SELECT"
+		m.SQL.CursorPos = 0
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyBackspace})
 
-		if newModel.CurrentSQL != "SELECT" {
-			t.Errorf("CurrentSQL = %q, want %q", newModel.CurrentSQL, "SELECT")
+		if newModel.SQL.CurrentSQL != "SELECT" {
+			t.Errorf("CurrentSQL = %q, want %q", newModel.SQL.CurrentSQL, "SELECT")
 		}
 	})
 
 	t.Run("Left at start stays at start", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT"
-		m.SQLCursorPos = 0
+		m.SQL.CurrentSQL = "SELECT"
+		m.SQL.CursorPos = 0
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyLeft})
 
-		if newModel.SQLCursorPos != 0 {
-			t.Errorf("SQLCursorPos = %d, want 0", newModel.SQLCursorPos)
+		if newModel.SQL.CursorPos != 0 {
+			t.Errorf("SQLCursorPos = %d, want 0", newModel.SQL.CursorPos)
 		}
 	})
 
 	t.Run("Right at end stays at end", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT"
-		m.SQLCursorPos = 6
+		m.SQL.CurrentSQL = "SELECT"
+		m.SQL.CursorPos = 6
 
 		newModel, _ := handleSQLKeys(m, tea.KeyMsg{Type: tea.KeyRight})
 
-		if newModel.SQLCursorPos != 6 {
-			t.Errorf("SQLCursorPos = %d, want 6", newModel.SQLCursorPos)
+		if newModel.SQL.CursorPos != 6 {
+			t.Errorf("SQLCursorPos = %d, want 6", newModel.SQL.CursorPos)
 		}
 	})
 }

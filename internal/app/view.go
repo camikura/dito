@@ -10,24 +10,24 @@ import (
 
 // RenderView renders the new UI
 func RenderView(m Model) string {
-	if m.Width == 0 {
+	if m.Window.Width == 0 {
 		return "Loading..."
 	}
 
 	// Minimum width check to prevent crashes
 	minWidth := ui.LeftPaneContentWidth + ui.MinRightPaneWidth
-	if m.Width < minWidth {
+	if m.Window.Width < minWidth {
 		return "Window too narrow"
 	}
 
 	// Minimum height check
-	if m.Height < ui.MinWindowHeight {
+	if m.Window.Height < ui.MinWindowHeight {
 		return "Window too short"
 	}
 
 	// Layout configuration
 	leftPaneContentWidth := ui.LeftPaneContentWidth
-	rightPaneActualWidth := m.Width - leftPaneContentWidth
+	rightPaneActualWidth := m.Window.Width - leftPaneContentWidth
 
 	// Render connection pane first to get its actual height
 	connectionPane := renderConnectionPane(m, leftPaneContentWidth)
@@ -39,7 +39,7 @@ func RenderView(m Model) string {
 	tablesPane := renderTablesPaneWithHeight(m, leftPaneContentWidth, tablesHeight)
 	schemaPane := renderSchemaPaneWithHeight(m, leftPaneContentWidth, schemaHeight)
 	sqlPane := renderSQLPaneWithHeight(m, leftPaneContentWidth, sqlHeight)
-	dataPane := renderDataPane(m, rightPaneActualWidth, m.Height)
+	dataPane := renderDataPane(m, rightPaneActualWidth, m.Window.Height)
 
 	// Join left panes vertically
 	leftPanes := lipgloss.JoinVertical(
@@ -55,7 +55,7 @@ func RenderView(m Model) string {
 
 	// Footer
 	footerHelp := getFooterHelp(m)
-	footerContent := buildFooterContent(footerHelp, m.Width)
+	footerContent := buildFooterContent(footerHelp, m.Window.Width)
 
 	// Assemble final output
 	var result strings.Builder
@@ -65,12 +65,12 @@ func RenderView(m Model) string {
 	baseView := result.String()
 
 	// Overlay connection dialog if visible
-	if m.ConnectionDialogVisible {
+	if m.ConnectionDialog.Visible {
 		return renderConnectionDialog(m)
 	}
 
 	// Overlay record detail dialog if visible
-	if m.RecordDetailVisible {
+	if m.RecordDetail.Visible {
 		return renderRecordDetailDialog(m)
 	}
 
@@ -80,18 +80,18 @@ func RenderView(m Model) string {
 // getFooterHelp returns the footer help text based on the current pane and state
 func getFooterHelp(m Model) string {
 	// Show quit confirmation message if pending
-	if m.QuitConfirmation {
+	if m.UI.QuitConfirmation {
 		return "Press ctrl+q again to quit"
 	}
 
 	// Show copy message if present
-	if m.CopyMessage != "" {
-		return m.CopyMessage
+	if m.UI.CopyMessage != "" {
+		return m.UI.CopyMessage
 	}
 
 	switch m.CurrentPane {
 	case FocusPaneConnection:
-		if m.Connected {
+		if m.Connection.Connected {
 			return "Disconnect: ctrl+d"
 		}
 		return "Setup: <enter>"
@@ -100,7 +100,7 @@ func getFooterHelp(m Model) string {
 	case FocusPaneSQL:
 		return "Execute: ctrl+r"
 	case FocusPaneData:
-		if m.CustomSQL {
+		if m.SQL.CustomSQL {
 			return "Copy: ctrl+c | Detail: <enter> | Reset: esc"
 		}
 		return "Copy: ctrl+c | Detail: <enter>"

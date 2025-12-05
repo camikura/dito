@@ -19,7 +19,7 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Calculate visible lines for data rows
 	// Data pane structure: title(1) + content lines + bottom(1)
 	// Content lines = header(1) + separator(1) + data rows
-	contentLines := m.Height - ui.DataPaneTitleAndBorderLines
+	contentLines := m.Window.Height - ui.DataPaneTitleAndBorderLines
 	if contentLines < ui.MinContentLines {
 		contentLines = ui.MinContentLines
 	}
@@ -44,28 +44,28 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "alt+<", "¯":
 		// Jump to first row
-		m.SelectedDataRow = 0
-		m.ViewportOffset = 0
+		m.Data.SelectedDataRow = 0
+		m.Data.ViewportOffset = 0
 		return m, nil
 
 	case "alt+>", "˘":
 		// Jump to last row, keeping cursor at center of screen (VS Code style)
 		if totalRows > 0 {
-			m.SelectedDataRow = totalRows - 1
+			m.Data.SelectedDataRow = totalRows - 1
 
 			// Calculate middle position of visible area
 			middlePosition := dataVisibleLines / 2
 
 			// Set viewport so cursor appears at center
 			// This leaves empty space below if at end of data
-			m.ViewportOffset = m.SelectedDataRow - middlePosition
-			if m.ViewportOffset < 0 {
-				m.ViewportOffset = 0
+			m.Data.ViewportOffset = m.Data.SelectedDataRow - middlePosition
+			if m.Data.ViewportOffset < 0 {
+				m.Data.ViewportOffset = 0
 			}
 
 			// Check if we need to fetch more data
 			if cmd := fetchMoreDataIfNeeded(m, false); cmd != nil {
-				m.LoadingData = true
+				m.Data.LoadingData = true
 				return m, cmd
 			}
 		}
@@ -74,73 +74,73 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	switch msg.Type {
 	case tea.KeyUp, tea.KeyCtrlP:
-		if m.SelectedDataRow > 0 {
-			m.SelectedDataRow--
+		if m.Data.SelectedDataRow > 0 {
+			m.Data.SelectedDataRow--
 
 			// Calculate middle position of visible area
 			middlePosition := dataVisibleLines / 2
 
 			// Scrolling logic: keep cursor at middle of screen (VS Code style)
-			if m.SelectedDataRow > middlePosition {
-				m.ViewportOffset = m.SelectedDataRow - middlePosition
+			if m.Data.SelectedDataRow > middlePosition {
+				m.Data.ViewportOffset = m.Data.SelectedDataRow - middlePosition
 			} else {
-				m.ViewportOffset = 0
+				m.Data.ViewportOffset = 0
 			}
 		}
 		return m, nil
 
 	case tea.KeyDown, tea.KeyCtrlN:
-		if totalRows > 0 && m.SelectedDataRow < totalRows-1 {
-			m.SelectedDataRow++
+		if totalRows > 0 && m.Data.SelectedDataRow < totalRows-1 {
+			m.Data.SelectedDataRow++
 
 			// Calculate middle position of visible area
 			middlePosition := dataVisibleLines / 2
 
 			// Scrolling logic: keep cursor at middle of screen (VS Code style)
 			// This allows scrolling past the last row to show empty space below
-			if m.SelectedDataRow > middlePosition {
-				m.ViewportOffset = m.SelectedDataRow - middlePosition
+			if m.Data.SelectedDataRow > middlePosition {
+				m.Data.ViewportOffset = m.Data.SelectedDataRow - middlePosition
 			}
 
 			// Check if we need to fetch more data
-			remainingRows := totalRows - m.SelectedDataRow - 1
+			remainingRows := totalRows - m.Data.SelectedDataRow - 1
 			if cmd := fetchMoreDataIfNeeded(m, remainingRows <= ui.FetchMoreThreshold); cmd != nil {
-				m.LoadingData = true
+				m.Data.LoadingData = true
 				return m, cmd
 			}
 		}
 		return m, nil
 
 	case tea.KeyLeft, tea.KeyCtrlB:
-		if m.HorizontalOffset > 0 {
-			m.HorizontalOffset--
+		if m.Data.HorizontalOffset > 0 {
+			m.Data.HorizontalOffset--
 		}
 		return m, nil
 
 	case tea.KeyRight, tea.KeyCtrlF:
-		if m.HorizontalOffset < maxHorizontalOffset {
-			m.HorizontalOffset++
+		if m.Data.HorizontalOffset < maxHorizontalOffset {
+			m.Data.HorizontalOffset++
 		}
 		return m, nil
 
 	case tea.KeyEnter:
 		// Show record detail dialog
-		if totalRows > 0 && m.SelectedDataRow < totalRows {
-			m.RecordDetailVisible = true
-			m.RecordDetailScroll = 0
+		if totalRows > 0 && m.Data.SelectedDataRow < totalRows {
+			m.RecordDetail.Visible = true
+			m.RecordDetail.ScrollOffset = 0
 		}
 		return m, nil
 
 	case tea.KeyEscape:
 		// Reset to default SQL (only if custom SQL is active)
-		if m.CustomSQL {
-			m.CustomSQL = false
-			m.ColumnOrder = nil
-			m.SelectedDataRow = 0
-			m.ViewportOffset = 0
-			m.HorizontalOffset = 0
-			m.SchemaErrorMsg = ""
-			m.DataErrorMsg = ""
+		if m.SQL.CustomSQL {
+			m.SQL.CustomSQL = false
+			m.SQL.ColumnOrder = nil
+			m.Data.SelectedDataRow = 0
+			m.Data.ViewportOffset = 0
+			m.Data.HorizontalOffset = 0
+			m.Schema.ErrorMsg = ""
+			m.Data.ErrorMsg = ""
 
 			// Reload data with default SQL if a table is selected
 			tableName := m.SelectedTableName()
@@ -152,23 +152,23 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 					primaryKeys = ui.ParsePrimaryKeysFromDDL(ddl)
 				}
 
-				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
-				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
-				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
+				m.SQL.CurrentSQL = buildDefaultSQL(tableName, ddl)
+				m.SQL.CursorPos = ui.RuneLen(m.SQL.CurrentSQL)
+				return m, db.FetchTableData(m.Connection.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
 			}
-			m.CurrentSQL = ""
-			m.SQLCursorPos = 0
+			m.SQL.CurrentSQL = ""
+			m.SQL.CursorPos = 0
 		}
 		return m, nil
 
 	case tea.KeyCtrlA:
 		// Scroll to leftmost
-		m.HorizontalOffset = 0
+		m.Data.HorizontalOffset = 0
 		return m, nil
 
 	case tea.KeyCtrlE:
 		// Scroll to rightmost
-		m.HorizontalOffset = maxHorizontalOffset
+		m.Data.HorizontalOffset = maxHorizontalOffset
 		return m, nil
 	}
 
@@ -187,20 +187,20 @@ func handleDataCopy(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.SelectedDataRow < 0 || m.SelectedDataRow >= len(data.Rows) {
+	if m.Data.SelectedDataRow < 0 || m.Data.SelectedDataRow >= len(data.Rows) {
 		return m, nil
 	}
 
-	row := data.Rows[m.SelectedDataRow]
+	row := data.Rows[m.Data.SelectedDataRow]
 
 	// Get column order to match display order
 	columnOrder := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
 	err := ui.CopyRowToClipboard(row, columnOrder)
 	if err != nil {
-		m.CopyMessage = "Copy failed: " + err.Error()
+		m.UI.CopyMessage = "Copy failed: " + err.Error()
 	} else {
-		m.CopyMessage = "Copied to clipboard"
+		m.UI.CopyMessage = "Copied to clipboard"
 	}
 
 	// Clear message after a short delay using a timer command
@@ -218,43 +218,43 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case tea.KeyEscape:
-		m.RecordDetailVisible = false
-		m.RecordDetailScroll = 0
+		m.RecordDetail.Visible = false
+		m.RecordDetail.ScrollOffset = 0
 		return m, nil
 
 	case tea.KeyUp, tea.KeyCtrlP:
-		if m.RecordDetailScroll > 0 {
-			m.RecordDetailScroll--
+		if m.RecordDetail.ScrollOffset > 0 {
+			m.RecordDetail.ScrollOffset--
 		}
 		return m, nil
 
 	case tea.KeyDown, tea.KeyCtrlN:
-		if m.RecordDetailScroll < maxScroll {
-			m.RecordDetailScroll++
+		if m.RecordDetail.ScrollOffset < maxScroll {
+			m.RecordDetail.ScrollOffset++
 		}
 		return m, nil
 
 	case tea.KeyHome:
-		m.RecordDetailScroll = 0
+		m.RecordDetail.ScrollOffset = 0
 		return m, nil
 
 	case tea.KeyEnd:
-		m.RecordDetailScroll = maxScroll
+		m.RecordDetail.ScrollOffset = maxScroll
 		return m, nil
 
 	case tea.KeyPgUp:
 		// Scroll up by page
-		m.RecordDetailScroll -= ui.PageScrollAmount
-		if m.RecordDetailScroll < 0 {
-			m.RecordDetailScroll = 0
+		m.RecordDetail.ScrollOffset -= ui.PageScrollAmount
+		if m.RecordDetail.ScrollOffset < 0 {
+			m.RecordDetail.ScrollOffset = 0
 		}
 		return m, nil
 
 	case tea.KeyPgDown:
 		// Scroll down by page
-		m.RecordDetailScroll += ui.PageScrollAmount
-		if m.RecordDetailScroll > maxScroll {
-			m.RecordDetailScroll = maxScroll
+		m.RecordDetail.ScrollOffset += ui.PageScrollAmount
+		if m.RecordDetail.ScrollOffset > maxScroll {
+			m.RecordDetail.ScrollOffset = maxScroll
 		}
 		return m, nil
 	}

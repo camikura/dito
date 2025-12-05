@@ -9,7 +9,7 @@ func TestRenderSQLPane(t *testing.T) {
 	t.Run("empty SQL shows cursor when focused", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = ""
+		m.SQL.CurrentSQL = ""
 
 		result := renderSQLPaneWithHeight(m, 40, 5)
 
@@ -21,7 +21,7 @@ func TestRenderSQLPane(t *testing.T) {
 
 	t.Run("shows SQL content", func(t *testing.T) {
 		m := InitialModel()
-		m.CurrentSQL = "SELECT * FROM users"
+		m.SQL.CurrentSQL = "SELECT * FROM users"
 
 		result := renderSQLPaneWithHeight(m, 40, 5)
 
@@ -32,8 +32,8 @@ func TestRenderSQLPane(t *testing.T) {
 
 	t.Run("shows Custom label when custom SQL", func(t *testing.T) {
 		m := InitialModel()
-		m.CustomSQL = true
-		m.CurrentSQL = "SELECT id FROM users"
+		m.SQL.CustomSQL = true
+		m.SQL.CurrentSQL = "SELECT id FROM users"
 
 		result := renderSQLPaneWithHeight(m, 40, 5)
 
@@ -44,7 +44,7 @@ func TestRenderSQLPane(t *testing.T) {
 
 	t.Run("wraps long SQL text", func(t *testing.T) {
 		m := InitialModel()
-		m.CurrentSQL = "SELECT id, name, email, address, phone FROM users WHERE active = true"
+		m.SQL.CurrentSQL = "SELECT id, name, email, address, phone FROM users WHERE active = true"
 
 		result := renderSQLPaneWithHeight(m, 30, 5)
 
@@ -56,7 +56,7 @@ func TestRenderSQLPane(t *testing.T) {
 
 	t.Run("handles multiline SQL", func(t *testing.T) {
 		m := InitialModel()
-		m.CurrentSQL = "SELECT *\nFROM users\nWHERE id = 1"
+		m.SQL.CurrentSQL = "SELECT *\nFROM users\nWHERE id = 1"
 
 		result := renderSQLPaneWithHeight(m, 40, 5)
 
@@ -71,8 +71,8 @@ func TestRenderSQLPane(t *testing.T) {
 	t.Run("cursor position in middle of text", func(t *testing.T) {
 		m := InitialModel()
 		m.CurrentPane = FocusPaneSQL
-		m.CurrentSQL = "SELECT"
-		m.SQLCursorPos = 3
+		m.SQL.CurrentSQL = "SELECT"
+		m.SQL.CursorPos = 3
 
 		result := renderSQLPaneWithHeight(m, 40, 5)
 

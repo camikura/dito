@@ -10,7 +10,7 @@ import (
 
 // renderRecordDetailDialog renders a dialog showing the details of the selected record
 func renderRecordDetailDialog(m Model) string {
-	if !m.RecordDetailVisible {
+	if !m.RecordDetail.Visible {
 		return ""
 	}
 
@@ -24,18 +24,18 @@ func renderRecordDetailDialog(m Model) string {
 		return ""
 	}
 
-	if m.SelectedDataRow < 0 || m.SelectedDataRow >= len(data.Rows) {
+	if m.Data.SelectedDataRow < 0 || m.Data.SelectedDataRow >= len(data.Rows) {
 		return ""
 	}
 
-	row := data.Rows[m.SelectedDataRow]
+	row := data.Rows[m.Data.SelectedDataRow]
 
 	// Get columns in schema order
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
 	// Calculate dialog dimensions (80% of screen)
-	dialogWidth := m.Width * ui.DialogSizeRatio / ui.DialogSizeDivisor
-	dialogHeight := m.Height * ui.DialogSizeRatio / ui.DialogSizeDivisor
+	dialogWidth := m.Window.Width * ui.DialogSizeRatio / ui.DialogSizeDivisor
+	dialogHeight := m.Window.Height * ui.DialogSizeRatio / ui.DialogSizeDivisor
 
 	// Create record detail component
 	rd := ui.NewRecordDetail(ui.RecordDetailConfig{
@@ -43,11 +43,11 @@ func renderRecordDetailDialog(m Model) string {
 		Columns:      columns,
 		Width:        dialogWidth,
 		Height:       dialogHeight,
-		ScrollOffset: m.RecordDetailScroll,
+		ScrollOffset: m.RecordDetail.ScrollOffset,
 		BorderColor:  ui.ColorPrimaryHex,
 	})
 
-	return rd.RenderCentered(m.Width, m.Height)
+	return rd.RenderCentered(m.Window.Width, m.Window.Height)
 }
 
 // renderConnectionDialog renders the connection setup dialog
@@ -102,7 +102,7 @@ func renderConnectionDialog(m Model) string {
 
 		// Build value display
 		var valueDisplay string
-		if m.ConnectionDialogField == fieldIndex {
+		if m.ConnectionDialog.Field == fieldIndex {
 			// Focused text field: cursor only (no background)
 			if cursorPos < len(valueRunes) {
 				beforeCursor := string(valueRunes[:cursorPos])
@@ -152,11 +152,11 @@ func renderConnectionDialog(m Model) string {
 	dialog.WriteString("\n")
 
 	// Endpoint field
-	dialog.WriteString(renderFieldLine("Endpoint", m.EditEndpoint, 0, m.EditCursorPos))
+	dialog.WriteString(renderFieldLine("Endpoint", m.ConnectionDialog.EditEndpoint, 0, m.ConnectionDialog.EditCursorPos))
 	dialog.WriteString("\n")
 
 	// Port field
-	dialog.WriteString(renderFieldLine("Port", m.EditPort, 1, m.EditCursorPos))
+	dialog.WriteString(renderFieldLine("Port", m.ConnectionDialog.EditPort, 1, m.ConnectionDialog.EditCursorPos))
 	dialog.WriteString("\n")
 
 	// Empty line
@@ -187,8 +187,8 @@ func renderConnectionDialog(m Model) string {
 
 	// Center the dialog
 	return lipgloss.Place(
-		m.Width,
-		m.Height,
+		m.Window.Width,
+		m.Window.Height,
 		lipgloss.Center,
 		lipgloss.Center,
 		dialog.String(),

@@ -11,7 +11,7 @@ import (
 func TestRenderTablesPane(t *testing.T) {
 	t.Run("no tables shows message", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{}
+		m.Tables.Tables = []string{}
 
 		result := renderTablesPaneWithHeight(m, 30, 10)
 
@@ -22,7 +22,7 @@ func TestRenderTablesPane(t *testing.T) {
 
 	t.Run("shows table names", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products"}
+		m.Tables.Tables = []string{"users", "products"}
 
 		result := renderTablesPaneWithHeight(m, 30, 10)
 
@@ -36,8 +36,8 @@ func TestRenderTablesPane(t *testing.T) {
 
 	t.Run("shows selection marker for selected table", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products"}
-		m.SelectedTable = 0
+		m.Tables.Tables = []string{"users", "products"}
+		m.Tables.SelectedTable = 0
 
 		result := renderTablesPaneWithHeight(m, 30, 10)
 
@@ -48,7 +48,7 @@ func TestRenderTablesPane(t *testing.T) {
 
 	t.Run("shows table count in title", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users", "products", "orders"}
+		m.Tables.Tables = []string{"users", "products", "orders"}
 
 		result := renderTablesPaneWithHeight(m, 30, 10)
 
@@ -59,7 +59,7 @@ func TestRenderTablesPane(t *testing.T) {
 
 	t.Run("indents child tables", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"orders", "orders.items"}
+		m.Tables.Tables = []string{"orders", "orders.items"}
 
 		result := renderTablesPaneWithHeight(m, 30, 10)
 
@@ -73,7 +73,7 @@ func TestRenderTablesPane(t *testing.T) {
 func TestRenderSchemaPane(t *testing.T) {
 	t.Run("no table selected shows message", func(t *testing.T) {
 		m := InitialModel()
-		m.SelectedTable = -1
+		m.Tables.SelectedTable = -1
 
 		result := renderSchemaPaneWithHeight(m, 30, 10)
 
@@ -84,9 +84,9 @@ func TestRenderSchemaPane(t *testing.T) {
 
 	t.Run("shows loading when no details", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.TableDetails = make(map[string]*db.TableDetailsResult)
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Schema.TableDetails = make(map[string]*db.TableDetailsResult)
 
 		result := renderSchemaPaneWithHeight(m, 30, 10)
 
@@ -97,9 +97,9 @@ func TestRenderSchemaPane(t *testing.T) {
 
 	t.Run("shows schema error message", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.SchemaErrorMsg = "Failed to load schema"
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Schema.ErrorMsg = "Failed to load schema"
 
 		result := renderSchemaPaneWithHeight(m, 30, 10)
 
@@ -110,9 +110,9 @@ func TestRenderSchemaPane(t *testing.T) {
 
 	t.Run("shows columns and indexes sections", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.TableDetails = map[string]*db.TableDetailsResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Schema.TableDetails = map[string]*db.TableDetailsResult{
 			"users": {
 				TableName: "users",
 				Schema: &nosqldb.TableResult{
@@ -134,9 +134,9 @@ func TestRenderSchemaPane(t *testing.T) {
 
 	t.Run("shows table name in title", func(t *testing.T) {
 		m := InitialModel()
-		m.Tables = []string{"users"}
-		m.SelectedTable = 0
-		m.TableDetails = map[string]*db.TableDetailsResult{
+		m.Tables.Tables = []string{"users"}
+		m.Tables.SelectedTable = 0
+		m.Schema.TableDetails = map[string]*db.TableDetailsResult{
 			"users": {
 				TableName: "users",
 				Schema: &nosqldb.TableResult{

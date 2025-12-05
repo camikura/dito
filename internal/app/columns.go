@@ -10,13 +10,13 @@ import (
 // For child tables, ancestor primary key columns are placed first.
 func getColumnsInSchemaOrder(m Model, tableName string, rows []map[string]interface{}) []string {
 	// For custom SQL with explicit column order from SELECT clause (not SELECT *)
-	if m.CustomSQL && len(m.ColumnOrder) > 0 {
-		return m.ColumnOrder
+	if m.SQL.CustomSQL && len(m.SQL.ColumnOrder) > 0 {
+		return m.SQL.ColumnOrder
 	}
 
 	// Use schema order for SELECT * and normal queries
 	var ddl string
-	if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
+	if details, exists := m.Schema.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
 		ddl = details.Schema.DDL
 	}
 
@@ -24,7 +24,7 @@ func getColumnsInSchemaOrder(m Model, tableName string, rows []map[string]interf
 	var ancestorDDLs []string
 	ancestors := ui.GetAncestorTableNames(tableName)
 	for _, ancestor := range ancestors {
-		if details, exists := m.TableDetails[ancestor]; exists && details != nil && details.Schema != nil {
+		if details, exists := m.Schema.TableDetails[ancestor]; exists && details != nil && details.Schema != nil {
 			ancestorDDLs = append(ancestorDDLs, details.Schema.DDL)
 		} else {
 			ancestorDDLs = append(ancestorDDLs, "")

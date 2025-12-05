@@ -17,8 +17,8 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	}
 
 	titleText := " Tables"
-	if len(m.Tables) > 0 {
-		titleText += fmt.Sprintf(" (%d)", len(m.Tables))
+	if len(m.Tables.Tables) > 0 {
+		titleText += fmt.Sprintf(" (%d)", len(m.Tables.Tables))
 	}
 	titleText += " "
 
@@ -39,8 +39,8 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	// Determine if selection marker should be shown
 	// Hide * when custom SQL targets a table not in the list
 	showSelectionMarker := true
-	if m.CustomSQL && m.CurrentSQL != "" {
-		extractedName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+	if m.SQL.CustomSQL && m.SQL.CurrentSQL != "" {
+		extractedName := ui.ExtractTableNameFromSQL(m.SQL.CurrentSQL)
 		if extractedName != "" && m.FindTableName(extractedName) == "" {
 			// Custom SQL targets a table not in the list
 			showSelectionMarker = false
@@ -48,14 +48,14 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	}
 
 	var contentLines []tableLineInfo
-	if len(m.Tables) == 0 {
+	if len(m.Tables.Tables) == 0 {
 		contentLines = []tableLineInfo{{text: "No tables", isSelected: false, isCursor: false}}
 	} else {
 		// Render each table with tree structure
 		// Calculate available width for table name (excluding borders)
 		availableWidth := width - 2 // -2 for left and right borders
 
-		for i, tableName := range m.Tables {
+		for i, tableName := range m.Tables.Tables {
 			// Determine indentation based on nesting level (count of '.' separators)
 			nestLevel := strings.Count(tableName, ".")
 			indent := strings.Repeat(" ", nestLevel)
@@ -67,7 +67,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 
 			// Add selection marker (* for selected table via Enter)
 			var prefix string
-			isSelected := showSelectionMarker && i == m.SelectedTable
+			isSelected := showSelectionMarker && i == m.Tables.SelectedTable
 			if isSelected {
 				prefix = "* "
 			} else {
@@ -85,7 +85,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 			contentLines = append(contentLines, tableLineInfo{
 				text:       fullText,
 				isSelected: isSelected,
-				isCursor:   i == m.CursorTable,
+				isCursor:   i == m.Tables.CursorTable,
 			})
 		}
 	}
@@ -94,7 +94,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
 	// Create vertical scrollbar
-	vScrollBar := ui.NewVerticalScrollBar(len(contentLines), height, m.TablesScrollOffset, height)
+	vScrollBar := ui.NewVerticalScrollBar(len(contentLines), height, m.Tables.ScrollOffset, height)
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
@@ -103,7 +103,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	isFocused := m.CurrentPane == FocusPaneTables
 	for i := 0; i < height; i++ {
 		var line string
-		contentIndex := i + m.TablesScrollOffset
+		contentIndex := i + m.Tables.ScrollOffset
 		if contentIndex < len(contentLines) {
 			lineInfo := contentLines[contentIndex]
 			// Apply color based on state
@@ -141,16 +141,16 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 	// Determine which table to show schema for
 	// Use SelectedTable, or extract from custom SQL if applicable
 	var schemaTableName string
-	if m.CustomSQL && m.CurrentSQL != "" {
+	if m.SQL.CustomSQL && m.SQL.CurrentSQL != "" {
 		// Extract table name from custom SQL and find exact match from tables list
-		extractedName := ui.ExtractTableNameFromSQL(m.CurrentSQL)
+		extractedName := ui.ExtractTableNameFromSQL(m.SQL.CurrentSQL)
 		schemaTableName = m.FindTableName(extractedName)
 		// Use extracted name if not found in tables list
 		if schemaTableName == "" && extractedName != "" {
 			schemaTableName = extractedName
 		}
-	} else if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-		schemaTableName = m.Tables[m.SelectedTable]
+	} else if m.Tables.SelectedTable >= 0 && m.Tables.SelectedTable < len(m.Tables.Tables) {
+		schemaTableName = m.Tables.Tables[m.Tables.SelectedTable]
 	}
 
 	// Title includes table name if available
@@ -188,11 +188,11 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 	// Prepare content lines
 	var contentLines []string
 	var schemaError string
-	if m.SchemaErrorMsg != "" {
-		schemaError = m.SchemaErrorMsg
+	if m.Schema.ErrorMsg != "" {
+		schemaError = m.Schema.ErrorMsg
 	}
 	if schemaTableName == "" {
-		if m.CustomSQL && m.CurrentSQL != "" {
+		if m.SQL.CustomSQL && m.SQL.CurrentSQL != "" {
 			// Custom SQL with table not found in tables list
 			contentLines = []string{"No schema"}
 		} else {
@@ -202,7 +202,7 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 		// Show error message
 		contentLines = []string{schemaError}
 	} else {
-		details, exists := m.TableDetails[schemaTableName]
+		details, exists := m.Schema.TableDetails[schemaTableName]
 		if !exists || details == nil {
 			contentLines = []string{"Loading..."}
 		} else {
@@ -217,7 +217,7 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 
 			// Add inherited primary key columns from ancestors
 			for _, ancestorName := range ancestors {
-				ancestorDetails, ancestorExists := m.TableDetails[ancestorName]
+				ancestorDetails, ancestorExists := m.Schema.TableDetails[ancestorName]
 				if ancestorExists && ancestorDetails != nil && ancestorDetails.Schema != nil && ancestorDetails.Schema.DDL != "" {
 					ancestorPKs := ui.ParsePrimaryKeysFromDDL(ancestorDetails.Schema.DDL)
 					ancestorCols := ui.ParseColumnsFromDDL(ancestorDetails.Schema.DDL, ancestorPKs)
@@ -278,7 +278,7 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
 	// Create vertical scrollbar
-	vScrollBar := ui.NewVerticalScrollBar(len(contentLines), height, m.SchemaScrollOffset, height)
+	vScrollBar := ui.NewVerticalScrollBar(len(contentLines), height, m.Schema.ScrollOffset, height)
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
@@ -286,7 +286,7 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 	// Render content lines (fill allocated height with content or empty lines)
 	for i := 0; i < height; i++ {
 		var line string
-		contentIndex := i + m.SchemaScrollOffset
+		contentIndex := i + m.Schema.ScrollOffset
 		if contentIndex < len(contentLines) {
 			content := contentLines[contentIndex]
 
