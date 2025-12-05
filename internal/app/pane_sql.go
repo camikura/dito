@@ -40,22 +40,51 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 
 	// Wrap SQL text to fit content width and track cursor position
 	type wrappedLine struct {
-		text      string
-		cursorCol int // -1 if cursor is not on this line, >= 0 means cursor position
+		text       string
+		cursorCol  int // -1 if cursor is not on this line, >= 0 means cursor position
+		selectFrom int // Start of selection in this line (-1 if none)
+		selectTo   int // End of selection in this line (-1 if none)
 	}
 
 	var wrappedLines []wrappedLine
 	sqlRunes := []rune(m.CurrentSQL)
 	cursorLineIndex := 0 // Track which wrapped line has the cursor
 
+	// Normalize selection range
+	selectStart, selectEnd := m.SQLSelectStart, m.SQLSelectEnd
+	if selectStart > selectEnd && selectStart >= 0 && selectEnd >= 0 {
+		selectStart, selectEnd = selectEnd, selectStart
+	}
+	hasSelection := selectStart >= 0 && selectEnd >= 0 && selectStart != selectEnd
+
 	if len(sqlRunes) == 0 {
 		// Empty SQL
 		if isFocused {
-			wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: 0})
+			wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: 0, selectFrom: -1, selectTo: -1})
 		} else {
-			wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: -1})
+			wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: -1, selectFrom: -1, selectTo: -1})
 		}
 	} else {
+		// Helper to calculate selection range for a line segment
+		calcSelection := func(lineStart, lineEnd int) (int, int) {
+			if !hasSelection {
+				return -1, -1
+			}
+			// Line range in absolute positions: [lineStart, lineEnd)
+			if selectEnd <= lineStart || selectStart >= lineEnd {
+				return -1, -1 // No overlap
+			}
+			from := 0
+			if selectStart > lineStart {
+				from = selectStart - lineStart
+			}
+			to := lineEnd - lineStart
+			if selectEnd < lineEnd {
+				to = selectEnd - lineStart
+			}
+			return from, to
+		}
+
 		// Wrap text
 		lineStart := 0
 		lineWidth := 0
@@ -70,7 +99,8 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 					cursorCol = m.SQLCursorPos - lineStart
 					cursorLineIndex = len(wrappedLines)
 				}
-				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
+				selFrom, selTo := calcSelection(lineStart, i)
+				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol, selectFrom: selFrom, selectTo: selTo})
 				lineStart = i + 1
 				lineWidth = 0
 			} else if lineWidth+charWidth > contentWidth && lineWidth > 0 {
@@ -81,7 +111,8 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 					cursorCol = m.SQLCursorPos - lineStart
 					cursorLineIndex = len(wrappedLines)
 				}
-				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
+				selFrom, selTo := calcSelection(lineStart, i)
+				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol, selectFrom: selFrom, selectTo: selTo})
 				lineStart = i
 				lineWidth = charWidth
 			} else {
@@ -93,20 +124,24 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 		if lineStart <= len(sqlRunes) {
 			line := string(sqlRunes[lineStart:])
 			lineDisplayWidth := lipgloss.Width(line)
+			lineEnd := len(sqlRunes)
 			cursorCol := -1
 			if isFocused && m.SQLCursorPos >= lineStart {
 				cursorCol = m.SQLCursorPos - lineStart
 				cursorLineIndex = len(wrappedLines)
 				// If cursor is at end and line is full width, move cursor to next line
 				if cursorCol == len([]rune(line)) && lineDisplayWidth >= contentWidth {
-					wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: -1})
-					wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: 0})
+					selFrom, selTo := calcSelection(lineStart, lineEnd)
+					wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: -1, selectFrom: selFrom, selectTo: selTo})
+					wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: 0, selectFrom: -1, selectTo: -1})
 					cursorLineIndex = len(wrappedLines) - 1
 				} else {
-					wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
+					selFrom, selTo := calcSelection(lineStart, lineEnd)
+					wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol, selectFrom: selFrom, selectTo: selTo})
 				}
 			} else {
-				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
+				selFrom, selTo := calcSelection(lineStart, lineEnd)
+				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol, selectFrom: selFrom, selectTo: selTo})
 			}
 		}
 	}
@@ -135,8 +170,21 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 			wl := wrappedLines[lineIndex]
 			lineRunes := []rune(wl.text)
 
-			if wl.cursorCol >= 0 {
-				// This line has the cursor
+			// Check if this line has selection
+			hasLineSelection := wl.selectFrom >= 0 && wl.selectTo >= 0 && wl.selectFrom < wl.selectTo
+
+			if hasLineSelection && wl.cursorCol < 0 {
+				// Selection only (no cursor on this line)
+				before := string(lineRunes[:wl.selectFrom])
+				selected := string(lineRunes[wl.selectFrom:wl.selectTo])
+				after := ""
+				if wl.selectTo < len(lineRunes) {
+					after = string(lineRunes[wl.selectTo:])
+				}
+				lineContent = before + ui.StyleSelection.Render(selected) + after
+				lineDisplayWidth = lipgloss.Width(wl.text)
+			} else if wl.cursorCol >= 0 {
+				// This line has the cursor (selection is shown as cursor style)
 				if wl.cursorCol < len(lineRunes) {
 					beforeCursor := string(lineRunes[:wl.cursorCol])
 					cursorChar := string(lineRunes[wl.cursorCol])

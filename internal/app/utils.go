@@ -272,6 +272,31 @@ func calculateSchemaContentLineCount(m Model, schemaTableName string) int {
 	return lineCount
 }
 
+// deleteSelectedSQL deletes the selected text and returns updated model
+func deleteSelectedSQL(m Model) Model {
+	if m.SQLSelectStart < 0 || m.SQLSelectEnd < 0 {
+		return m
+	}
+
+	start := m.SQLSelectStart
+	end := m.SQLSelectEnd
+	if start > end {
+		start, end = end, start
+	}
+
+	runes := []rune(m.CurrentSQL)
+	if end > len(runes) {
+		end = len(runes)
+	}
+
+	m.CurrentSQL = string(runes[:start]) + string(runes[end:])
+	m.SQLCursorPos = start
+	m.SQLSelectStart = -1
+	m.SQLSelectEnd = -1
+
+	return m
+}
+
 // updateSQLScrollOffset updates the SQL scroll offset to keep cursor visible
 // Returns the updated scroll offset
 func updateSQLScrollOffset(m Model) int {

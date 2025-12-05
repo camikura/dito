@@ -72,7 +72,9 @@ type Model struct {
 	RecordDetailScroll  int // Scroll offset for record detail dialog
 
 	// SQL cursor position (for inline editing)
-	SQLCursorPos int
+	SQLCursorPos   int
+	SQLSelectStart int  // Start of selection (-1 if no selection)
+	SQLSelectEnd   int  // End of selection (-1 if no selection)
 
 	// Connection Setup Dialog
 	ConnectionDialogVisible bool
@@ -95,6 +97,8 @@ func InitialModel() Model {
 		CurrentSQL:            "",
 		CustomSQL:             false,
 		PreviousSelectedTable: -1,
+		SQLSelectStart:        -1,
+		SQLSelectEnd:          -1,
 	}
 }
 

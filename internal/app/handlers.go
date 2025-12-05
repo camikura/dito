@@ -356,24 +356,39 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyEnter:
-		// Insert newline
+		// If text is selected, delete it first
+		if m.SQLSelectStart >= 0 && m.SQLSelectEnd >= 0 {
+			m = deleteSelectedSQL(m)
+		}
 		m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, "\n")
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyBackspace:
-		m.CurrentSQL, m.SQLCursorPos = ui.Backspace(m.CurrentSQL, m.SQLCursorPos)
+		// If text is selected, delete selection
+		if m.SQLSelectStart >= 0 && m.SQLSelectEnd >= 0 {
+			m = deleteSelectedSQL(m)
+		} else {
+			m.CurrentSQL, m.SQLCursorPos = ui.Backspace(m.CurrentSQL, m.SQLCursorPos)
+		}
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyDelete:
-		m.CurrentSQL = ui.DeleteAt(m.CurrentSQL, m.SQLCursorPos)
+		// If text is selected, delete selection
+		if m.SQLSelectStart >= 0 && m.SQLSelectEnd >= 0 {
+			m = deleteSelectedSQL(m)
+		} else {
+			m.CurrentSQL = ui.DeleteAt(m.CurrentSQL, m.SQLCursorPos)
+		}
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyLeft:
 		if m.SQLCursorPos > 0 {
 			m.SQLCursorPos--
+			m.SQLSelectStart = -1
+			m.SQLSelectEnd = -1
 			m.SQLScrollOffset = updateSQLScrollOffset(m)
 		}
 		return m, nil
@@ -381,6 +396,8 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyRight:
 		if m.SQLCursorPos < ui.RuneLen(m.CurrentSQL) {
 			m.SQLCursorPos++
+			m.SQLSelectStart = -1
+			m.SQLSelectEnd = -1
 			m.SQLScrollOffset = updateSQLScrollOffset(m)
 		}
 		return m, nil
@@ -388,35 +405,63 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyUp:
 		// Move cursor up one line
 		m.SQLCursorPos = moveCursorUpInText(m.CurrentSQL, m.SQLCursorPos)
+		m.SQLSelectStart = -1
+		m.SQLSelectEnd = -1
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyDown:
 		// Move cursor down one line
 		m.SQLCursorPos = moveCursorDownInText(m.CurrentSQL, m.SQLCursorPos)
+		m.SQLSelectStart = -1
+		m.SQLSelectEnd = -1
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyHome, tea.KeyCtrlA:
 		m.SQLCursorPos = 0
+		m.SQLSelectStart = -1
+		m.SQLSelectEnd = -1
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyEnd, tea.KeyCtrlE:
 		m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+		m.SQLSelectStart = -1
+		m.SQLSelectEnd = -1
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeySpace:
+		// If text is selected, delete it first
+		if m.SQLSelectStart >= 0 && m.SQLSelectEnd >= 0 {
+			m = deleteSelectedSQL(m)
+		}
 		m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, " ")
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
 	case tea.KeyRunes:
+		// If text is selected, delete it first
+		if m.SQLSelectStart >= 0 && m.SQLSelectEnd >= 0 {
+			m = deleteSelectedSQL(m)
+		}
 		for _, r := range msg.Runes {
 			m.CurrentSQL, m.SQLCursorPos = ui.InsertWithCursor(m.CurrentSQL, m.SQLCursorPos, string(r))
 		}
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
+		return m, nil
+	}
+
+	// Handle string-based keys (Mac Cmd key)
+	switch msg.String() {
+	case "cmd+a":
+		// Select all (Mac)
+		if len(m.CurrentSQL) > 0 {
+			m.SQLSelectStart = 0
+			m.SQLSelectEnd = ui.RuneLen(m.CurrentSQL)
+			m.SQLCursorPos = m.SQLSelectEnd
+		}
 		return m, nil
 	}
 

@@ -101,4 +101,6 @@ var (
 	CursorNarrow = lipgloss.NewStyle().Reverse(true)
 	// CursorWide is for double-width characters (CJK, full-width)
 	CursorWide = lipgloss.NewStyle().Reverse(true)
+	// StyleSelection is for selected text
+	StyleSelection = lipgloss.NewStyle().Background(lipgloss.Color("27")) // Blue background
 )
