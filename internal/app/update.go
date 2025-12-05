@@ -10,6 +10,9 @@ import (
 // Update handles messages and updates the model
 func Update(m Model, msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.MouseMsg:
+		return handleMouseClick(m, msg)
+
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
