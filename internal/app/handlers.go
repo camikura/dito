@@ -182,8 +182,8 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Calculate tables pane height using the same logic as view.go
 	visibleLines := calculateTablesHeight(m)
 
-	switch msg.String() {
-	case "up", "k":
+	switch msg.Type {
+	case tea.KeyUp, tea.KeyCtrlP:
 		if m.CursorTable > 0 {
 			m.CursorTable--
 
@@ -194,7 +194,7 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "down", "j":
+	case tea.KeyDown, tea.KeyCtrlN:
 		if m.CursorTable < len(m.Tables)-1 {
 			m.CursorTable++
 
@@ -205,7 +205,7 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "enter":
+	case tea.KeyEnter:
 		// Select table and load data (only on Enter)
 		if m.CursorTable < len(m.Tables) {
 			m.SelectedTable = m.CursorTable
@@ -281,14 +281,14 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		maxScroll = 0
 	}
 
-	switch msg.String() {
-	case "up", "k":
+	switch msg.Type {
+	case tea.KeyUp, tea.KeyCtrlP:
 		if m.SchemaScrollOffset > 0 {
 			m.SchemaScrollOffset--
 		}
 		return m, nil
 
-	case "down", "j":
+	case tea.KeyDown, tea.KeyCtrlN:
 		if m.SchemaScrollOffset < maxScroll {
 			m.SchemaScrollOffset++
 		}
@@ -464,8 +464,8 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Calculate max horizontal offset
 	maxHorizontalOffset := calculateMaxHorizontalOffset(m)
 
-	switch msg.String() {
-	case "up", "k":
+	switch msg.Type {
+	case tea.KeyUp, tea.KeyCtrlP:
 		if m.SelectedDataRow > 0 {
 			m.SelectedDataRow--
 
@@ -496,7 +496,7 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "down", "j":
+	case tea.KeyDown, tea.KeyCtrlN:
 		if totalRows > 0 && m.SelectedDataRow < totalRows-1 {
 			m.SelectedDataRow++
 
@@ -548,19 +548,19 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "left", "h":
+	case tea.KeyLeft, tea.KeyCtrlB:
 		if m.HorizontalOffset > 0 {
 			m.HorizontalOffset--
 		}
 		return m, nil
 
-	case "right", "l":
+	case tea.KeyRight, tea.KeyCtrlF:
 		if m.HorizontalOffset < maxHorizontalOffset {
 			m.HorizontalOffset++
 		}
 		return m, nil
 
-	case "enter":
+	case tea.KeyEnter:
 		// Show record detail dialog
 		if totalRows > 0 && m.SelectedDataRow < totalRows {
 			m.RecordDetailVisible = true
@@ -568,7 +568,7 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "esc":
+	case tea.KeyEscape:
 		// Reset to default SQL (only if custom SQL is active)
 		if m.CustomSQL {
 			m.CustomSQL = false
@@ -598,6 +598,16 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.SQLCursorPos = 0
 		}
 		return m, nil
+
+	case tea.KeyCtrlA:
+		// Scroll to leftmost
+		m.HorizontalOffset = 0
+		return m, nil
+
+	case tea.KeyCtrlE:
+		// Scroll to rightmost
+		m.HorizontalOffset = maxHorizontalOffset
+		return m, nil
 	}
 
 	return m, nil
@@ -607,36 +617,36 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Calculate max scroll for record detail
 	maxScroll := calculateRecordDetailMaxScroll(m)
 
-	switch msg.String() {
-	case "ctrl+c":
+	switch msg.Type {
+	case tea.KeyCtrlC:
 		return m, tea.Quit
 
-	case "esc":
+	case tea.KeyEscape:
 		m.RecordDetailVisible = false
 		m.RecordDetailScroll = 0
 		return m, nil
 
-	case "up", "k":
+	case tea.KeyUp, tea.KeyCtrlP:
 		if m.RecordDetailScroll > 0 {
 			m.RecordDetailScroll--
 		}
 		return m, nil
 
-	case "down", "j":
+	case tea.KeyDown, tea.KeyCtrlN:
 		if m.RecordDetailScroll < maxScroll {
 			m.RecordDetailScroll++
 		}
 		return m, nil
 
-	case "home":
+	case tea.KeyHome:
 		m.RecordDetailScroll = 0
 		return m, nil
 
-	case "end":
+	case tea.KeyEnd:
 		m.RecordDetailScroll = maxScroll
 		return m, nil
 
-	case "pgup":
+	case tea.KeyPgUp:
 		// Scroll up by page
 		m.RecordDetailScroll -= ui.PageScrollAmount
 		if m.RecordDetailScroll < 0 {
@@ -644,7 +654,7 @@ func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "pgdown":
+	case tea.KeyPgDown:
 		// Scroll down by page
 		m.RecordDetailScroll += ui.PageScrollAmount
 		if m.RecordDetailScroll > maxScroll {
