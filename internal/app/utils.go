@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/camikura/dito/internal/ui"
 )
 
@@ -222,4 +224,106 @@ func calculateSchemaHeight(m Model) int {
 func calculateTablesHeight(m Model) int {
 	tablesHeight, _, _ := calculatePaneHeights(m)
 	return tablesHeight
+}
+
+// calculateSQLHeight calculates the SQL pane height using the same logic as view.go
+func calculateSQLHeight(m Model) int {
+	_, _, sqlHeight := calculatePaneHeights(m)
+	return sqlHeight
+}
+
+// calculateSchemaContentLineCount calculates the number of content lines in the schema pane
+// This must match the logic in pane_tables.go renderSchemaPaneWithHeight
+func calculateSchemaContentLineCount(m Model, schemaTableName string) int {
+	details, exists := m.TableDetails[schemaTableName]
+	if !exists || details == nil {
+		return 1 // "Loading..." or similar
+	}
+
+	lineCount := 1 // "Columns:"
+
+	// Count inherited primary key columns from ancestors
+	ancestors := ui.GetAncestorTableNames(schemaTableName)
+	for _, ancestorName := range ancestors {
+		if ancestorDetails, ancestorExists := m.TableDetails[ancestorName]; ancestorExists && ancestorDetails != nil && ancestorDetails.Schema != nil && ancestorDetails.Schema.DDL != "" {
+			ancestorPKs := ui.ParsePrimaryKeysFromDDL(ancestorDetails.Schema.DDL)
+			ancestorCols := ui.ParseColumnsFromDDL(ancestorDetails.Schema.DDL, ancestorPKs)
+			for _, col := range ancestorCols {
+				if col.IsPrimaryKey {
+					lineCount++
+				}
+			}
+		}
+	}
+
+	// Count this table's own columns
+	if details.Schema != nil && details.Schema.DDL != "" {
+		primaryKeys := ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+		columns := ui.ParseColumnsFromDDL(details.Schema.DDL, primaryKeys)
+		lineCount += len(columns)
+	}
+
+	lineCount += 2 // Empty line + "Indexes:"
+	lineCount += len(details.Indexes)
+	if len(details.Indexes) == 0 {
+		lineCount++ // "(none)" line
+	}
+
+	return lineCount
+}
+
+// updateSQLScrollOffset updates the SQL scroll offset to keep cursor visible
+// Returns the updated scroll offset
+func updateSQLScrollOffset(m Model) int {
+	sqlHeight := calculateSQLHeight(m)
+	contentWidth := ui.LeftPaneContentWidth - 2 // Width inside borders
+
+	// Calculate which wrapped line the cursor is on
+	sqlRunes := []rune(m.CurrentSQL)
+	cursorLineIndex := 0
+
+	if len(sqlRunes) > 0 {
+		lineStart := 0
+		lineWidth := 0
+		lineCount := 0
+
+		for i, r := range sqlRunes {
+			charWidth := lipgloss.Width(string(r))
+
+			if r == '\n' {
+				if m.SQLCursorPos >= lineStart && m.SQLCursorPos <= i {
+					cursorLineIndex = lineCount
+					break
+				}
+				lineCount++
+				lineStart = i + 1
+				lineWidth = 0
+			} else if lineWidth+charWidth > contentWidth && lineWidth > 0 {
+				if m.SQLCursorPos >= lineStart && m.SQLCursorPos < i {
+					cursorLineIndex = lineCount
+					break
+				}
+				lineCount++
+				lineStart = i
+				lineWidth = charWidth
+			} else {
+				lineWidth += charWidth
+			}
+		}
+
+		// Check if cursor is in the last segment
+		if m.SQLCursorPos >= lineStart {
+			cursorLineIndex = lineCount
+		}
+	}
+
+	// Adjust scroll offset to keep cursor visible
+	scrollOffset := m.SQLScrollOffset
+	if cursorLineIndex < scrollOffset {
+		scrollOffset = cursorLineIndex
+	} else if cursorLineIndex >= scrollOffset+sqlHeight {
+		scrollOffset = cursorLineIndex - sqlHeight + 1
+	}
+
+	return scrollOffset
 }

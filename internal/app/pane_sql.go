@@ -34,7 +34,6 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	title := borderStyle.Render("╭─") + styledTitle + borderStyle.Render(strings.Repeat("─", dashCount) + "╮")
 
 	leftBorder := borderStyle.Render("│")
-	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
 
 	contentWidth := width - 2 // Width inside borders
@@ -47,6 +46,7 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 
 	var wrappedLines []wrappedLine
 	sqlRunes := []rune(m.CurrentSQL)
+	cursorLineIndex := 0 // Track which wrapped line has the cursor
 
 	if len(sqlRunes) == 0 {
 		// Empty SQL
@@ -68,6 +68,7 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 				cursorCol := -1
 				if isFocused && m.SQLCursorPos >= lineStart && m.SQLCursorPos <= i {
 					cursorCol = m.SQLCursorPos - lineStart
+					cursorLineIndex = len(wrappedLines)
 				}
 				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
 				lineStart = i + 1
@@ -78,6 +79,7 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 				cursorCol := -1
 				if isFocused && m.SQLCursorPos >= lineStart && m.SQLCursorPos < i {
 					cursorCol = m.SQLCursorPos - lineStart
+					cursorLineIndex = len(wrappedLines)
 				}
 				wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
 				lineStart = i
@@ -94,10 +96,12 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 			cursorCol := -1
 			if isFocused && m.SQLCursorPos >= lineStart {
 				cursorCol = m.SQLCursorPos - lineStart
+				cursorLineIndex = len(wrappedLines)
 				// If cursor is at end and line is full width, move cursor to next line
 				if cursorCol == len([]rune(line)) && lineDisplayWidth >= contentWidth {
 					wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: -1})
 					wrappedLines = append(wrappedLines, wrappedLine{text: "", cursorCol: 0})
+					cursorLineIndex = len(wrappedLines) - 1
 				} else {
 					wrappedLines = append(wrappedLines, wrappedLine{text: line, cursorCol: cursorCol})
 				}
@@ -107,16 +111,28 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 		}
 	}
 
+	// Calculate scroll offset to keep cursor visible
+	scrollOffset := m.SQLScrollOffset
+	if cursorLineIndex < scrollOffset {
+		scrollOffset = cursorLineIndex
+	} else if cursorLineIndex >= scrollOffset+height {
+		scrollOffset = cursorLineIndex - height + 1
+	}
+
+	// Create vertical scrollbar
+	vScrollBar := ui.NewVerticalScrollBar(len(wrappedLines), height, scrollOffset, height)
+
 	var result strings.Builder
 	result.WriteString(title + "\n")
 
-	// Render wrapped lines
+	// Render wrapped lines with scroll offset
 	for i := 0; i < height; i++ {
 		var lineContent string
 		var lineDisplayWidth int
 
-		if i < len(wrappedLines) {
-			wl := wrappedLines[i]
+		lineIndex := i + scrollOffset
+		if lineIndex < len(wrappedLines) {
+			wl := wrappedLines[lineIndex]
 			lineRunes := []rune(wl.text)
 
 			if wl.cursorCol >= 0 {
@@ -136,8 +152,15 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 					lineDisplayWidth = lipgloss.Width(wl.text)
 				} else {
 					// Cursor at end of line
-					lineContent = wl.text + ui.CursorNarrow.Render(" ")
-					lineDisplayWidth = lipgloss.Width(wl.text) + 1
+					textWidth := lipgloss.Width(wl.text)
+					if textWidth >= contentWidth {
+						// No room for cursor block, show text only (cursor handled by next line)
+						lineContent = wl.text
+						lineDisplayWidth = textWidth
+					} else {
+						lineContent = wl.text + ui.CursorNarrow.Render(" ")
+						lineDisplayWidth = textWidth + 1
+					}
 				}
 			} else {
 				lineContent = wl.text
@@ -149,6 +172,10 @@ func renderSQLPaneWithHeight(m Model, width int, height int) string {
 		if paddingLen < 0 {
 			paddingLen = 0
 		}
+
+		// Get right border character (with scrollbar indicator)
+		rightBorderChar := vScrollBar.GetCharAt(i)
+		rightBorder := borderStyle.Render(rightBorderChar)
 		result.WriteString(leftBorder + lineContent + strings.Repeat(" ", paddingLen) + rightBorder + "\n")
 	}
 	result.WriteString(bottomBorder)

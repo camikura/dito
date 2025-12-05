@@ -57,6 +57,7 @@ type Model struct {
 	CustomSQL             bool
 	ColumnOrder           []string // Column order from custom SQL SELECT clause
 	PreviousSelectedTable int      // Saved SelectedTable before custom SQL
+	SQLScrollOffset       int      // Scroll offset for SQL pane
 
 	// Data
 	TableData        map[string]*db.TableDataResult
