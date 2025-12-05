@@ -16,19 +16,19 @@ jobs:
         include:
           - goos: linux
             goarch: amd64
-            suffix: linux-amd64
+            suffix: linux-x64
           - goos: linux
             goarch: arm64
             suffix: linux-arm64
           - goos: darwin
             goarch: amd64
-            suffix: darwin-amd64
+            suffix: macos-x64
           - goos: darwin
             goarch: arm64
-            suffix: darwin-arm64
+            suffix: macos-arm64
           - goos: windows
             goarch: amd64
-            suffix: windows-amd64
+            suffix: windows-x64
             ext: .exe
 
     steps:
