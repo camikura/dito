@@ -563,19 +563,10 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			// Calculate middle position of visible area
 			middlePosition := dataVisibleLines / 2
 
-			// Scrolling logic (symmetric to down):
-			// When above middle, keep cursor at middle by adjusting viewport
-			// But never exceed maxViewportOffset (when at bottom)
-			// When at or below middle, viewport stays at 0
+			// Scrolling logic: keep cursor at middle of screen (VS Code style)
 			if m.SelectedDataRow > middlePosition {
-				// Still above middle - keep cursor at middle
 				m.ViewportOffset = m.SelectedDataRow - middlePosition
-				// But don't exceed max offset
-				if m.ViewportOffset > maxViewportOffset {
-					m.ViewportOffset = maxViewportOffset
-				}
 			} else {
-				// At or below middle - viewport is 0
 				m.ViewportOffset = 0
 			}
 		}
