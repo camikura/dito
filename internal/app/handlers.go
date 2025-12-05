@@ -182,15 +182,16 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Calculate tables pane height using the same logic as view.go
 	visibleLines := calculateTablesHeight(m)
 
-	// Handle Alt+< and Alt+> first (string-based matching)
+	// Handle M-< and M-> (Alt+Shift+, and Alt+Shift+.)
+	// On Mac, these produce special characters: ¯ (175) and ˘ (728)
 	switch msg.String() {
-	case "alt+<":
+	case "alt+<", "¯":
 		// Jump to first table
 		m.CursorTable = 0
 		m.TablesScrollOffset = 0
 		return m, nil
 
-	case "alt+>":
+	case "alt+>", "˘":
 		// Jump to last table
 		if len(m.Tables) > 0 {
 			m.CursorTable = len(m.Tables) - 1
@@ -301,14 +302,15 @@ func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		maxScroll = 0
 	}
 
-	// Handle Alt+< and Alt+> first (string-based matching)
+	// Handle M-< and M-> (Alt+Shift+, and Alt+Shift+.)
+	// On Mac, these produce special characters: ¯ (175) and ˘ (728)
 	switch msg.String() {
-	case "alt+<":
+	case "alt+<", "¯":
 		// Scroll to top
 		m.SchemaScrollOffset = 0
 		return m, nil
 
-	case "alt+>":
+	case "alt+>", "˘":
 		// Scroll to bottom
 		m.SchemaScrollOffset = maxScroll
 		return m, nil
@@ -503,15 +505,16 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		maxViewportOffset = 0
 	}
 
-	// Handle Alt+< and Alt+> first (string-based matching)
+	// Handle M-< and M-> (Alt+Shift+, and Alt+Shift+.)
+	// On Mac, these produce special characters: ¯ (175) and ˘ (728)
 	switch msg.String() {
-	case "alt+<":
+	case "alt+<", "¯":
 		// Jump to first row
 		m.SelectedDataRow = 0
 		m.ViewportOffset = 0
 		return m, nil
 
-	case "alt+>":
+	case "alt+>", "˘":
 		// Jump to last row
 		if totalRows > 0 {
 			m.SelectedDataRow = totalRows - 1
