@@ -141,27 +141,23 @@ func calculateRecordDetailMaxScroll(m Model) int {
 	// Get columns in order
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
-	// Count total lines needed (one per field)
-	var lines []string
-	for _, col := range columns {
-		val := ui.FormatValue(row[col])
-		// Split value by newlines for multi-line values
-		valueLines := strings.Split(val, "\n")
-		for i, vl := range valueLines {
-			if i == 0 {
-				lines = append(lines, col+": "+vl)
-			} else {
-				lines = append(lines, "  "+vl)
-			}
-		}
-	}
-
-	// Calculate visible height (dialog is 80% of screen, minus borders)
-	// Must match view.go: contentHeight = dialogHeight - 2
+	// Calculate dialog dimensions (must match dialogs.go)
+	dialogWidth := m.Width * 4 / 5
 	dialogHeight := m.Height * 4 / 5
-	contentHeight := dialogHeight - 2 // Subtract top border (1) + bottom border (1)
+	contentWidth := dialogWidth - 2 // borders
+	innerWidth := contentWidth - 2  // padding (1 on each side)
+	contentHeight := dialogHeight - 2
 
-	maxScroll := len(lines) - contentHeight
+	// Use VerticalTable to get actual rendered line count (with wrapping)
+	vt := ui.VerticalTable{
+		Data:     row,
+		Keys:     columns,
+		MaxWidth: innerWidth,
+	}
+	content := vt.Render()
+	lineCount := len(strings.Split(content, "\n"))
+
+	maxScroll := lineCount - contentHeight
 	if maxScroll < 0 {
 		maxScroll = 0
 	}

@@ -353,7 +353,59 @@ INSERT INTO orders.items VALUES ("O013", 2, "P007", "USB Cable", 1, 10.00, 10.00
 INSERT INTO orders.items VALUES ("O014", 1, "P013", "Backpack", 1, 60.00, 60.00);
 INSERT INTO orders.items VALUES ("O015", 1, "P014", "Water Bottle", 1, 20.00, 20.00);
 
--- インデックス作成
+-- Test table for large JSON data
+CREATE TABLE IF NOT EXISTS big_json_data (
+    id INTEGER,
+    name STRING,
+    small_json JSON,
+    medium_json JSON,
+    large_json JSON,
+    array_json JSON,
+    nested_json JSON,
+    PRIMARY KEY(id)
+);
+
+-- Sample data: Large JSON (5 records)
+INSERT INTO big_json_data VALUES (1, "Small JSON test", {"key": "value"}, NULL, NULL, NULL, NULL);
+INSERT INTO big_json_data VALUES (2, "Medium JSON test", NULL, {"user": {"name": "Alice", "email": "alice@example.com", "profile": {"age": 30, "city": "San Francisco", "country": "USA", "interests": ["coding", "reading", "hiking"]}}}, NULL, NULL, NULL);
+INSERT INTO big_json_data VALUES (3, "Large JSON test", NULL, NULL, {"company": {"name": "TechCorp Inc.", "founded": 2010, "employees": 500, "headquarters": {"address": "123 Tech Street", "city": "San Francisco", "state": "CA", "zip": "94102", "country": "USA"}, "departments": [{"name": "Engineering", "head": "John Smith", "employees": 200, "budget": 5000000}, {"name": "Marketing", "head": "Jane Doe", "employees": 50, "budget": 2000000}, {"name": "Sales", "head": "Bob Wilson", "employees": 100, "budget": 3000000}, {"name": "HR", "head": "Alice Johnson", "employees": 30, "budget": 1000000}], "products": [{"id": "P001", "name": "CloudSync Pro", "price": 99.99, "features": ["Real-time sync", "End-to-end encryption", "Multi-device support", "Offline access", "Team collaboration"]}, {"id": "P002", "name": "DataVault Enterprise", "price": 299.99, "features": ["Unlimited storage", "Advanced analytics", "Custom integrations", "Priority support", "SLA guarantee"]}], "financials": {"revenue": 50000000, "profit": 10000000, "growth_rate": 0.25}}}, NULL, NULL);
+INSERT INTO big_json_data VALUES (4, "Array JSON test", NULL, NULL, NULL, {"items": ["item1", "item2", "item3", "item4", "item5", "item6", "item7", "item8", "item9", "item10", "item11", "item12", "item13", "item14", "item15", "item16", "item17", "item18", "item19", "item20", "item21", "item22", "item23", "item24", "item25", "item26", "item27", "item28", "item29", "item30", "item31", "item32", "item33", "item34", "item35", "item36", "item37", "item38", "item39", "item40", "item41", "item42", "item43", "item44", "item45", "item46", "item47", "item48", "item49", "item50"], "numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50]}, NULL);
+
+-- Test table for wide string data
+CREATE TABLE IF NOT EXISTS wide_data (
+    id INTEGER,
+    short_text STRING,
+    medium_text STRING,
+    long_text STRING,
+    very_long_text STRING,
+    repeated_text STRING,
+    PRIMARY KEY(id)
+);
+
+-- Sample data: Wide strings
+INSERT INTO wide_data VALUES (1, "Short", "This is a medium length text string for testing purposes.", "This is a longer text string that contains more characters and should test the horizontal scrolling capability of the data pane when displaying wide content in the grid view.", "This is a very long text string that is designed to test the extreme horizontal scrolling capabilities of the application. It contains a lot of text that will definitely exceed the normal display width of most terminal windows. The purpose of this test data is to ensure that users can scroll horizontally to see all the content even when it extends far beyond the visible area. This kind of long text might appear in description fields, log messages, or other free-form text data stored in the database.", "ABCDEFGHIJ ABCDEFGHIJ ABCDEFGHIJ ABCDEFGHIJ ABCDEFGHIJ ABCDEFGHIJ ABCDEFGHIJ ABCDEFGHIJ ABCDEFGHIJ ABCDEFGHIJ");
+INSERT INTO wide_data VALUES (2, "Test", "Another medium text.", "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.", "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.", "1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890");
+INSERT INTO wide_data VALUES (3, "Data", "Sample text here.", "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!", "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump! Sphinx of black quartz, judge my vow. Two driven jocks help fax my big quiz. The five boxing wizards jump quickly. Jackdaws love my big sphinx of quartz. We promptly judged antique ivory buckles for the next prize.", "!@#$%^&*() !@#$%^&*() !@#$%^&*() !@#$%^&*() !@#$%^&*() !@#$%^&*() !@#$%^&*() !@#$%^&*() !@#$%^&*() !@#$%^&*()");
+
+-- Test table for nested JSON data
+CREATE TABLE IF NOT EXISTS nested_json (
+    id INTEGER,
+    name STRING,
+    data JSON,
+    PRIMARY KEY(id)
+);
+
+-- Sample data: Nested JSON structures
+INSERT INTO nested_json VALUES (1, "Simple object", {"name": "Alice", "age": 30});
+INSERT INTO nested_json VALUES (2, "Nested object", {"user": {"name": "Bob", "profile": {"age": 25, "city": "Tokyo"}}});
+INSERT INTO nested_json VALUES (3, "Array of objects", {"users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}, {"id": 3, "name": "Charlie"}]});
+INSERT INTO nested_json VALUES (4, "Deep nesting", {"level1": {"level2": {"level3": {"level4": {"level5": {"value": "deep"}}}}}});
+INSERT INTO nested_json VALUES (5, "Mixed types", {"string": "hello", "number": 42, "float": 3.14, "boolean": true, "null_val": null, "array": [1, 2, 3], "object": {"key": "value"}});
+INSERT INTO nested_json VALUES (6, "Complex structure", {"company": {"name": "TechCorp", "employees": [{"id": 1, "name": "Alice", "department": {"name": "Engineering", "manager": {"name": "Bob", "level": 3}}}, {"id": 2, "name": "Charlie", "department": {"name": "Sales", "manager": {"name": "Diana", "level": 2}}}], "locations": [{"city": "Tokyo", "country": "Japan"}, {"city": "New York", "country": "USA"}]}});
+INSERT INTO nested_json VALUES (7, "Long strings in nested", {"article": {"title": "Understanding Database Design Patterns for Modern Applications", "author": {"name": "Dr. Jane Smith", "bio": "Dr. Jane Smith is a renowned database architect with over 20 years of experience in designing scalable systems for Fortune 500 companies. She has authored multiple books on database optimization and speaks regularly at international conferences."}, "content": {"introduction": "In this comprehensive guide, we will explore the fundamental principles of database design that every software engineer should understand. From normalization to denormalization, from ACID compliance to eventual consistency, we cover it all.", "sections": [{"title": "Chapter 1: The Basics", "body": "Database design is both an art and a science. It requires understanding not just the technical aspects but also the business requirements and user behavior patterns that will drive the system."}, {"title": "Chapter 2: Advanced Patterns", "body": "Once you have mastered the basics, it is time to explore advanced patterns such as event sourcing, CQRS, and materialized views. These patterns can significantly improve performance and maintainability of your applications."}], "conclusion": "By following the principles outlined in this guide, you will be well-equipped to design databases that are both performant and maintainable. Remember that the best database design is one that evolves with your application needs."}}});
+INSERT INTO nested_json VALUES (8, "Array with long items", {"logs": [{"timestamp": "2024-01-15T10:30:00Z", "level": "ERROR", "message": "Failed to connect to database server at db.example.com:5432. Connection timed out after 30 seconds. Please check network connectivity and firewall rules.", "stacktrace": "at ConnectionPool.getConnection(ConnectionPool.java:142) at DatabaseService.query(DatabaseService.java:89) at UserRepository.findById(UserRepository.java:45)"}, {"timestamp": "2024-01-15T10:30:05Z", "level": "WARN", "message": "Retrying database connection. Attempt 2 of 5. Previous error: Connection refused. The server may be overloaded or temporarily unavailable.", "context": {"retry_count": 2, "max_retries": 5, "backoff_ms": 1000}}, {"timestamp": "2024-01-15T10:30:10Z", "level": "INFO", "message": "Successfully established database connection after 2 retry attempts. Connection pool initialized with 10 connections. Average connection time: 250ms."}]});
+
+-- Index creation
 CREATE INDEX IF NOT EXISTS email_idx ON users (email);
 CREATE INDEX IF NOT EXISTS name_idx ON users (name);
 CREATE INDEX IF NOT EXISTS category_idx ON products (category);
