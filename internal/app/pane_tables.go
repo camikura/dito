@@ -95,8 +95,10 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	}
 
 	leftBorder := borderStyle.Render("│")
-	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
+
+	// Create vertical scrollbar
+	vScrollBar := ui.NewVerticalScrollBar(len(contentLines), height, m.TablesScrollOffset, height)
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
@@ -104,6 +106,7 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	// Render content lines (fill allocated height with content or empty lines)
 	isFocused := m.CurrentPane == FocusPaneTables
 	for i := 0; i < height; i++ {
+		var line string
 		contentIndex := i + m.TablesScrollOffset
 		if contentIndex < len(contentLines) {
 			lineInfo := contentLines[contentIndex]
@@ -121,13 +124,16 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 			if paddingLen < 0 {
 				paddingLen = 0
 			}
-			line := styledText + strings.Repeat(" ", paddingLen)
-			result.WriteString(leftBorder + line + rightBorder + "\n")
+			line = styledText + strings.Repeat(" ", paddingLen)
 		} else {
 			// Empty line for remaining allocated height
-			emptyLine := strings.Repeat(" ", width-2)
-			result.WriteString(leftBorder + emptyLine + rightBorder + "\n")
+			line = strings.Repeat(" ", width-2)
 		}
+
+		// Get right border character (with scrollbar indicator)
+		rightBorderChar := vScrollBar.GetCharAt(i)
+		rightBorder := borderStyle.Render(rightBorderChar)
+		result.WriteString(leftBorder + line + rightBorder + "\n")
 	}
 
 	result.WriteString(bottomBorder)
@@ -277,8 +283,10 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 	}
 
 	leftBorder := borderStyle.Render("│")
-	rightBorder := borderStyle.Render("│")
 	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", width-2) + "╯")
+
+	// Create vertical scrollbar
+	vScrollBar := ui.NewVerticalScrollBar(len(contentLines), height, m.SchemaScrollOffset, height)
 
 	var result strings.Builder
 	result.WriteString(title + "\n")
@@ -411,12 +419,15 @@ func renderSchemaPaneWithHeight(m Model, width int, height int) string {
 					line = ui.StyleGrayText.Render(content) + strings.Repeat(" ", paddingLen)
 				}
 			}
-			result.WriteString(leftBorder + line + rightBorder + "\n")
 		} else {
 			// Empty line for remaining allocated height
-			emptyLine := strings.Repeat(" ", width-2)
-			result.WriteString(leftBorder + emptyLine + rightBorder + "\n")
+			line = strings.Repeat(" ", width-2)
 		}
+
+		// Get right border character (with scrollbar indicator)
+		rightBorderChar := vScrollBar.GetCharAt(i)
+		rightBorder := borderStyle.Render(rightBorderChar)
+		result.WriteString(leftBorder + line + rightBorder + "\n")
 	}
 
 	result.WriteString(bottomBorder)
