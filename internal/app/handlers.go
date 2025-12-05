@@ -371,39 +371,53 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
-	case tea.KeyLeft:
+	case tea.KeyLeft, tea.KeyCtrlB:
+		// Move cursor left (Ctrl+B: Emacs style)
 		if m.SQLCursorPos > 0 {
 			m.SQLCursorPos--
 			m.SQLScrollOffset = updateSQLScrollOffset(m)
 		}
 		return m, nil
 
-	case tea.KeyRight:
+	case tea.KeyRight, tea.KeyCtrlF:
+		// Move cursor right (Ctrl+F: Emacs style)
 		if m.SQLCursorPos < ui.RuneLen(m.CurrentSQL) {
 			m.SQLCursorPos++
 			m.SQLScrollOffset = updateSQLScrollOffset(m)
 		}
 		return m, nil
 
-	case tea.KeyUp:
-		// Move cursor up one line
+	case tea.KeyUp, tea.KeyCtrlP:
+		// Move cursor up one line (Ctrl+P: Emacs style)
 		m.SQLCursorPos = moveCursorUpInText(m.CurrentSQL, m.SQLCursorPos)
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
-	case tea.KeyDown:
-		// Move cursor down one line
+	case tea.KeyDown, tea.KeyCtrlN:
+		// Move cursor down one line (Ctrl+N: Emacs style)
 		m.SQLCursorPos = moveCursorDownInText(m.CurrentSQL, m.SQLCursorPos)
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
-	case tea.KeyHome, tea.KeyCtrlA:
+	case tea.KeyHome:
 		m.SQLCursorPos = 0
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
-	case tea.KeyEnd, tea.KeyCtrlE:
+	case tea.KeyEnd:
 		m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
+		return m, nil
+
+	case tea.KeyCtrlA:
+		// Emacs: move to beginning of current line
+		m.SQLCursorPos = moveCursorToLineStart(m.CurrentSQL, m.SQLCursorPos)
+		m.SQLScrollOffset = updateSQLScrollOffset(m)
+		return m, nil
+
+	case tea.KeyCtrlE:
+		// Emacs: move to end of current line
+		m.SQLCursorPos = moveCursorToLineEnd(m.CurrentSQL, m.SQLCursorPos)
 		m.SQLScrollOffset = updateSQLScrollOffset(m)
 		return m, nil
 
