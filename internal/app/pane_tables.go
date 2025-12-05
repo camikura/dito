@@ -8,10 +8,6 @@ import (
 	"github.com/camikura/dito/internal/ui"
 )
 
-func renderTablesPane(m Model, width int) string {
-	return renderTablesPaneWithHeight(m, width, 12)
-}
-
 func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	borderStyle := ui.StyleBorderInactive
 	titleStyle := ui.StyleTitleInactive
@@ -139,10 +135,6 @@ func renderTablesPaneWithHeight(m Model, width int, height int) string {
 	result.WriteString(bottomBorder)
 
 	return result.String()
-}
-
-func renderSchemaPane(m Model, width int) string {
-	return renderSchemaPaneWithHeight(m, width, 12)
 }
 
 func renderSchemaPaneWithHeight(m Model, width int, height int) string {

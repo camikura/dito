@@ -26,43 +26,14 @@ func RenderView(m Model) string {
 	}
 
 	// Layout configuration
-	// Left pane renders with borders included in leftPaneContentWidth
 	leftPaneContentWidth := ui.LeftPaneContentWidth
 	rightPaneActualWidth := m.Width - leftPaneContentWidth
 
 	// Render connection pane first to get its actual height
 	connectionPane := renderConnectionPane(m, leftPaneContentWidth)
-	connectionPaneHeight := strings.Count(connectionPane, "\n") + 1 // Count actual lines
 
-	// Calculate pane heights based on actual connection pane height
-	// This ensures heights are always correct even if connection pane height changes
-	availableHeight := m.Height - 1 - connectionPaneHeight - 6
-	partHeight := availableHeight / ui.PaneHeightTotalParts
-	remainder := availableHeight % ui.PaneHeightTotalParts
-
-	tablesHeight := partHeight * ui.PaneHeightTablesParts
-	schemaHeight := partHeight * ui.PaneHeightSchemaParts
-	sqlHeight := partHeight * ui.PaneHeightSQLParts
-
-	// Distribute remainder
-	ui.DistributeSpace(remainder, &tablesHeight, &schemaHeight, &sqlHeight)
-
-	// Ensure minimum heights
-	if tablesHeight < 3 {
-		tablesHeight = 3
-	}
-	if schemaHeight < 3 {
-		schemaHeight = 3
-	}
-	if sqlHeight < 2 {
-		sqlHeight = 2
-	}
-
-	// After applying minimum heights, redistribute unused space
-	usedHeight := tablesHeight + schemaHeight + sqlHeight
-	if usedHeight < availableHeight {
-		ui.DistributeSpace(availableHeight-usedHeight, &tablesHeight, &schemaHeight, &sqlHeight)
-	}
+	// Calculate pane heights using shared utility
+	tablesHeight, schemaHeight, sqlHeight := calculatePaneHeights(m)
 
 	// Render remaining panes with calculated heights
 	tablesPane := renderTablesPaneWithHeight(m, leftPaneContentWidth, tablesHeight)

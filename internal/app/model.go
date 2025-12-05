@@ -167,3 +167,63 @@ func (m Model) FindTableIndex(name string) int {
 	}
 	return -1
 }
+
+// HasValidSelectedTable returns true if SelectedTable points to a valid table.
+func (m Model) HasValidSelectedTable() bool {
+	return m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables)
+}
+
+// HasValidCursorTable returns true if CursorTable points to a valid table.
+func (m Model) HasValidCursorTable() bool {
+	return m.CursorTable >= 0 && m.CursorTable < len(m.Tables)
+}
+
+// SelectedTableName returns the name of the selected table, or empty string if none.
+func (m Model) SelectedTableName() string {
+	if !m.HasValidSelectedTable() {
+		return ""
+	}
+	return m.Tables[m.SelectedTable]
+}
+
+// CursorTableName returns the name of the table under cursor, or empty string if none.
+func (m Model) CursorTableName() string {
+	if !m.HasValidCursorTable() {
+		return ""
+	}
+	return m.Tables[m.CursorTable]
+}
+
+// GetTableDetails returns the table details for the given table name, or nil if not found.
+func (m Model) GetTableDetails(tableName string) *db.TableDetailsResult {
+	if tableName == "" {
+		return nil
+	}
+	details, exists := m.TableDetails[tableName]
+	if !exists || details == nil {
+		return nil
+	}
+	return details
+}
+
+// GetTableData returns the table data for the given table name, or nil if not found.
+func (m Model) GetTableData(tableName string) *db.TableDataResult {
+	if tableName == "" {
+		return nil
+	}
+	data, exists := m.TableData[tableName]
+	if !exists || data == nil {
+		return nil
+	}
+	return data
+}
+
+// GetSelectedTableData returns the data for the selected table, or nil if none.
+func (m Model) GetSelectedTableData() *db.TableDataResult {
+	return m.GetTableData(m.SelectedTableName())
+}
+
+// GetSelectedTableDetails returns the details for the selected table, or nil if none.
+func (m Model) GetSelectedTableDetails() *db.TableDetailsResult {
+	return m.GetTableDetails(m.SelectedTableName())
+}

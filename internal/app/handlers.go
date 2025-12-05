@@ -297,13 +297,10 @@ func handleTablesKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 func handleSchemaKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	// Determine which table schema is displayed (same logic as view)
-	var schemaTableName string
-	if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-		schemaTableName = m.Tables[m.SelectedTable]
-	} else if m.CursorTable < len(m.Tables) {
-		schemaTableName = m.Tables[m.CursorTable]
+	schemaTableName := m.SelectedTableName()
+	if schemaTableName == "" {
+		schemaTableName = m.CursorTableName()
 	}
-
 	if schemaTableName == "" {
 		return m, nil
 	}
@@ -380,8 +377,8 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 		// Fall back to selected table if no table name in SQL
-		if tableName == "" && m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-			tableName = m.Tables[m.SelectedTable]
+		if tableName == "" {
+			tableName = m.SelectedTableName()
 		}
 
 		if tableName != "" {
@@ -488,303 +485,11 @@ func handleSQLKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
-	// Get total row count for current table
-	var totalRows int
-	if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-		tableName := m.Tables[m.SelectedTable]
-		if data, exists := m.TableData[tableName]; exists && data != nil {
-			totalRows = len(data.Rows)
-		}
-	}
-
-	// Calculate visible lines for data rows
-	// Data pane structure: title(1) + content lines + bottom(1)
-	// Content lines = header(1) + separator(1) + data rows
-	// contentLines = m.Height - 1(footer) - 2(title+bottom) = m.Height - 3
-	contentLines := m.Height - 3
-	if contentLines < 5 {
-		contentLines = 5
-	}
-	// Data visible lines = content lines - 2 (header + separator)
-	dataVisibleLines := contentLines - 2
-	if dataVisibleLines < 1 {
-		dataVisibleLines = 1
-	}
-
-	// Calculate max horizontal offset
-	maxHorizontalOffset := calculateMaxHorizontalOffset(m)
-
-	// Calculate maximum viewport offset
-	maxViewportOffset := totalRows - dataVisibleLines
-	if maxViewportOffset < 0 {
-		maxViewportOffset = 0
-	}
-
-	// Handle M-< and M-> (Alt+Shift+, and Alt+Shift+.)
-	// On Mac, these produce special characters: ¯ (175) and ˘ (728)
-	switch msg.String() {
-	case "alt+<", "¯":
-		// Jump to first row
-		m.SelectedDataRow = 0
-		m.ViewportOffset = 0
-		return m, nil
-
-	case "alt+>", "˘":
-		// Jump to last row, keeping cursor at center of screen (VS Code style)
-		if totalRows > 0 {
-			m.SelectedDataRow = totalRows - 1
-
-			// Calculate middle position of visible area
-			middlePosition := dataVisibleLines / 2
-
-			// Set viewport so cursor appears at center
-			// This leaves empty space below if at end of data
-			m.ViewportOffset = m.SelectedDataRow - middlePosition
-			if m.ViewportOffset < 0 {
-				m.ViewportOffset = 0
-			}
-
-			// Check if we need to fetch more data
-			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-				tableName := m.Tables[m.SelectedTable]
-				if data, exists := m.TableData[tableName]; exists && data != nil {
-					if data.HasMore && !m.LoadingData {
-						// Custom SQL uses OFFSET pagination
-						if data.IsCustomSQL && data.CurrentSQL != "" {
-							m.LoadingData = true
-							return m, db.FetchMoreCustomSQL(m.NosqlClient, tableName, data.CurrentSQL, ui.DefaultFetchSize, data.Offset)
-						}
-						// Standard queries use PRIMARY KEY cursor pagination
-						if data.LastPKValues != nil {
-							m.LoadingData = true
-							var primaryKeys []string
-							if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
-								primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-							}
-							return m, db.FetchMoreTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
-						}
-					}
-				}
-			}
-		}
-		return m, nil
-	}
-
-	switch msg.Type {
-	case tea.KeyUp, tea.KeyCtrlP:
-		if m.SelectedDataRow > 0 {
-			m.SelectedDataRow--
-
-			// Calculate middle position of visible area
-			middlePosition := dataVisibleLines / 2
-
-			// Scrolling logic: keep cursor at middle of screen (VS Code style)
-			if m.SelectedDataRow > middlePosition {
-				m.ViewportOffset = m.SelectedDataRow - middlePosition
-			} else {
-				m.ViewportOffset = 0
-			}
-		}
-		return m, nil
-
-	case tea.KeyDown, tea.KeyCtrlN:
-		if totalRows > 0 && m.SelectedDataRow < totalRows-1 {
-			m.SelectedDataRow++
-
-			// Calculate middle position of visible area
-			middlePosition := dataVisibleLines / 2
-
-			// Scrolling logic: keep cursor at middle of screen (VS Code style)
-			// This allows scrolling past the last row to show empty space below
-			if m.SelectedDataRow > middlePosition {
-				m.ViewportOffset = m.SelectedDataRow - middlePosition
-			}
-
-			// Check if we need to fetch more data
-			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-				tableName := m.Tables[m.SelectedTable]
-				if data, exists := m.TableData[tableName]; exists && data != nil {
-					remainingRows := totalRows - m.SelectedDataRow - 1
-					if remainingRows <= ui.FetchMoreThreshold && data.HasMore && !m.LoadingData {
-						// Custom SQL uses OFFSET pagination
-						if data.IsCustomSQL && data.CurrentSQL != "" {
-							m.LoadingData = true
-							return m, db.FetchMoreCustomSQL(m.NosqlClient, tableName, data.CurrentSQL, ui.DefaultFetchSize, data.Offset)
-						}
-						// Standard queries use PRIMARY KEY cursor pagination
-						if data.LastPKValues != nil {
-							m.LoadingData = true
-							var primaryKeys []string
-							if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil && details.Schema.DDL != "" {
-								primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
-							}
-							return m, db.FetchMoreTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
-						}
-					}
-				}
-			}
-		}
-		return m, nil
-
-	case tea.KeyLeft, tea.KeyCtrlB:
-		if m.HorizontalOffset > 0 {
-			m.HorizontalOffset--
-		}
-		return m, nil
-
-	case tea.KeyRight, tea.KeyCtrlF:
-		if m.HorizontalOffset < maxHorizontalOffset {
-			m.HorizontalOffset++
-		}
-		return m, nil
-
-	case tea.KeyEnter:
-		// Show record detail dialog
-		if totalRows > 0 && m.SelectedDataRow < totalRows {
-			m.RecordDetailVisible = true
-			m.RecordDetailScroll = 0
-		}
-		return m, nil
-
-	case tea.KeyEscape:
-		// Reset to default SQL (only if custom SQL is active)
-		if m.CustomSQL {
-			m.CustomSQL = false
-			m.ColumnOrder = nil
-			m.SelectedDataRow = 0
-			m.ViewportOffset = 0
-			m.HorizontalOffset = 0
-			m.SchemaErrorMsg = ""
-			m.DataErrorMsg = ""
-
-			// Reload data with default SQL if a table is selected
-			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
-				tableName := m.Tables[m.SelectedTable]
-
-				var ddl string
-				var primaryKeys []string
-				if details, exists := m.TableDetails[tableName]; exists && details != nil && details.Schema != nil {
-					ddl = details.Schema.DDL
-					primaryKeys = ui.ParsePrimaryKeysFromDDL(ddl)
-				}
-
-				m.CurrentSQL = buildDefaultSQL(tableName, ddl)
-				m.SQLCursorPos = ui.RuneLen(m.CurrentSQL)
-				return m, db.FetchTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys)
-			}
-			m.CurrentSQL = ""
-			m.SQLCursorPos = 0
-		}
-		return m, nil
-
-	case tea.KeyCtrlA:
-		// Scroll to leftmost
-		m.HorizontalOffset = 0
-		return m, nil
-
-	case tea.KeyCtrlE:
-		// Scroll to rightmost
-		m.HorizontalOffset = maxHorizontalOffset
-		return m, nil
-	}
-
-	return m, nil
-}
-
-// handleDataCopy copies the selected row to clipboard
-func handleDataCopy(m Model) (Model, tea.Cmd) {
-	// Get selected row data
-	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
-		return m, nil
-	}
-
-	tableName := m.Tables[m.SelectedTable]
-	data, exists := m.TableData[tableName]
-	if !exists || data == nil || len(data.Rows) == 0 {
-		return m, nil
-	}
-
-	if m.SelectedDataRow < 0 || m.SelectedDataRow >= len(data.Rows) {
-		return m, nil
-	}
-
-	row := data.Rows[m.SelectedDataRow]
-
-	// Get column order to match display order
-	columnOrder := getColumnsInSchemaOrder(m, tableName, data.Rows)
-
-	err := ui.CopyRowToClipboard(row, columnOrder)
-	if err != nil {
-		m.CopyMessage = "Copy failed: " + err.Error()
-	} else {
-		m.CopyMessage = "Copied to clipboard"
-	}
-
-	// Clear message after a short delay using a timer command
-	return m, tea.Tick(ui.CopyMessageDuration, func(_ time.Time) tea.Msg {
-		return clearCopyMessageMsg{}
-	})
-}
-
 // clearCopyMessageMsg is sent to clear the copy message
 type clearCopyMessageMsg struct{}
 
 // clearQuitConfirmationMsg is sent to clear the quit confirmation state
 type clearQuitConfirmationMsg struct{}
-
-func handleRecordDetailKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
-	// Calculate max scroll for record detail
-	maxScroll := calculateRecordDetailMaxScroll(m)
-
-	switch msg.Type {
-	case tea.KeyCtrlC:
-		return m, tea.Quit
-
-	case tea.KeyEscape:
-		m.RecordDetailVisible = false
-		m.RecordDetailScroll = 0
-		return m, nil
-
-	case tea.KeyUp, tea.KeyCtrlP:
-		if m.RecordDetailScroll > 0 {
-			m.RecordDetailScroll--
-		}
-		return m, nil
-
-	case tea.KeyDown, tea.KeyCtrlN:
-		if m.RecordDetailScroll < maxScroll {
-			m.RecordDetailScroll++
-		}
-		return m, nil
-
-	case tea.KeyHome:
-		m.RecordDetailScroll = 0
-		return m, nil
-
-	case tea.KeyEnd:
-		m.RecordDetailScroll = maxScroll
-		return m, nil
-
-	case tea.KeyPgUp:
-		// Scroll up by page
-		m.RecordDetailScroll -= ui.PageScrollAmount
-		if m.RecordDetailScroll < 0 {
-			m.RecordDetailScroll = 0
-		}
-		return m, nil
-
-	case tea.KeyPgDown:
-		// Scroll down by page
-		m.RecordDetailScroll += ui.PageScrollAmount
-		if m.RecordDetailScroll > maxScroll {
-			m.RecordDetailScroll = maxScroll
-		}
-		return m, nil
-	}
-
-	return m, nil
-}
 
 // handleMouseClick handles mouse click events for pane selection
 func handleMouseClick(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
@@ -814,14 +519,14 @@ func handleMouseClick(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 	// Connection pane is at the top, height varies but typically 5 lines
 	connectionHeight := m.ConnectionPaneHeight
 	if connectionHeight == 0 {
-		connectionHeight = 5
+		connectionHeight = ui.DefaultConnectionPaneHeight
 	}
 
 	// Calculate pane boundaries (including borders)
 	connectionEnd := connectionHeight
-	tablesEnd := connectionEnd + m.TablesHeight + 2    // +2 for borders
-	schemaEnd := tablesEnd + m.SchemaHeight + 2        // +2 for borders
-	sqlEnd := schemaEnd + m.SQLHeight + 2              // +2 for borders
+	tablesEnd := connectionEnd + m.TablesHeight + ui.PaneBorderHeight
+	schemaEnd := tablesEnd + m.SchemaHeight + ui.PaneBorderHeight
+	sqlEnd := schemaEnd + m.SQLHeight + ui.PaneBorderHeight
 
 	// Determine which pane was clicked based on Y position
 	if y < connectionEnd {

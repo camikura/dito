@@ -11,7 +11,7 @@ func TestRenderSQLPane(t *testing.T) {
 		m.CurrentPane = FocusPaneSQL
 		m.CurrentSQL = ""
 
-		result := renderSQLPane(m, 40)
+		result := renderSQLPaneWithHeight(m, 40, 5)
 
 		// Should have border characters
 		if !strings.Contains(result, "╭") || !strings.Contains(result, "╯") {
@@ -23,7 +23,7 @@ func TestRenderSQLPane(t *testing.T) {
 		m := InitialModel()
 		m.CurrentSQL = "SELECT * FROM users"
 
-		result := renderSQLPane(m, 40)
+		result := renderSQLPaneWithHeight(m, 40, 5)
 
 		if !strings.Contains(result, "SELECT") {
 			t.Error("Expected SQL content in output")
@@ -35,7 +35,7 @@ func TestRenderSQLPane(t *testing.T) {
 		m.CustomSQL = true
 		m.CurrentSQL = "SELECT id FROM users"
 
-		result := renderSQLPane(m, 40)
+		result := renderSQLPaneWithHeight(m, 40, 5)
 
 		if !strings.Contains(result, "Custom") {
 			t.Error("Expected 'Custom' label in output")
@@ -74,7 +74,7 @@ func TestRenderSQLPane(t *testing.T) {
 		m.CurrentSQL = "SELECT"
 		m.SQLCursorPos = 3
 
-		result := renderSQLPane(m, 40)
+		result := renderSQLPaneWithHeight(m, 40, 5)
 
 		// Should render without error
 		if !strings.Contains(result, "SQL") {

@@ -13,7 +13,7 @@ func TestRenderTablesPane(t *testing.T) {
 		m := InitialModel()
 		m.Tables = []string{}
 
-		result := renderTablesPane(m, 30)
+		result := renderTablesPaneWithHeight(m, 30, 10)
 
 		if !strings.Contains(result, "No tables") {
 			t.Error("Expected 'No tables' in output")
@@ -24,7 +24,7 @@ func TestRenderTablesPane(t *testing.T) {
 		m := InitialModel()
 		m.Tables = []string{"users", "products"}
 
-		result := renderTablesPane(m, 30)
+		result := renderTablesPaneWithHeight(m, 30, 10)
 
 		if !strings.Contains(result, "users") {
 			t.Error("Expected 'users' in output")
@@ -39,7 +39,7 @@ func TestRenderTablesPane(t *testing.T) {
 		m.Tables = []string{"users", "products"}
 		m.SelectedTable = 0
 
-		result := renderTablesPane(m, 30)
+		result := renderTablesPaneWithHeight(m, 30, 10)
 
 		if !strings.Contains(result, "*") {
 			t.Error("Expected selection marker '*' in output")
@@ -50,7 +50,7 @@ func TestRenderTablesPane(t *testing.T) {
 		m := InitialModel()
 		m.Tables = []string{"users", "products", "orders"}
 
-		result := renderTablesPane(m, 30)
+		result := renderTablesPaneWithHeight(m, 30, 10)
 
 		if !strings.Contains(result, "Tables") {
 			t.Error("Expected 'Tables' in title")
@@ -75,7 +75,7 @@ func TestRenderSchemaPane(t *testing.T) {
 		m := InitialModel()
 		m.SelectedTable = -1
 
-		result := renderSchemaPane(m, 30)
+		result := renderSchemaPaneWithHeight(m, 30, 10)
 
 		if !strings.Contains(result, "Select a table") {
 			t.Error("Expected 'Select a table' in output")
@@ -88,7 +88,7 @@ func TestRenderSchemaPane(t *testing.T) {
 		m.SelectedTable = 0
 		m.TableDetails = make(map[string]*db.TableDetailsResult)
 
-		result := renderSchemaPane(m, 30)
+		result := renderSchemaPaneWithHeight(m, 30, 10)
 
 		if !strings.Contains(result, "Loading") {
 			t.Error("Expected 'Loading' in output")
@@ -101,7 +101,7 @@ func TestRenderSchemaPane(t *testing.T) {
 		m.SelectedTable = 0
 		m.SchemaErrorMsg = "Failed to load schema"
 
-		result := renderSchemaPane(m, 30)
+		result := renderSchemaPaneWithHeight(m, 30, 10)
 
 		if !strings.Contains(result, "Failed to load schema") {
 			t.Error("Expected error message in output")
@@ -145,7 +145,7 @@ func TestRenderSchemaPane(t *testing.T) {
 			},
 		}
 
-		result := renderSchemaPane(m, 40)
+		result := renderSchemaPaneWithHeight(m, 40, 10)
 
 		if !strings.Contains(result, "Schema (users)") {
 			t.Error("Expected table name in schema title")
