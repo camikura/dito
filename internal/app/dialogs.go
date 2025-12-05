@@ -14,14 +14,13 @@ func renderRecordDetailDialog(m Model) string {
 		return ""
 	}
 
-	// Get the selected row
-	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+	tableName := m.SelectedTableName()
+	if tableName == "" {
 		return ""
 	}
 
-	tableName := m.Tables[m.SelectedTable]
-	data, exists := m.TableData[tableName]
-	if !exists || data == nil || len(data.Rows) == 0 {
+	data := m.GetSelectedTableData()
+	if data == nil || len(data.Rows) == 0 {
 		return ""
 	}
 
@@ -35,8 +34,8 @@ func renderRecordDetailDialog(m Model) string {
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
 	// Calculate dialog dimensions (80% of screen)
-	dialogWidth := m.Width * 4 / 5
-	dialogHeight := m.Height * 4 / 5
+	dialogWidth := m.Width * ui.DialogSizeRatio / ui.DialogSizeDivisor
+	dialogHeight := m.Height * ui.DialogSizeRatio / ui.DialogSizeDivisor
 
 	// Create record detail component
 	rd := ui.NewRecordDetail(ui.RecordDetailConfig{

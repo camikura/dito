@@ -3,8 +3,10 @@ package app
 import (
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/camikura/dito/internal/db"
 	"github.com/camikura/dito/internal/ui"
 )
 
@@ -135,16 +137,55 @@ func moveCursorDownInText(text string, cursorPos int) int {
 	return newPos
 }
 
+// fetchMoreDataIfNeeded checks if more data should be fetched and returns the command if so.
+// shouldFetch indicates whether the threshold condition is met (e.g., remaining rows <= threshold).
+// Returns nil if no fetch is needed.
+func fetchMoreDataIfNeeded(m Model, shouldFetch bool) tea.Cmd {
+	if m.LoadingData {
+		return nil
+	}
+
+	tableName := m.SelectedTableName()
+	if tableName == "" {
+		return nil
+	}
+
+	data := m.GetSelectedTableData()
+	if data == nil || !data.HasMore {
+		return nil
+	}
+
+	if !shouldFetch {
+		return nil
+	}
+
+	// Custom SQL uses OFFSET pagination
+	if data.IsCustomSQL && data.CurrentSQL != "" {
+		return db.FetchMoreCustomSQL(m.NosqlClient, tableName, data.CurrentSQL, ui.DefaultFetchSize, data.Offset)
+	}
+
+	// Standard queries use PRIMARY KEY cursor pagination
+	if data.LastPKValues != nil {
+		var primaryKeys []string
+		if details := m.GetSelectedTableDetails(); details != nil && details.Schema != nil && details.Schema.DDL != "" {
+			primaryKeys = ui.ParsePrimaryKeysFromDDL(details.Schema.DDL)
+		}
+		return db.FetchMoreTableData(m.NosqlClient, tableName, ui.DefaultFetchSize, primaryKeys, data.LastPKValues)
+	}
+
+	return nil
+}
+
 // calculateMaxHorizontalOffset calculates the maximum horizontal scroll offset
 // so that the rightmost column is visible at the right edge of the pane
 func calculateMaxHorizontalOffset(m Model) int {
-	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+	tableName := m.SelectedTableName()
+	if tableName == "" {
 		return 0
 	}
 
-	tableName := m.Tables[m.SelectedTable]
-	data, exists := m.TableData[tableName]
-	if !exists || data == nil || len(data.Rows) == 0 {
+	data := m.GetSelectedTableData()
+	if data == nil || len(data.Rows) == 0 {
 		return 0
 	}
 
@@ -169,13 +210,13 @@ func calculateMaxHorizontalOffset(m Model) int {
 
 // calculateRecordDetailMaxScroll calculates the maximum scroll position for record detail dialog
 func calculateRecordDetailMaxScroll(m Model) int {
-	if m.SelectedTable < 0 || m.SelectedTable >= len(m.Tables) {
+	tableName := m.SelectedTableName()
+	if tableName == "" {
 		return 0
 	}
 
-	tableName := m.Tables[m.SelectedTable]
-	data, exists := m.TableData[tableName]
-	if !exists || data == nil || m.SelectedDataRow >= len(data.Rows) {
+	data := m.GetSelectedTableData()
+	if data == nil || m.SelectedDataRow >= len(data.Rows) {
 		return 0
 	}
 
@@ -185,8 +226,8 @@ func calculateRecordDetailMaxScroll(m Model) int {
 	columns := getColumnsInSchemaOrder(m, tableName, data.Rows)
 
 	// Calculate dialog dimensions (must match dialogs.go)
-	dialogWidth := m.Width * 4 / 5
-	dialogHeight := m.Height * 4 / 5
+	dialogWidth := m.Width * ui.DialogSizeRatio / ui.DialogSizeDivisor
+	dialogHeight := m.Height * ui.DialogSizeRatio / ui.DialogSizeDivisor
 	contentWidth := dialogWidth - 2 // borders
 	innerWidth := contentWidth - 2  // padding (1 on each side)
 	contentHeight := dialogHeight - 2
@@ -227,7 +268,7 @@ func calculatePaneHeights(m Model) (tablesHeight, schemaHeight, sqlHeight int) {
 	connectionPane := renderConnectionPane(m, ui.LeftPaneContentWidth)
 	connectionPaneHeight := strings.Count(connectionPane, "\n") + 1
 
-	availableHeight := m.Height - 1 - connectionPaneHeight - 6
+	availableHeight := m.Height - ui.FooterHeight - connectionPaneHeight - ui.LayoutBorderOverhead
 	partHeight := availableHeight / ui.PaneHeightTotalParts
 
 	tablesHeight = partHeight * ui.PaneHeightTablesParts

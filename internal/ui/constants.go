@@ -18,6 +18,32 @@ const (
 
 	// ConnectionDialogWidth is the width of the connection setup dialog.
 	ConnectionDialogWidth = 60
+
+	// DialogSizeRatio is the ratio of dialog size to screen size (4/5 = 80%).
+	DialogSizeRatio   = 4
+	DialogSizeDivisor = 5
+
+	// LayoutBorderOverhead is the total vertical space taken by borders in the left pane layout.
+	// Tables(2) + Schema(2) + SQL(2) = 6
+	LayoutBorderOverhead = 6
+
+	// FooterHeight is the height of the footer.
+	FooterHeight = 1
+
+	// DataPaneHeaderLines is the number of lines for header + separator in data pane.
+	DataPaneHeaderLines = 2
+
+	// DataPaneTitleAndBorderLines is the number of lines for title + borders in data pane.
+	DataPaneTitleAndBorderLines = 3
+
+	// MinContentLines is the minimum number of content lines in data pane.
+	MinContentLines = 5
+
+	// DefaultConnectionPaneHeight is the default height for connection pane.
+	DefaultConnectionPaneHeight = 5
+
+	// PaneBorderHeight is the height of borders for each pane.
+	PaneBorderHeight = 2
 )
 
 // Data loading constants

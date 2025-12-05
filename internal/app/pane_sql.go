@@ -8,10 +8,6 @@ import (
 	"github.com/camikura/dito/internal/ui"
 )
 
-func renderSQLPane(m Model, width int) string {
-	return renderSQLPaneWithHeight(m, width, 6)
-}
-
 func renderSQLPaneWithHeight(m Model, width int, height int) string {
 	isFocused := m.CurrentPane == FocusPaneSQL
 	borderStyle := ui.StyleBorderInactive
