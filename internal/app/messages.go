@@ -161,8 +161,6 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 					newViewportOffset = 0
 				}
 				m.ViewportOffset = newViewportOffset
-				// Flag to keep cursor at bottom for next scroll action
-				m.KeepCursorAtBottom = true
 			}
 		}
 	} else {
