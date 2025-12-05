@@ -515,10 +515,19 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case "alt+>", "˘":
-		// Jump to last row
+		// Jump to last row, keeping cursor at center of screen (VS Code style)
 		if totalRows > 0 {
 			m.SelectedDataRow = totalRows - 1
-			m.ViewportOffset = maxViewportOffset
+
+			// Calculate middle position of visible area
+			middlePosition := dataVisibleLines / 2
+
+			// Set viewport so cursor appears at center
+			// This leaves empty space below if at end of data
+			m.ViewportOffset = m.SelectedDataRow - middlePosition
+			if m.ViewportOffset < 0 {
+				m.ViewportOffset = 0
+			}
 
 			// Check if we need to fetch more data
 			if m.SelectedTable >= 0 && m.SelectedTable < len(m.Tables) {
@@ -576,16 +585,13 @@ func handleDataKeys(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		if totalRows > 0 && m.SelectedDataRow < totalRows-1 {
 			m.SelectedDataRow++
 
-			// Calculate cursor position on screen (0-based from top of data area)
-			cursorScreenPos := m.SelectedDataRow - m.ViewportOffset
+			// Calculate middle position of visible area
+			middlePosition := dataVisibleLines / 2
 
-			// Scrolling logic:
-			// If cursor would go off screen, scroll to keep it visible at bottom
-			if cursorScreenPos >= dataVisibleLines && m.ViewportOffset < maxViewportOffset {
-				m.ViewportOffset++
-				if m.ViewportOffset > maxViewportOffset {
-					m.ViewportOffset = maxViewportOffset
-				}
+			// Scrolling logic: keep cursor at middle of screen (VS Code style)
+			// This allows scrolling past the last row to show empty space below
+			if m.SelectedDataRow > middlePosition {
+				m.ViewportOffset = m.SelectedDataRow - middlePosition
 			}
 
 			// Check if we need to fetch more data

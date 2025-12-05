@@ -133,35 +133,14 @@ func handleTableDataResult(m Model, msg db.TableDataResult) (Model, tea.Cmd) {
 	// If this is an append operation (additional data fetch), merge with existing data
 	if msg.IsAppend {
 		if existingData, exists := m.TableData[msg.TableName]; exists && existingData != nil {
-			// Remember if cursor was at the last row before append
-			wasAtLastRow := m.SelectedDataRow == len(existingData.Rows)-1
-
 			// Append new rows to existing rows
 			existingData.Rows = append(existingData.Rows, msg.Rows...)
 			// Update pagination info
 			existingData.LastPKValues = msg.LastPKValues
 			existingData.HasMore = msg.HasMore
 			existingData.Offset = msg.Offset
-
-			// If cursor was at the last row, keep viewport at bottom position
-			// so that the cursor stays at the bottom of the screen
-			if wasAtLastRow {
-				// Calculate visible lines for data rows
-				contentLines := m.Height - 3
-				if contentLines < 5 {
-					contentLines = 5
-				}
-				dataVisibleLines := contentLines - 2
-				if dataVisibleLines < 1 {
-					dataVisibleLines = 1
-				}
-				// Set viewport so cursor appears at bottom of visible area
-				newViewportOffset := m.SelectedDataRow - dataVisibleLines + 1
-				if newViewportOffset < 0 {
-					newViewportOffset = 0
-				}
-				m.ViewportOffset = newViewportOffset
-			}
+			// Viewport offset stays unchanged - cursor remains at center
+			// and new data appears below in the previously empty space
 		}
 	} else {
 		// Store new data
